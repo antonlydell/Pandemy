@@ -22,15 +22,20 @@ Placeholder: namedtuple('Placeholder', ['key', values', 'new_key'], defaults=(Tr
 
 # Standard Library
 import logging
+from pathlib import Path
+
 from abc import ABC, abstractmethod
 from collections import namedtuple
-from typing import Iterable, Optional, Union
+from typing import Any, Dict, Iterable, Optional, Union
 
 # Third Party
 import pandas as pd
 from sqlalchemy import create_engine
 from sqlalchemy.sql import text
 from sqlalchemy.exc import ArgumentError
+
+# Local
+import pandemy
 
 # ===============================================================
 # Set Logger
@@ -256,14 +261,14 @@ class DatabaseManager(ABC):
     def __repr__(self) -> str:
         """Debug representation of the object"""
 
-        # Get the attribute names of the class intance
-        attributes = self.__dict__.keys()
+        # Get the attribute names of the class instance
+        attributes = self.__dict__.items()
 
         # The name of the class
         repr_str = f'{self.__class__.__name__}('
 
-        # Append the attribute names
-        for attrib, value in attributes.items():
+        # Append the attribute names and values
+        for attrib, value in attributes:
             repr_str += f'\t{attrib}={value}, '
 
         # Remove last unwanted ', '
@@ -272,3 +277,227 @@ class DatabaseManager(ABC):
         repr_str += '\t)'
 
         return repr_str
+
+    def execute_statement(self, sql: Union[str, text], conn, params: Union[dict, list, None] = None):
+        """
+        Execute an SQL statement.
+
+        To process the result from the method the database connection must remain open.
+
+        See also
+        --------
+
+        https://docs.sqlalchemy.org/en/14/core/connections.html#sqlalchemy.engine.Connection.execute
+
+        https://docs.sqlalchemy.org/en/14/core/connections.html#sqlalchemy.engine.CursorResult
+
+        Parameters
+        ----------
+
+        sql: str or sqlalchemy.text
+            The SQL statement string to process.
+
+        conn: sqlalchemy database connection or None
+            An open connection to the database to use.
+            If None a connection to the database will be opened from the engine.
+
+        params: dict or list of dict, default None
+            Parameters to bind to the sql query using % or :name.
+            All params should be dicts or sequences of dicts as of SQLAlchemy 2.0
+
+        Returns
+        -------
+
+        sqlalchemy.engine.CursorResult
+            A result object from the statement.
+
+        Raises
+        ------
+
+        TypeError
+            If `sql` is not of type str or sqlalchemy.text.
+
+        pandemy.ExecuteStatementError
+            If an error occurs when executing the statement.
+        """
+
+        if isinstance(sql, str):
+            stmt = text(sql)
+        elif isinstance(sql, text):
+            stmt = sql
+        else:
+            raise TypeError(f'Invalid type {type(sql)} for sql. Expected str or sqlalchemy.text')
+
+        try:
+            if params is None:
+                return conn.execute(stmt)
+            else:
+                return conn.execute(stmt, params)  # Parameters to bind to the sql statement
+        except Exception as e:
+            raise pandemy.ExecuteStatementError(f'{type(e).__name__}: {e.args}', data=e.args) from None
+
+
+class SQLiteDb(DatabaseManager):
+    """
+    A SQLite database.
+
+    Reference
+    ---------
+
+    - https://docs.sqlalchemy.org/en/14/core/engines.html#sqlalchemy.create_engine
+
+    - https://docs.sqlalchemy.org/en/14/dialects/sqlite.html
+    """
+
+    def _set_validate_parameters(self, file: Union[str, Path],  must_exist: bool, statement: Optional[DbStatement],
+                                 engine_config: Optional[Dict[str, Any]]) -> None:
+        """
+        Validate the input parameters from `self.__init__` and set attributes on the instance.
+        """
+
+        # file
+        # =================================
+        if isinstance(file, Path) or file == ':memory:':
+            self.file = file
+        elif isinstance(file, str):
+            self.file = Path(file)
+        else:
+            raise TypeError('file must be a string or pathlib.Path. '
+                            f'Received: {file} {type(file)}')
+
+        # must_exist
+        # =================================
+        if isinstance(must_exist, bool):
+            self.must_exist = must_exist
+        else:
+            raise TypeError('must_exist must be a boolean '
+                            f'Received: {must_exist} {type(must_exist)}')
+
+        # statement
+        # =================================
+        if statement is None:
+            self.statement = statement
+        else:
+            try:
+                if issubclass(statement, DbStatement):  # Throws TypeError if statement is not a class
+                    self.statement = statement
+                    error = False
+                else:
+                    error = True
+            except TypeError:
+                error = True
+
+            if error:
+                raise TypeError('statement must be a subclass of DbStatement '
+                                f'Received: {statement} {type(statement)}') from None
+
+        # engine_config
+        # =================================
+        if engine_config is None or isinstance(engine_config, dict):
+            self.engine_config = engine_config
+        else:
+            raise TypeError('engine_config must be a dict '
+                            f'Received: {engine_config} {type(engine_config)}') from None
+
+    def _build_conn_str(self) -> None:
+        """
+        Build the database connection string and assgin it to `self.conn_str`.
+
+        Raises
+        ------
+
+        FileNotFoundError
+            If the database file `file` does not exist.
+        """
+
+        if self.file == ':memory:':  # Use an in memory database
+            self.conn_str = r'sqlite://'
+
+        else:  # Use a database on file
+            if not self.file.exists() and self.must_exist:
+                raise FileNotFoundError(f'file = {self.file} does not exist and '
+                                        f'and must_exist = {self.must_exist}. Cannot instantiate the SQLite database.')
+
+            self.conn_str = fr'sqlite:///{self.file}'
+
+    def _create_engine(self) -> None:
+        """
+        Create the databse engine and assign it to `self.engine`.
+
+        Parameters
+        ----------
+
+        config: dict
+            Additional key word arguments passed to the SQLAlchemy create_engine function.
+
+        Raises
+        ------
+
+        pandemy.CreateEngineError
+            If the creation of the Database engine fails.
+        """
+
+        try:
+            if self.engine_config is not None:
+                self.engine = create_engine(self.conn_str, **self.engine_config)
+            else:
+                self.engine = create_engine(self.conn_str)
+
+        except Exception as e:
+            raise pandemy.CreateEngineError(message=f'{type(e).__name__}: {e.args}', data=e.args) from None
+
+        else:
+            logger.debug(f'Successfully created database engine from conn_str: {self.conn_str}.')
+
+    def __init__(self, file: Union[str, Path] = ':memory:', must_exist: bool = True,
+                 statement: Optional[DbStatement] = None, engine_config: Optional[Dict[str, Any]] = None,
+                 **kwargs: dict) -> None:
+        """
+        Initialize the database instance.
+
+        Creates the connection string and the database engine.
+
+        Parameters
+        ----------
+
+        file: str or Path, default ':memory:'
+            The file (with path) to the SQLite database.
+            The default creates an in memory database.
+
+        must_exist: bool, default True
+            If True validate that file exists unless file = ':memory:'.
+            If it does not exist FileNotFoundError is raised.
+            If False the validation is omitted.
+
+        statement: DbStatement or None, default None
+            A DbStatement class that contains database statements that the SQLite database can use.
+
+        engine_config: dict or None
+            Additional key word arguments passed to the SQLAlchemy create_engine function.
+
+        **kwargs: dict
+            Additional key word arguments that are not used by SQLiteDb.
+            Allows unpacking a config dict as the parameters to SQLiteDb.
+
+        Raises
+        ------
+
+        TypeError
+            If invalid types are supplied to `file`, `must_exist` and `statement`.
+
+        FileNotFoundError
+            If the database file `file` does not exist.
+
+        pandemy.CreateEngineError
+            If the creation of the Database engine fails.
+        """
+
+        self._set_validate_parameters(file=file, must_exist=must_exist,
+                                      statement=statement, engine_config=engine_config)
+        self._build_conn_str()
+        self._create_engine()
+
+    def __str__(self):
+        """ String representation of the object """
+
+        return f'SQLiteDb(file={self.file}, must_exist={self.must_exist})'
