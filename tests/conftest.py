@@ -7,11 +7,35 @@ Fixtures for testing pandemy.
 # ===============================================================
 
 # Standard Library
+import io
 import shutil
 from pathlib import Path
 
 # Third Party
+import pandas as pd
 import pytest
+
+# Local
+import pandemy
+
+# ===============================================================
+# Constants
+# ===============================================================
+
+# The csv delimiter for reading DataFrames from io.StringIO
+CSV_DELIM = ';'
+
+# ===============================================================
+# DbStatements
+# ===============================================================
+
+
+class SQLiteDbStatement(pandemy.DbStatement):
+    """
+    Container of statements for testing the SQLite DatabaseManager.
+
+    The queries are used against the test database RSGeneralStore.db.
+    """
 
 # ===============================================================
 # Fixtures
@@ -27,7 +51,7 @@ def sqlite_db_folder(tmp_path_factory):
 
 
 @pytest.fixture(scope='session')
-def sqlite_db(sqlite_db_folder) -> Path:
+def sqlite_db_file(sqlite_db_folder) -> Path:
     """
     The SQLite test database RSGeneralStore.db.
 
@@ -44,19 +68,72 @@ def sqlite_db(sqlite_db_folder) -> Path:
     return target_db_file
 
 
-@pytest.fixture()
-def sqlite_db_empty(sqlite_db_folder) -> Path:
+@pytest.fixture(scope='session')
+def sqlite_db(sqlite_db_file) -> pandemy.SQLiteDb:
     """
-    An empty version of the SQLite test database RSGeneralStore.db.
+    An instance of pandemy.SQLiteDb.
+
+    Connected to the test database RSGeneralStore.db provided in
+    fixture `sqlite_db_file`.
+    """
+
+    return pandemy.SQLiteDb(file=sqlite_db_file, must_exist=True)
+
+
+@pytest.fixture()
+def sqlite_db_file_empty(sqlite_db_folder) -> Path:
+    """
+    An empty version of the SQLite test database RSGeneralStore_empty.db.
 
     All tables in the database are empty.
     """
 
     db_filename = 'RSGeneralStore_empty.db'
 
-    db_file = Path('static_files/SQLite') / db_filename
+    db_file = Path(__file__).parent / 'static_files' / 'SQLite' / db_filename
     target_db_file = sqlite_db_folder / db_filename
 
     shutil.copy2(db_file, target_db_file)
 
     return target_db_file
+
+
+@pytest.fixture()
+def sqlite_db_empty(sqlite_db_file_empty) -> pandemy.SQLiteDb:
+    """
+    An instance of pandemy.SQLiteDb.
+
+    Connected to the empty test database RSGeneralStore.db provided in
+    fixture `sqlite_db_file_empty`.
+    """
+
+    return pandemy.SQLiteDb(file=sqlite_db_file_empty, must_exist=True)
+
+
+# ===============================================================
+# Fixtures - DataFrames
+# ===============================================================
+
+@pytest.fixture(scope='session')
+def df_owner() -> pd.DataFrame:
+    """
+    DataFrame representation of the Owner table in test database RSGeneralStore.db.
+    """
+
+    data = io.StringIO(
+        """
+OwnerId;OwnerName;BirthDate
+1;Shop keeper;1982-06-18
+2;John General;1939-09-01
+3;Gerhard General;1945-05-08
+        """
+    )
+
+    dtypes = {
+        'OwnerId': pd.UInt16Dtype(),
+        'OwnerName': pd.StringDtype(),
+        'BirthDate': None
+    }
+
+    return pd.read_csv(data, sep=CSV_DELIM, index_col='OwnerId', parse_dates=['BirthDate'],
+                       dtype={key: val for key, val in dtypes.items() if val is not None})
