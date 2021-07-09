@@ -26,13 +26,15 @@ from pathlib import Path
 
 from abc import ABC, abstractmethod
 from collections import namedtuple
-from typing import Any, Dict, Iterable, Optional, Union
+from typing import Any, Dict, Iterable, List, Optional, Union
 
 # Third Party
 import pandas as pd
 from sqlalchemy import create_engine
 from sqlalchemy.sql import text
 from sqlalchemy.exc import ArgumentError
+from sqlalchemy.engine.base import Connection
+from sqlalchemy.sql.elements import TextClause
 
 # Local
 import pandemy
@@ -278,18 +280,28 @@ class DatabaseManager(ABC):
 
         return repr_str
 
-    def execute_statement(self, sql: Union[str, text], conn, params: Union[dict, list, None] = None):
+    def execute(self, sql: Union[str, text], conn: Connection, params: Union[dict, List[dict], None] = None):
         """
-        Execute an SQL statement.
+        Execute a SQL statement.
 
-        To process the result from the method the database connection must remain open.
+        To process the result from the method the database connection must remain open after the method
+        is executed. E.g.:
+
+        db = SQLiteDb()
+
+        with db.engine.connect() as conn:
+            result = db.execute('SELECT * FROM MyTable;', conn=conn)
+
+            for row in result:
+                pass  # process the results
+
 
         See also
         --------
 
-        https://docs.sqlalchemy.org/en/14/core/connections.html#sqlalchemy.engine.Connection.execute
+        - https://docs.sqlalchemy.org/en/14/core/connections.html#sqlalchemy.engine.Connection.execute
 
-        https://docs.sqlalchemy.org/en/14/core/connections.html#sqlalchemy.engine.CursorResult
+        - https://docs.sqlalchemy.org/en/14/core/connections.html#sqlalchemy.engine.CursorResult
 
         Parameters
         ----------
@@ -297,13 +309,16 @@ class DatabaseManager(ABC):
         sql: str or sqlalchemy.text
             The SQL statement string to process.
 
-        conn: sqlalchemy database connection or None
-            An open connection to the database to use.
-            If None a connection to the database will be opened from the engine.
+            Remainder from SQLAlchemy Docs:
+            SQLAlchemy Deprecation Warning:"passing a string to Connection.execute() is deprecated
+            and will be removed in version 2.0. Use the text() construct with Connection.execute()[...]"
+
+        conn: sqlalchemy database connection
+            An open connection to the database.
 
         params: dict or list of dict, default None
             Parameters to bind to the sql query using % or :name.
-            All params should be dicts or sequences of dicts as of SQLAlchemy 2.0
+            All params should be dicts or sequences of dicts as of SQLAlchemy 2.0.
 
         Returns
         -------
@@ -323,7 +338,7 @@ class DatabaseManager(ABC):
 
         if isinstance(sql, str):
             stmt = text(sql)
-        elif isinstance(sql, text):
+        elif isinstance(sql, TextClause):
             stmt = sql
         else:
             raise TypeError(f'Invalid type {type(sql)} for sql. Expected str or sqlalchemy.text')
@@ -349,8 +364,8 @@ class SQLiteDb(DatabaseManager):
     - https://docs.sqlalchemy.org/en/14/dialects/sqlite.html
     """
 
-    def _set_validate_parameters(self, file: Union[str, Path],  must_exist: bool, statement: Optional[DbStatement],
-                                 engine_config: Optional[Dict[str, Any]]) -> None:
+    def _set_attributes(self, file: Union[str, Path],  must_exist: bool, statement: Optional[DbStatement],
+                        engine_config: Optional[Dict[str, Any]]) -> None:
         """
         Validate the input parameters from `self.__init__` and set attributes on the instance.
         """
@@ -492,8 +507,8 @@ class SQLiteDb(DatabaseManager):
             If the creation of the Database engine fails.
         """
 
-        self._set_validate_parameters(file=file, must_exist=must_exist,
-                                      statement=statement, engine_config=engine_config)
+        self._set_attributes(file=file, must_exist=must_exist,
+                             statement=statement, engine_config=engine_config)
         self._build_conn_str()
         self._create_engine()
 
