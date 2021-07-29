@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS Owner (
 
 -- Customers that have traded in a General Store
 CREATE TABLE IF NOT EXISTS Customer (
-    CustomerId         TEXT, 
+    CustomerId         INTEGER, 
     CustomerName       TEXT    NOT NULL,
     BirthDate          TEXT,
     Residence          TEXT,
@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS Customer (
 
 -- The available items in General Stores
 CREATE TABLE IF NOT EXISTS Item (
-    ItemId      INTEGER UNIQUE NOT NULL,
+    ItemId      INTEGER, 
     ItemName    TEXT    NOT NULL,
     MemberOnly  INTEGER NOT NULL,
     Description TEXT,
@@ -56,13 +56,13 @@ CREATE TABLE IF NOT EXISTS Item (
 
 -- The supply of items in a General Store
 CREATE TABLE IF NOT EXISTS StoreSupply (
-    StoreSupplyId INTEGER UNIQUE NOT NULL, 
+    StoreSupplyId INTEGER, 
     StoreId       INTEGER NOT NULL,
     ItemId        TEXT    NOT NULL,
     Quantity      INTEGER NOT NULL,
     Price         INTEGER NOT NULL,
 
-    CONSTRAINT StoreSupplyPk PRIMARY KEY (StoreId, ItemId),
+    CONSTRAINT StoreSupplyPk PRIMARY KEY (StoreSupplyId),
 
     -- FOREGIN KEYS
     CONSTRAINT StoreIdFk FOREIGN KEY (StoreId)
@@ -72,6 +72,8 @@ CREATE TABLE IF NOT EXISTS StoreSupply (
         REFERENCES Item (ItemId)
 
     -- Validation
+    CONSTRAINT UniqueSupply UNIQUE(StoreId, ItemId),
+
     CONSTRAINT QuantityGtZero CHECK (Quantity >= 0),
 
     CONSTRAINT PriceGtZero CHECK (Price >= 0)
@@ -79,7 +81,7 @@ CREATE TABLE IF NOT EXISTS StoreSupply (
 
 -- Items bought by customer and sold by the store to the customer
 CREATE TABLE IF NOT EXISTS ItemTradedInStore (
-    TransactionId            INTEGER UNIQUE NOT NULL, 
+    TransactionId            INTEGER,
     StoreId                  INTEGER NOT NULL,
     ItemId                   INTEGER NOT NULL,
     CustomerId               INTEGER NOT NULL,
@@ -89,8 +91,7 @@ CREATE TABLE IF NOT EXISTS ItemTradedInStore (
     TradePricePerItem        REAL    NOT NULL,
     TotalTradePrice          REAL    NOT NULL,
 
-    CONSTRAINT ItemsSoldInStorePk PRIMARY KEY (StoreId, ItemId, CustomerId, 
-                                               CustomerBuys, TransactionTimestamp, Quantity),
+    CONSTRAINT ItemsSoldInStorePk PRIMARY KEY (TransactionId),
 
     -- FOREGIN KEYS
     CONSTRAINT StoreIdFk FOREIGN KEY (StoreId)
@@ -103,6 +104,9 @@ CREATE TABLE IF NOT EXISTS ItemTradedInStore (
         REFERENCES Customer (CustomerId),
 
     -- Validation
+    CONSTRAINT UniqueTransaction UNIQUE (StoreId, ItemId, CustomerId, 
+                                         CustomerBuys, TransactionTimestamp, Quantity),
+                                         
     CONSTRAINT CustomerBuyBool CHECK (CustomerBuys IN (0, 1)),
 
     CONSTRAINT QuantityGtZero CHECK (Quantity > 0),
