@@ -137,3 +137,33 @@ OwnerId;OwnerName;BirthDate
 
     return pd.read_csv(data, sep=CSV_DELIM, index_col='OwnerId', parse_dates=['BirthDate'],
                        dtype={key: val for key, val in dtypes.items() if val is not None})
+
+
+@pytest.fixture(scope='session')
+def df_customer() -> pd.DataFrame:
+    """
+    DataFrame representation of the Customer table in test database RSGeneralStore.db.
+    """
+
+    data = io.StringIO(
+        """
+CustomerId;CustomerName;BirthDate;Residence;IsAdventurer
+1;'Zezima';'1990-07-14';'Yanille';1
+2;'Dr Harlow';'1970-01-14';'Varrock';0
+3;'Baraek';'1968-12-13';'Varrock';0
+4;'Gypsy Aris';'1996-03-24';'Varrock';0
+5;'Not a Bot';'2006-05-31';'Catherby';1
+6;'Max Pure';'2007-08-20';'Port Sarim';1
+        """
+    )
+
+    dtypes = {
+        'CustomerId': pd.UInt16Dtype(),
+        'CustomerName': pd.StringDtype(),
+        'BirthDate': None,
+        'Residence': pd.StringDtype(),
+        'IsAdventurer': pd.BooleanDtype(),
+    }
+
+    return pd.read_csv(data, sep=CSV_DELIM, index_col='CustomerId', parse_dates=['BirthDate'],
+                       dtype={key: val for key, val in dtypes.items() if val is not None})

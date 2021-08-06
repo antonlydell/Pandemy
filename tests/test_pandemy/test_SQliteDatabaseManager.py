@@ -1,5 +1,5 @@
 """
-Tests for the DatabaseManager class through the implementation of the SQLite database.
+Tests for the DatabaseManager class through the implementation of the SQLite database (SQLiteDb).
 """
 
 # =================================================
@@ -10,7 +10,11 @@ Tests for the DatabaseManager class through the implementation of the SQLite dat
 from pathlib import Path
 
 # Third Party
+import pandas as pd
+from pandas.testing import assert_frame_equal
+
 import pytest
+
 from sqlalchemy.sql import text
 import sqlalchemy
 
@@ -478,3 +482,280 @@ class TestExecuteMethod:
 
         # Clean up - None
         # ===========================================================
+
+
+class TestSaveDfMethod:
+    """
+    Test the save_df method of the SQLiteDb DatabaseManager.
+
+    Fixtures
+    --------
+
+    sqlite_db: pandemy.SQLiteDb
+        An instance of the test database.
+
+    sqlite_db_empty: pandemy.SQLiteDb
+        An instance of the test database where all tables are empty.
+
+    df_customer: pd.DataFrame
+        The Customer table of the test database.
+    """
+
+    @pytest.mark.parametrize('chunksize', [pytest.param(None, id='chunksize=None'),
+                                           pytest.param(2, id='chunksize=2')])
+    def test_save_to_existing_empty_table(self, chunksize, sqlite_db_empty, df_customer):
+        """
+        Save a DataFrame to an exisitng empty table.
+
+        Parameters
+        ----------
+
+        chunksize: int or None
+            The number of rows in each batch to be written at a time.
+            If None, all rows will be written at once.
+        """
+
+        # Setup
+        # ===========================================================
+        query = """SELECT * FROM Customer;"""
+
+        # Exercise
+        # ===========================================================
+        with sqlite_db_empty.engine.begin() as conn:
+            sqlite_db_empty.save_df(df=df_customer, table='Customer', conn=conn,
+                                    if_exists='append', chunksize=chunksize)
+
+            # Verify
+            # ===========================================================
+            df_result = pd.read_sql(sql=query, con=conn, index_col='CustomerId', parse_dates=['BirthDate'])
+
+            assert_frame_equal(df_result, df_customer, check_dtype=False, check_index_type=False)
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_save_to_existing_non_empty_table_if_exists_replace(self, sqlite_db_empty, df_customer):
+        """
+        Save a DataFrame to an exisitng non empty table.
+        The existing rows are deleted before writing the DataFrame.
+        """
+
+        # Setup
+        # ===========================================================
+        query = """SELECT * FROM Customer;"""
+
+        with sqlite_db_empty.engine.begin() as conn:
+            # Write data to the empty table
+            df_customer.to_sql(name='Customer', con=conn, if_exists='append')
+
+            # Exercise
+            # ===========================================================
+            sqlite_db_empty.save_df(df=df_customer, table='Customer', conn=conn, if_exists='replace')
+
+            # Verify
+            # ===========================================================
+            df_result = pd.read_sql(sql=query, con=conn, index_col='CustomerId', parse_dates=['BirthDate'])
+
+            assert_frame_equal(df_result, df_customer, check_dtype=False, check_index_type=False)
+
+    @pytest.mark.raises
+    def test_save_to_existing_table_if_exists_fail(self, sqlite_db_empty, df_customer):
+        """
+        Save a DataFrame to an exisitng table when `if_exists` = 'fail'.
+        pandemy.TableExistsError is expected to be raised.
+        """
+        # Setup
+        # ===========================================================
+        with sqlite_db_empty.engine.begin() as conn:
+
+            # Exercise & Verify
+            # ===========================================================
+            with pytest.raises(pandemy.TableExistsError, match='Table Customer already exists!'):
+                sqlite_db_empty.save_df(df=df_customer, table='Customer', conn=conn, if_exists='fail')
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_save_to_existing_non_empty_table_if_exists_append(self, sqlite_db_empty, df_customer):
+        """
+        Save a DataFrame to an exisitng non empty table.
+        The rows of the DataFrame are already present in the database table
+        and inserting the rows will violate a UNIQUE constraint.
+        pandemy.SaveDataFrameError is expected to be raised.
+        """
+
+        # Setup
+        # ===========================================================
+        with sqlite_db_empty.engine.begin() as conn:
+            # Write data to the empty table
+            df_customer.to_sql(name='Customer', con=conn, if_exists='append')
+
+            # Exercise & Verify
+            # ===========================================================
+            with pytest.raises(pandemy.SaveDataFrameError, match='Could not save DataFrame to table Customer'):
+                sqlite_db_empty.save_df(df=df_customer, table='Customer', conn=conn, if_exists='append')
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_index_False(self, sqlite_db_empty, df_customer):
+        """
+        Save a DataFrame to an exisitng empty table.
+        The index column of the DataFrame is not written to the table.
+        """
+
+        # Setup
+        # ===========================================================
+        query = """SELECT * FROM Customer;"""
+
+        df = df_customer.copy()  # Copy to avoid modifying the fixture
+        df.reset_index(inplace=True)  # Convert the index CustomerId to a regular column
+
+        with sqlite_db_empty.engine.begin() as conn:
+
+            # Exercise
+            # ===========================================================
+            sqlite_db_empty.save_df(df=df, table='Customer', conn=conn, if_exists='append', index=False)
+
+            # Verify
+            # ===========================================================
+            df_result = pd.read_sql(sql=query, con=conn, parse_dates=['BirthDate'])
+
+            assert_frame_equal(df_result, df, check_dtype=False, check_index_type=False)
+
+    # Input data to test_index_label
+    # new_index_names, index_labels, index_type,
+    input_test_index_label = [
+        pytest.param('Index', 'CustomerId', 'Single', id='Single'),
+        pytest.param(['Level_1', 'Level_2'], ['CustomerId', 'CustomerName'], 'Multi', id='Multi'),
+    ]
+
+    @pytest.mark.parametrize('new_index_names, index_labels, index_type', input_test_index_label)
+    def test_index_label(self, new_index_names, index_labels, index_type,
+                         sqlite_db_empty, df_customer):
+        """
+        Save a DataFrame to an exisitng empty table.
+        Supply custom name(s) for the index of the DataFrame.
+        that will be used as the column names in the database.
+
+        The index name(s) of the DataFrame do not match the column names
+        of the table Customer in the Database.
+
+        Test with both a single and multiindex DataFrame.
+
+        Parameters
+        ----------
+
+        new_index_names: str or list of str
+            The new index names to assign to the DataFrame to save to the database.
+
+        index_labels: str or list of str
+            The names to use for the index when saving the DataFrame to the database.
+
+        index_type: str ('Single', 'Multi')
+            The type of index of the DataFrame.
+        """
+
+        # Setup
+        # ===========================================================
+        query = """SELECT * FROM Customer;"""
+
+        df = df_customer.copy()  # Copy to avoid modifying the fixture
+
+        if index_type == 'Single':
+            df.index.name = new_index_names
+        elif index_type == 'Multi':
+            df.set_index(index_labels[1], inplace=True, append=True)
+            df.index.names = new_index_names
+
+        with sqlite_db_empty.engine.begin() as conn:
+            # Exercise
+            # ===========================================================
+            sqlite_db_empty.save_df(df=df, table='Customer', conn=conn, if_exists='append',
+                                    index=True, index_label=index_labels)
+
+            # Verify
+            # ===========================================================
+            df_result = pd.read_sql(sql=query, con=conn, index_col=index_labels, parse_dates=['BirthDate'])
+
+            # Change back to expected index name
+            if index_type == 'Single':
+                df.index.name = 'CustomerId'
+            elif index_type == 'Multi':
+                df.index.names = ['CustomerId', 'CustomerName']
+
+            assert_frame_equal(df_result, df, check_dtype=False, check_index_type=False)
+
+    @pytest.mark.raises
+    @pytest.mark.parametrize('df', [pytest.param('df', id='str'),
+                                    pytest.param([], id='list')])
+    def test_invalid_input_df(self, df, sqlite_db_empty):
+        """
+        Supply an invalid argument to the `df` parameter.
+        pandemy.InvalidInputError is expected to be raised.
+        """
+
+        # Setup
+        # ===========================================================
+        with sqlite_db_empty.engine.begin() as conn:
+
+            # Exercise & Verify
+            # ===========================================================
+            with pytest.raises(pandemy.InvalidInputError):
+                sqlite_db_empty.save_df(df=df, table='Customer', conn=conn, if_exists='append')
+
+    @pytest.mark.raises
+    @pytest.mark.parametrize('if_exists', [pytest.param('delete', id='str'),
+                                           pytest.param([], id='list')])
+    def test_invalid_input_if_exists(self, if_exists, sqlite_db_empty, df_customer):
+        """
+        Supply an invalid argument to the `if_exists` parameter.
+        pandemy.InvalidInputError is expected to be raised.
+        """
+
+        # Setup
+        # ===========================================================
+        with sqlite_db_empty.engine.begin() as conn:
+
+            # Exercise & Verify
+            # ===========================================================
+            with pytest.raises(pandemy.InvalidInputError):
+                sqlite_db_empty.save_df(df=df_customer, table='Customer', conn=conn, if_exists=if_exists)
+
+    @pytest.mark.raises
+    @pytest.mark.parametrize('conn', [pytest.param('conn', id='str'),
+                                      pytest.param([], id='list'),
+                                      pytest.param(pandemy.DbStatement, id='class')])
+    def test_invalid_input_conn(self, conn, sqlite_db_empty, df_customer):
+        """
+        Supply an invalid argument to the `conn` parameter.
+        pandemy.InvalidInputError is expected to be raised.
+        """
+
+        # Setup
+        # ===========================================================
+        with sqlite_db_empty.engine.begin():
+
+            # Exercise & Verify
+            # ===========================================================
+            with pytest.raises(pandemy.InvalidInputError):
+                sqlite_db_empty.save_df(df=df_customer, table='Customer', conn=conn)
+
+    @pytest.mark.raises
+    @pytest.mark.parametrize('table', [pytest.param('delete', id='delete'),
+                                       pytest.param('customer name', id='customer name'),
+                                       pytest.param('as', id='as')])
+    def test_invalid_input_table(self, table, sqlite_db_empty, df_customer):
+        """
+        Supply an invalid argument to the `table` parameter.
+        pandemy.InvalidTableNameError is expected to be raised.
+        """
+
+        # Setup
+        # ===========================================================
+        with sqlite_db_empty.engine.begin() as conn:
+
+            # Exercise & Verify
+            # ===========================================================
+            with pytest.raises(pandemy.InvalidTableNameError):
+                sqlite_db_empty.save_df(df=df_customer, table=table, conn=conn)
