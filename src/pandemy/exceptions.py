@@ -36,6 +36,10 @@ class CreateEngineError(DatabaseManagerError):
     """Error when creating the database engine.."""
 
 
+class TableExistsError(DatabaseManagerError):
+    """Error when saving a DataFrame to a table and the table already exists."""
+
+
 class CreateTableError(DatabaseManagerError):
     """Errors when creating tables in the database."""
 
@@ -44,12 +48,12 @@ class CreateIndexError(DatabaseManagerError):
     """Errors when creating indices in the database."""
 
 
-class DeleteTableError(DatabaseManagerError):
-    """Errors when creating indices in the database."""
+class DeleteFromTableError(DatabaseManagerError):
+    """Errors when deleting data from a table in the database."""
 
 
-class SaveTableError(DatabaseManagerError):
-    """Errors when saving a DataFrame as a table to database."""
+class SaveDataFrameError(DatabaseManagerError):
+    """Errors when saving a DataFrame to a table in the database."""
 
 
 class InvalidTableNameError(DatabaseManagerError):

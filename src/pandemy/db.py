@@ -23,10 +23,9 @@ Placeholder: namedtuple('Placeholder', ['key', values', 'new_key'], defaults=(Tr
 # Standard Library
 import logging
 from pathlib import Path
-
 from abc import ABC, abstractmethod
 from collections import namedtuple
-from typing import Any, Dict, Iterable, List, Optional, Union
+from typing import Any, Callable, Dict, Iterable, List, Optional, Union
 
 # Third Party
 import pandas as pd
@@ -236,10 +235,25 @@ class DbStatement(ABC):
 
 class DatabaseManager(ABC):
     """
-    Base class of database functionality.
+    Base class with functionality for managing a database.
 
     Each specific database type will subclass from DatabaseManager.
+
+    Class Variables
+    ---------------
+
+    _delete_from_table_statement: str
+        Statement for deleting all records in a table.
+        Can be modified by subclasses of DatabaseManager if necessary.
+
+    _invalid_table_names: set
+        Set with words that are not allowed as table names.
+        Can be modified by subclasses of DatabaseManager if necessary.
     """
+
+    _delete_from_table_statement: str = """DELETE FROM :table"""
+
+    _invalid_table_names: set = {'create', 'select', 'delete', 'update', 'with', 'as'}
 
     @abstractmethod
     def __init__(self, statement: Optional[DbStatement] = None, **kwargs) -> None:
@@ -279,6 +293,38 @@ class DatabaseManager(ABC):
         repr_str += '\t)'
 
         return repr_str
+
+    def _is_valid_table_name(self, table: str) -> None:
+        """
+        Check if the supplied table name is vaild.
+
+        Parameters
+        ----------
+
+        table: str
+            The table name to validate.
+
+        Raises
+        ------
+
+        pandemy.InvalidTableNameError
+            If the table name is not valid.
+        """
+
+        invalid_table_names = self._invalid_table_names
+
+        # Get the first word of the string to prevent entering an SQL query.
+        table_splitted = table.split(' ')
+
+        # Check that only one word was input as the table name
+        if (len_table_splitted := len(table_splitted)) > 1:
+            raise pandemy.InvalidTableNameError(f'{len_table_splitted} words were input for the table name! Only a single word is allowed for the table name.',
+                                                f'table: {table}')
+
+        table = table_splitted[0]
+
+        if table.lower() in invalid_table_names:
+            raise pandemy.InvalidTableNameError(f'table = {table} is among the the invalid table names: {invalid_table_names}')
 
     def execute(self, sql: Union[str, text], conn: Connection, params: Union[dict, List[dict], None] = None):
         """
@@ -351,10 +397,190 @@ class DatabaseManager(ABC):
         except Exception as e:
             raise pandemy.ExecuteStatementError(f'{type(e).__name__}: {e.args}', data=e.args) from None
 
+    def delete_all_records_from_table(self, table: str, conn: Connection) -> None:
+        """
+        Delete all records from the specified table.
+
+        Parameters
+        ----------
+
+        table: str
+            The table to delete all records from.
+
+        conn: sqlalchemy database connection (sqlalchemy.engine.base.Connection)
+            An open connection to the database.
+
+        Raises
+        ------
+
+        pandemy.InvalidTableNameError
+            If the supplied table name is invalid.
+
+        pandemy.DeleteFromTableError
+            If data cannot be deleted from the table.
+        """
+
+        self._is_valid_table_name(table=table)
+
+        # SQL statement to delete all existing data from the table
+        sql = self._delete_from_table_statement.replace(':table', table)
+
+        try:
+            self.execute(sql=sql, conn=conn)
+
+        except pandemy.ExecuteStatementError as e:
+            raise pandemy.DeleteFromTableError(f'Could not delete records from table: {table}: {e.args[0]}',
+                                               data=e.args) from None
+
+        else:
+            logger.debug(f'Successfully deleted existing data from table {table}.')
+
+    def save_df(self, df: pd.DataFrame, table: str, conn: Connection, if_exists: str = 'append',
+                index: bool = True, index_label: Optional[Union[str, Iterable[str]]] = None,
+                chunksize: Optional[int] = None, schema: Optional[str] = None,
+                dtype: Optional[Union[Dict[str, Union[str, object]], object]] = None,
+                method: Optional[Union[str, Callable]] = None) -> None:
+        """
+        Save the DataFrame `df` to specified table in the database.
+
+        The column names of the DataFrame df must match the table defintion.
+
+        Uses the pandas DataFrame method `to_sql`.
+
+        References
+        ----------
+
+        - https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.to_sql.html
+
+        - https://pandas.pydata.org/pandas-docs/stable/user_guide/io.html#io-sql-method
+
+
+        Parameters
+        ----------
+
+        df: pd.DataFrame
+            The DataFrame to save to the database.
+
+        table: str
+            The name of the table to save the DataFrame.
+
+        conn: sqlalchemy database connection (sqlalchemy.engine.base.Connection)
+            An open connection to the database.
+
+        if_exists: str, ('append', 'replace', 'fail'), default 'append'
+            How to update an existing table in the database:
+
+            - 'append': Append the DataFrame to the existing table.
+
+            - 'replace': Delete all records from the table and then write the DataFrame to the table.
+
+            - 'fail': Raise pandemy.TableExistsError if the table exists.
+
+        index: bool, default True
+            Write DataFrame index as a column. Uses the name of the index as the
+            column name for the table.
+
+        index_label: str or sequence, default None
+            Column label for index column(s). If None is given (default) and `index` is True,
+            then the index names are used. A sequence should be given if the DataFrame uses a MultiIndex.
+
+        chunksize: int or None, default None
+            The number of rows in each batch to be written at a time.
+            If None, all rows will be written at once.
+
+        schema: str, None, default None
+            Specify the schema (if database flavor supports this). If None, use default schema.
+
+        dtype: dict or scalar, default None
+            Specifying the datatype for columns. If a dictionary is used, the keys should be the column names
+            and the values should be the SQLAlchemy types or strings for the sqlite3 legacy mode.
+            If a scalar is provided, it will be applied to all columns.
+
+        method: None, 'multi', callable, default None
+            Controls the SQL insertion clause used:
+
+            - None: Uses standard SQL INSERT clause (one per row).
+
+            -'multi': Pass multiple values in a single INSERT clause. It uses a special SQL syntax not supported by
+                      all backends. This usually provides better performance for analytic databases like Presto and
+                      Redshift, but has worse performance for traditional SQL backend if the table contains many
+                      columns. For more information check the SQLAlchemy documentation.
+
+            - callable with signature (pd_table, conn, keys, data_iter):
+                This can be used to implement a more performant insertion method based on specific
+                backend dialect features.
+                See: https://pandas.pydata.org/pandas-docs/stable/user_guide/io.html#io-sql-method
+
+        Raises
+        ------
+
+        pandemy.TableExistsError
+            If the table exists and `if_exists` = 'fail'.
+
+        pandemy.DeleteFromTableError
+            If data in the table cannot be deleted when `if_exists` = 'replace'.
+
+        pandemy.InvalidInputError
+            Invalid values or types for input parameters.
+
+        pandemy.InvalidTableNameError
+            If the supplied table name is invalid.
+        """
+
+        # ==========================================
+        # Validate input
+        # ==========================================
+
+        if not isinstance(df, pd.DataFrame):
+            raise pandemy.InvalidInputError(f'df must be of type pandas.DataFrame. Got {type(df)}. df = {df}.')
+
+        # Validate if_exists
+        if not isinstance(if_exists, str) or if_exists not in {'replace', 'append', 'fail'}:
+            raise pandemy.InvalidInputError(f"Invalid input if_exists = {if_exists}. Expected 'append', 'replace' or 'fail'.")
+
+        # Validate connection
+        if not isinstance(conn, Connection):
+            raise pandemy.InvalidInputError(f'conn must be of type {type(Connection)}. Got {type(conn)}. conn = {conn}')
+
+        # Validate table
+        if not isinstance(table, str):
+            raise pandemy.InvalidInputError(f'table must be a string. Got {type(table)}. table = {table}')
+
+        # ==========================================
+        # Process existing table
+        # ==========================================
+
+        if if_exists == 'replace':
+            # self._is_valid_table_name(table=table) is called within delete_all_records_from_table
+            self.delete_all_records_from_table(table=table, conn=conn)
+        else:
+            self._is_valid_table_name(table=table)
+
+        # ==========================================
+        # Write the DataFrame to the SQL table
+        # ==========================================
+
+        try:
+            df.to_sql(table, con=conn, if_exists=if_exists, index=index, index_label=index_label,
+                      chunksize=chunksize, schema=schema, dtype=dtype, method=method)
+
+        except ValueError:
+            raise pandemy.TableExistsError(f'Table {table} already exists! and if_exists = {if_exists}') from None
+
+        # Unexpected error
+        except Exception as e:
+            raise pandemy.SaveDataFrameError(f'Could not save DataFrame to table {table}: {e.args}',
+                                             data=e.args) from None
+
+        else:
+            nr_cols = df.shape[1] + len(df.index.names) if index else df.shape[1]
+            nr_rows = df.shape[0]
+            logger.info(f'Successfully wrote {nr_rows} rows over {nr_cols} columns to table {table}.')
+
 
 class SQLiteDb(DatabaseManager):
     """
-    A SQLite database.
+    A SQLite DatabaseManager.
 
     Reference
     ---------
