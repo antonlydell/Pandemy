@@ -1,5 +1,5 @@
 """
-Fixtures for testing pandemy.
+Fixtures for testing the pandemy package.
 """
 
 # ===============================================================
@@ -8,10 +8,11 @@ Fixtures for testing pandemy.
 
 # Standard Library
 import io
-import shutil
 from pathlib import Path
+import shutil
 
 # Third Party
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -25,17 +26,6 @@ import pandemy
 # The csv delimiter for reading DataFrames from io.StringIO
 CSV_DELIM = ';'
 
-# ===============================================================
-# DbStatements
-# ===============================================================
-
-
-class SQLiteDbStatement(pandemy.DbStatement):
-    """
-    Container of statements for testing the SQLite DatabaseManager.
-
-    The queries are used against the test database RSGeneralStore.db.
-    """
 
 # ===============================================================
 # Fixtures
@@ -132,11 +122,10 @@ OwnerId;OwnerName;BirthDate
     dtypes = {
         'OwnerId': pd.UInt16Dtype(),
         'OwnerName': pd.StringDtype(),
-        'BirthDate': None
     }
 
     return pd.read_csv(data, sep=CSV_DELIM, index_col='OwnerId', parse_dates=['BirthDate'],
-                       dtype={key: val for key, val in dtypes.items() if val is not None})
+                       dtype=dtypes)
 
 
 @pytest.fixture(scope='session')
@@ -160,10 +149,43 @@ CustomerId;CustomerName;BirthDate;Residence;IsAdventurer
     dtypes = {
         'CustomerId': pd.UInt16Dtype(),
         'CustomerName': pd.StringDtype(),
-        'BirthDate': None,
         'Residence': pd.StringDtype(),
         'IsAdventurer': pd.BooleanDtype(),
     }
 
     return pd.read_csv(data, sep=CSV_DELIM, index_col='CustomerId', parse_dates=['BirthDate'],
-                       dtype={key: val for key, val in dtypes.items() if val is not None})
+                       dtype=dtypes)
+
+
+@pytest.fixture()
+def df_item_traded_in_store() -> pd.DataFrame:
+    """
+    DataFrame representation of the ItemTradedInStore table in test database RSGeneralStore.db.
+    """
+
+    data = io.StringIO(
+        """
+TransactionId;StoreId;ItemId;CustomerId;CustomerBuys;TransactionTimestamp;Quantity;TradePricePerItem;TotalTradePrice
+1;2;1;3;1;2021-06-18 21:48;2;1;2
+2;3;3;3;1;2021-06-18 21:49;1;1;1
+3;2;4;3;0;2021-06-19 20:08;3;2;6
+4;3;12;1;0;2021-06-26 13:37;1;61200;61200
+5;2;11;1;1;2007-08-16 13:38;3;242;726
+6;1;14;5;0;2008-01-01 00:01;10;1850;18500
+7;1;13;6;1;2009-02-05 22:02;2;10500;21000
+        """
+    )
+
+    dtypes = {
+        'TransactionId': pd.UInt8Dtype(),
+        'StoreId': pd.UInt8Dtype(),
+        'ItemId': pd.UInt8Dtype(),
+        'CustomerId': pd.UInt8Dtype(),
+        'CustomerBuys': pd.UInt8Dtype(),
+        'Quantity': pd.UInt16Dtype(),
+        'TradePricePerItem': np.float64,
+        'TotalTradePrice': np.float64
+    }
+
+    return pd.read_csv(data, sep=CSV_DELIM, index_col='TransactionId', parse_dates=['TransactionTimestamp'],
+                       dtype=dtypes)
