@@ -10,8 +10,9 @@ Tests for the DatabaseManager class through the implementation of the SQLite dat
 from pathlib import Path
 
 # Third Party
+import numpy as np
 import pandas as pd
-from pandas.testing import assert_frame_equal
+from pandas.testing import assert_frame_equal, assert_series_equal
 
 import pytest
 
@@ -759,3 +760,476 @@ class TestSaveDfMethod:
             # ===========================================================
             with pytest.raises(pandemy.InvalidTableNameError):
                 sqlite_db_empty.save_df(df=df_customer, table=table, conn=conn)
+
+
+class TestLoadTableMethod:
+    """
+    Test the `load_table` method of the SQLite DatabaseManager.
+
+    Fixtures
+    --------
+    sqlite_db : pandemy.SQLiteDb
+        An instance of the test database.
+
+    sqlite_db_empty : pandemy.SQLiteDb
+        An instance of the test database where all tables are empty.
+
+    df_item_traded_in_store : pd.DataFrame
+        The ItemTradedInStore table of the test database.
+    """
+
+    input_load_table_by_name = [pytest.param(['TransactionTimestamp'], id='parse_dates=list'),
+
+                                pytest.param({'TransactionTimestamp': r'%Y-%m-%d %H:%M:%S'},
+                                             id='parse_dates=dict: format string'),
+
+                                pytest.param({'TransactionTimestamp': {'format': r'%Y-%m-%d %H:%M:%S'}},
+                                             id='parse_dates=dict: to_datetime args')
+                                ]
+    @pytest.mark.parametrize('parse_dates', input_load_table_by_name)
+    def test_load_table_by_name_all_cols(self, parse_dates, sqlite_db, df_item_traded_in_store):
+        """
+        Load the whole table ItemTradedInStore by selecting it by name.
+
+        Test different types of configuration of parse_dates.
+
+        Parameters
+        ----------
+        parse_dates : list or dict
+            How to parse datetime columns.
+        """
+
+        # Setup
+        # ===========================================================
+        df_item_traded_in_store.reset_index(inplace=True)  # Convert the index TransactionId to a regular column
+
+        # Exercise
+        # ===========================================================
+        with sqlite_db.engine.begin() as conn:
+            df_result = sqlite_db.load_table(sql='ItemTradedInStore', conn=conn, parse_dates=parse_dates)
+
+        # Verify
+        # ===========================================================
+        assert_frame_equal(df_result, df_item_traded_in_store, check_dtype=False, check_index_type=False)
+
+        # Clean up - None
+        # ===========================================================
+
+    @pytest.mark.parametrize('columns, index_col', [
+        pytest.param(['StoreId', 'Quantity', 'TradePricePerItem'], 'StoreId',
+                     id='columns list, single index'),
+
+        pytest.param(('StoreId', 'Quantity', 'TradePricePerItem'), ['StoreId', 'Quantity'],
+                     id='columns tuple, multiindex')
+    ])
+    def test_load_table_by_name_selected_cols_and_index_col(self, columns, index_col, sqlite_db,
+                                                            df_item_traded_in_store):
+        """
+        Load all rows and selected columns from table ItemTradedInStore.
+        Select the table by name and set an index column of the DataFrame.
+
+        Parameters
+        ----------
+        columns : sequence of str
+            The columns to select from the table.
+
+        index_col : str or sequence of str
+            The column(s) to set as the index of the DataFrame.
+        """
+
+        # Setup
+        # ===========================================================
+        df_item_traded_in_store.reset_index(inplace=True)
+        df_item_traded_in_store = df_item_traded_in_store.loc[:, columns]
+        df_item_traded_in_store.set_index(index_col, inplace=True)
+
+        # Exercise
+        # ===========================================================
+        with sqlite_db.engine.begin() as conn:
+            df_result = sqlite_db.load_table(sql='ItemTradedInStore', conn=conn, columns=columns, index_col=index_col)
+
+        # Verify
+        # ===========================================================
+        assert_frame_equal(df_result, df_item_traded_in_store, check_dtype=False, check_index_type=False)
+
+        # Clean up - None
+        # ===========================================================
+
+    @pytest.mark.parametrize('query', [
+        pytest.param("""SELECT * FROM ItemTradedInStore;""", id='str'),
+        pytest.param(text("""SELECT * FROM ItemTradedInStore;"""), id='TextClause')
+    ])
+    def test_read_query_no_params(self, query, sqlite_db, df_item_traded_in_store):
+        """
+        Load all rows from table ItemTradedInStore through an SQL query.
+        The query has no parameters.
+
+        Parameters
+        ----------
+        query : str or TextClause
+            The query to execute.
+        """
+
+        # Setup - None
+        # ===========================================================
+
+        # Exercise
+        # ===========================================================
+        with sqlite_db.engine.begin() as conn:
+            df_result = sqlite_db.load_table(sql=query, conn=conn, index_col='TransactionId',
+                                             parse_dates='TransactionTimestamp')
+
+        # Verify
+        # ===========================================================
+        assert_frame_equal(df_result, df_item_traded_in_store, check_dtype=False, check_index_type=False)
+
+        # Clean up - None
+        # ===========================================================
+
+    @pytest.mark.parametrize('query, params, as_textclause', [
+        pytest.param("""SELECT * FROM ItemTradedInStore
+                        WHERE TotalTradePrice > :TotalTradePrice AND
+                              CustomerBuys = :CustomerBuys;""",
+                     {'TotalTradePrice': 17000, 'CustomerBuys': 0}, False, id='str'),
+
+        pytest.param("""SELECT * FROM ItemTradedInStore
+                        WHERE TradePricePerItem > :TradePricePerItem AND
+                              StoreId = :StoreId;""",
+                     {'TradePricePerItem': 200, 'StoreId': 2}, True, id='TextClause'),
+    ])
+    def test_read_query_with_params(self, query, params, as_textclause, sqlite_db, df_item_traded_in_store):
+        """
+        Load rows and columns specified by the SQL query.
+        The query has parameters.
+
+        Parameters
+        ----------
+        query : str or sqlalchemy.sql.elements.TextClause
+            The query to execute.
+
+        params : dict
+            The query parameters.
+
+        as_textclause : bool
+            True if the query should be as type sqlalchemy.sql.elements.TextClause and
+            False for type str.
+        """
+
+        # Setup
+        # ===========================================================
+        if as_textclause:
+            query = text(query)
+
+        # Build the expected result
+        columns = list(params.keys())  # The columns to filter by
+        values = list(params.values())  # The values of the columns
+        df_query_str = f"{columns[0]} > {values[0]} & {columns[1]} == {values[1]}"
+        df_item_traded_in_store.query(df_query_str, inplace=True)
+
+        # Exercise
+        # ===========================================================
+        with sqlite_db.engine.begin() as conn:
+            df_result = sqlite_db.load_table(sql=query, conn=conn, params=params, index_col='TransactionId',
+                                             parse_dates='TransactionTimestamp')
+
+        # Verify
+        # ===========================================================
+        assert_frame_equal(df_result, df_item_traded_in_store, check_dtype=False, check_index_type=False)
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_load_table_set_dtypes(self, sqlite_db, df_item_traded_in_store):
+        """
+        Load table ItemTradedInStore by name and specify the dtypes of the columns.
+        """
+
+        # Setup
+        # ===========================================================
+        dtypes = {
+            'TransactionId': pd.UInt8Dtype(),
+            'StoreId': pd.UInt8Dtype(),
+            'ItemId': pd.UInt8Dtype(),
+            'CustomerId': pd.UInt8Dtype(),
+            'CustomerBuys': pd.UInt8Dtype(),
+            'Quantity': pd.UInt16Dtype(),
+            'TradePricePerItem': np.float64,
+            'TotalTradePrice': np.float64
+        }
+
+        # Exercise
+        # ===========================================================
+        with sqlite_db.engine.begin() as conn:
+            df_result = sqlite_db.load_table(sql='ItemTradedInStore', conn=conn, index_col='TransactionId',
+                                             dtypes=dtypes, parse_dates='TransactionTimestamp')
+
+        # Verify
+        # ===========================================================
+        assert_frame_equal(df_result, df_item_traded_in_store, check_dtype=True, check_index_type=True)
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_load_table_in_chunksize(self, sqlite_db, df_item_traded_in_store):
+        """
+        Load table ItemTradedInStore by name and specify the chunksize parameter.
+
+        An iterator yielding DataFrames each with the number of rows specified in
+        the chunksize parameter is expected to be returned.
+        """
+
+        # Setup - None
+        # ===========================================================
+
+        # Exercise
+        # ===========================================================
+        with sqlite_db.engine.begin() as conn:
+            df_gen = sqlite_db.load_table(sql='ItemTradedInStore', conn=conn, index_col='TransactionId',
+                                          chunksize=2, parse_dates='TransactionTimestamp')
+
+            # Verify
+            # ===========================================================
+            for df in df_gen:
+                df_exp = df_item_traded_in_store.loc[df.index, :]
+                assert_frame_equal(df, df_exp, check_dtype=False, check_index_type=False)
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_load_table_that_is_empty(self, sqlite_db_empty, df_item_traded_in_store):
+        """
+        Try to load table ItemTradedInStore that is empty.
+        An empty DataFrame is expected to be returned.
+        """
+
+        # Setup
+        # ===========================================================
+        df_exp = pd.DataFrame(columns=df_item_traded_in_store.columns)
+        df_exp.index.name = df_item_traded_in_store.index.name
+
+        # Exercise
+        # ===========================================================
+        with sqlite_db_empty.engine.begin() as conn:
+            df_result = sqlite_db_empty.load_table(sql='ItemTradedInStore', conn=conn, index_col='TransactionId',
+                                                   parse_dates='TransactionTimestamp')
+
+        # Verify
+        # ===========================================================
+        assert_frame_equal(df_result, df_exp, check_dtype=False, check_index_type=False)
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_load_empty_table_in_chunksize(self, sqlite_db_empty, df_item_traded_in_store):
+        """
+        Load table ItemTradedInStore by name and specify chunksize parameter.
+        The table ItemTradedInStore is empty.
+
+        An iterator yielding DataFrames each with the number of rows specified in
+        the chunksize parameter is expected to be returned. The iterator should not
+        yield a single DataFrame.
+        """
+
+        # Setup - None
+        # ===========================================================
+
+        # Exercise
+        # ===========================================================
+        with sqlite_db_empty.engine.begin() as conn:
+            df_gen = sqlite_db_empty.load_table(sql='ItemTradedInStore', conn=conn, index_col='TransactionId',
+                                                chunksize=2, parse_dates='TransactionTimestamp')
+
+            # Verify
+            # ===========================================================
+            with pytest.raises(StopIteration):
+                next(df_gen)
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_load_table_localize_timezone(self, sqlite_db, df_item_traded_in_store):
+        """
+        Load table ItemTradedInStore and localize datetime column TransactionTimestamp
+        to CET timezone.
+        """
+
+        # Setup
+        # ===========================================================
+        datetime_col = 'TransactionTimestamp'
+        tz = 'CET'
+        df_item_traded_in_store.loc[:, datetime_col] = df_item_traded_in_store[datetime_col].dt.tz_localize(tz)
+
+        # Exercise
+        # ===========================================================
+        with sqlite_db.engine.begin() as conn:
+            df_result = sqlite_db.load_table(sql='ItemTradedInStore', conn=conn, index_col='TransactionId',
+                                             parse_dates='TransactionTimestamp', localize_tz=tz)
+
+        # Verify
+        # ===========================================================
+        assert_frame_equal(df_result, df_item_traded_in_store, check_dtype=False, check_index_type=False)
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_load_table_convert_timezone(self, sqlite_db, df_item_traded_in_store):
+        """
+        Load table ItemTradedInStore and convert datetime column TransactionTimestamp
+        from localized timezone CET to EET timezone.
+        """
+
+        # Setup
+        # ===========================================================
+        datetime_col = 'TransactionTimestamp'
+        localize_tz = 'CET'
+        target_tz = 'EET'
+        df_item_traded_in_store.loc[:, datetime_col] = df_item_traded_in_store[datetime_col].dt.tz_localize(localize_tz)
+        df_item_traded_in_store.loc[:, datetime_col] = df_item_traded_in_store[datetime_col].dt.tz_convert(target_tz)
+
+        # Exercise
+        # ===========================================================
+        with sqlite_db.engine.begin() as conn:
+            df_result = sqlite_db.load_table(sql='ItemTradedInStore', conn=conn, index_col='TransactionId',
+                                             parse_dates='TransactionTimestamp', localize_tz=localize_tz,
+                                             target_tz=target_tz)
+
+        # Verify
+        # ===========================================================
+        assert_frame_equal(df_result, df_item_traded_in_store, check_dtype=False, check_index_type=False)
+        assert_series_equal(df_result[datetime_col], df_item_traded_in_store[datetime_col],
+                            check_dtype=True, check_index_type=False)
+
+        # Clean up - None
+        # ===========================================================
+
+    @pytest.mark.raises
+    def test_load_table_that_does_not_exist(self, sqlite_db):
+        """
+        Try to load table TradedInStoreItems that does not exist in the test database.
+
+        pandemy.LoadTableError is expected to be raised.
+        """
+
+        # Setup
+        # ===========================================================
+        sql = 'TradedInStoreItems'
+
+        # Exercise
+        # ===========================================================
+        with sqlite_db.engine.begin() as conn:
+            with pytest.raises(pandemy.LoadTableError) as exe_info:
+                sqlite_db.load_table(sql=sql, conn=conn, index_col='TransactionId',
+                                     parse_dates='TransactionTimestamp')
+
+            # Verify
+            # ===========================================================
+            assert exe_info.type is pandemy.LoadTableError
+            assert sql in exe_info.value.args[0]
+            assert sql == exe_info.value.data[1]
+
+        # Clean up - None
+        # ===========================================================
+
+    @pytest.mark.raises
+    def test_keys_in_dtypes_does_not_match_column_in_table(self, sqlite_db):
+        """
+        Try to load table ItemTradedInStore an convert data types.
+        Supply column names in the `dtypes` parameter that does not exist in the table.
+
+        pandemy.DataTypeConversionError is expected to be raised.
+        """
+
+        # Setup
+        # ===========================================================
+        sql = 'ItemTradedInStore'
+
+        dtypes = {'StoreId': pd.UInt8Dtype(),
+                  'ItemId': pd.UInt8Dtype(),
+                  'Qty': pd.Int16Dtype(),  # Qty is not a valid column name
+                  'TradePrice': pd.Int64Dtype()  # TradePrice is not a valid column name
+                  }
+
+        # Exercise
+        # ===========================================================
+        with sqlite_db.engine.begin() as conn:
+            with pytest.raises(pandemy.DataTypeConversionError) as exe_info:
+                sqlite_db.load_table(sql=sql, conn=conn, index_col='TransactionId',
+                                     parse_dates='TransactionTimestamp', dtypes=dtypes)
+
+            # Verify
+            # ===========================================================
+            assert exe_info.type is pandemy.DataTypeConversionError
+            assert 'Qty' in exe_info.value.args[0]
+            assert 'TradePrice' in exe_info.value.args[0]
+            assert dtypes == exe_info.value.data[1]
+            assert 'Qty, TradePrice' == exe_info.value.data[2]
+
+        # Clean up - None
+        # ===========================================================
+
+    @pytest.mark.raises
+    def test_dtypes_cannot_convert_dtype(self, sqlite_db):
+        """
+        Try to load table ItemTradedInStore an convert data types.
+        The data type conversion cannot be performed for desired data types.
+        TransactionTimestamp [datetime64[ns]] cannot be converted to [IntegerDtype]
+
+        pandemy.DataTypeConversionError is expected to be raised.
+        """
+
+        # Setup
+        # ===========================================================
+        sql = 'ItemTradedInStore'
+
+        dtypes = {'StoreId': pd.UInt8Dtype(),
+                  'ItemId': pd.UInt8Dtype(),
+                  'TransactionTimestamp': pd.Int64Dtype()
+                  }
+
+        # Exercise
+        # ===========================================================
+        with sqlite_db.engine.begin() as conn:
+            with pytest.raises(pandemy.DataTypeConversionError) as exe_info:
+                sqlite_db.load_table(sql=sql, conn=conn, index_col='TransactionId',
+                                     parse_dates='TransactionTimestamp', dtypes=dtypes)
+
+            # Verify
+            # ===========================================================
+            assert exe_info.type is pandemy.DataTypeConversionError
+            assert dtypes == exe_info.value.data[1]
+
+        # Clean up - None
+        # ===========================================================
+
+    @pytest.mark.raises
+    @pytest.mark.parametrize('params', [pytest.param({'ItemId': 1}, id='Invalid value'),
+                                        pytest.param((44, 33), id='Invalid type')])
+    def test_invalid_parameter_value_params(self, params, sqlite_db):
+        """
+        Try to load table ItemTradedInStore and specify an invalid value or type to
+        the `params` parameter.
+
+        pandemy.LoadTableError is expected to be raised.
+        """
+
+        # Setup
+        # ===========================================================
+        sql = """SELECT * FROM ItemTradedInStore
+                    WHERE ItemId = :StoreId"""
+
+        # Exercise
+        # ===========================================================
+        with sqlite_db.engine.begin() as conn:
+            with pytest.raises(pandemy.LoadTableError) as exe_info:
+                sqlite_db.load_table(sql=sql, conn=conn, params=params, index_col='TransactionId',
+                                     parse_dates='TransactionTimestamp')
+
+            # Verify
+            # ===========================================================
+            assert exe_info.type is pandemy.LoadTableError
+            assert sql in exe_info.value.args[0]
+            assert sql in exe_info.value.data[1]
+            assert params == exe_info.value.data[2]
+
+        # Clean up - None
+        # ===========================================================
