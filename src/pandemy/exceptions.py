@@ -44,6 +44,18 @@ class CreateTableError(DatabaseManagerError):
     """Errors when creating tables in the database."""
 
 
+class LoadTableError(DatabaseManagerError):
+    """Errors when loading tables from the database."""
+
+
+class DataTypeConversionError(DatabaseManagerError):
+    """Errors converting data types of columns in a DataFrame."""
+
+
+class SetIndexError(DatabaseManagerError):
+    """Errors when setting an index of a DataFrame."""
+
+
 class CreateIndexError(DatabaseManagerError):
     """Errors when creating indices in the database."""
 
