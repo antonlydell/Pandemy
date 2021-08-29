@@ -1,18 +1,17 @@
-"""
-Contains the classes that represent the Database interface.
+r"""Contains the classes that represent the Database interface.
 
 namedtuple
 ----------
 
 Placeholder: namedtuple('Placeholder', ['key', values', 'new_key'], defaults=(True,))
 
-    key: str
+    key : str
         The placeholder to replace in the substring.
 
-    values: Union[str, int, float, Iterable[Union[str, int, float]]]
+    values : Union[str, int, float, Iterable[Union[str, int, float]]]
         The value(s) to replace the placeholder with.
 
-    new_key: bool, default True
+    new_key : bool, default True
         If the values should be added as new placeholders.
 """
 
@@ -21,22 +20,22 @@ Placeholder: namedtuple('Placeholder', ['key', values', 'new_key'], defaults=(Tr
 # ===============================================================
 
 # Standard Library
-import logging
-from pathlib import Path
 from abc import ABC, abstractmethod
 from collections import namedtuple
-from typing import Any, Callable, Dict, Iterable, List, Optional, Union
+import logging
+from pathlib import Path
+from typing import Any, Callable, Dict, Iterable, Iterator, List, Optional, Sequence, Union
 
 # Third Party
 import pandas as pd
 from sqlalchemy import create_engine
 from sqlalchemy.sql import text
-from sqlalchemy.exc import ArgumentError
 from sqlalchemy.engine.base import Connection
 from sqlalchemy.sql.elements import TextClause
 
 # Local
 import pandemy
+import pandemy.datetime
 
 # ===============================================================
 # Set Logger
@@ -55,8 +54,7 @@ Placeholder = namedtuple('Placeholder', ['key', 'values', 'new_key'], defaults=(
 
 
 class DbStatement(ABC):
-    """
-    Base class of a container of database statements. 
+    r"""Base class of a container of database statements.
 
     Each SQL-dialect will inherit from this class.
     Each statement is implemented as a class variable.
@@ -64,7 +62,7 @@ class DbStatement(ABC):
 
     @staticmethod
     def validate_class_variables(cls: object, parent_cls: object, type_validation: str) -> None:
-        """
+        r"""
         Validate that a subclass has implmeneted the class variables
         specified on its parent class.
 
@@ -72,20 +70,18 @@ class DbStatement(ABC):
 
         Parameters
         ----------
-
-        cls: object
+        cls : object
             The class being validated.
 
-        parent_cls: object
+        parent_cls : object
             The parent class that `cls` inherits from.
 
-        type_validation: str ('isinstance', 'type')
+        type_validation : str ('isinstance', 'type')
             How to validate the type of the class variables.
             'type' should be used if an uninstantiated class is assigned to class variables.
 
         Raises
         ------
-
         AttributeError
             If the parent class is missing annotated class variables.
 
@@ -122,8 +118,7 @@ class DbStatement(ABC):
 
     @staticmethod
     def replace_placeholders(stmt: str, placeholders: Union[Placeholder, Iterable[Placeholder]]) -> str:
-        """
-        Replace placeholders in an SQL statement.
+        r"""Replace placeholders in an SQL statement.
 
         Replaces the specified keys in placeholders with supplied values
         in the statement string `stmt`. A single value (str, int or float)
@@ -131,42 +126,37 @@ class DbStatement(ABC):
 
         Parameters
         ----------
-
-        stmt: str
+        stmt : str
             The SQL statement in which to replace placeholders
 
-        placeholders: Placeholder or iterable of Placeholder
+        placeholders : Placeholder or iterable of Placeholder
             The replacement values for each placeholder.
             Placeholder = namedtuple('Placeholder', ['key', 'values', 'new_key'], defaults=(True,))
 
         Returns
         -------
-
-        stmt: str
+        stmt : str
             The SQL statement after replacements.
 
-        params: dict
+        params : dict
             Containing the mapping of inserted placeholders and their mapped values.
             {'new_placeholder1': 'value1', 'new_placeholder2': 'value2'}
 
         Raises
         ------
-
         TypeError
             If the replacement values in a Placeholder is not of type str, int, float, bool or None
         """
 
         def is_valid_replacement_value(value: Union[str, int, float, bool, None], raises: bool = False) -> bool:
-            """
-            Helper function to validate values of the replacements.
+            r"""Helper function to validate values of the replacements.
 
             Parameters
             ----------
-
-            value: str, int or float
+            value : str, int or float
                 The value to validate.
 
-            raises: bool, default False
+            raises : bool, default False
                 If True TypeError will be raised if value is not valid.
                 If False the function will return False.
             """
@@ -234,19 +224,17 @@ class DbStatement(ABC):
 
 
 class DatabaseManager(ABC):
-    """
-    Base class with functionality for managing a database.
+    r"""Base class with functionality for managing a database.
 
     Each specific database type will subclass from DatabaseManager.
 
     Class Variables
     ---------------
-
-    _delete_from_table_statement: str
+    _delete_from_table_statement : str
         Statement for deleting all records in a table.
         Can be modified by subclasses of DatabaseManager if necessary.
 
-    _invalid_table_names: set
+    _invalid_table_names : set
         Set with words that are not allowed as table names.
         Can be modified by subclasses of DatabaseManager if necessary.
     """
@@ -257,25 +245,24 @@ class DatabaseManager(ABC):
 
     @abstractmethod
     def __init__(self, statement: Optional[DbStatement] = None, **kwargs) -> None:
-        """
+        r"""
         The initializer should support **kwargs because different types of databases
         will need different input parameters.
 
         Parameters
         ----------
-
-        statement: DbStatement or None, default None
+        statement : DbStatement or None, default None
             A DbSatement object containing database statements
             that can be used by the DatabaseManager.
         """
 
     def __str__(self) -> str:
-        """String representation of the object"""
+        r"""String representation of the object"""
 
         return self.__class__.__name__
 
     def __repr__(self) -> str:
-        """Debug representation of the object"""
+        r"""Debug representation of the object"""
 
         # Get the attribute names of the class instance
         attributes = self.__dict__.items()
@@ -295,18 +282,15 @@ class DatabaseManager(ABC):
         return repr_str
 
     def _is_valid_table_name(self, table: str) -> None:
-        """
-        Check if the supplied table name is vaild.
+        r"""Check if the supplied table name is vaild.
 
         Parameters
         ----------
-
-        table: str
+        table : str
             The table name to validate.
 
         Raises
         ------
-
         pandemy.InvalidTableNameError
             If the table name is not valid.
         """
@@ -326,12 +310,13 @@ class DatabaseManager(ABC):
         if table.lower() in invalid_table_names:
             raise pandemy.InvalidTableNameError(f'table = {table} is among the the invalid table names: {invalid_table_names}')
 
-    def execute(self, sql: Union[str, text], conn: Connection, params: Union[dict, List[dict], None] = None):
-        """
-        Execute a SQL statement.
+    def execute(self, sql: Union[str, TextClause], conn: Connection, params: Union[dict, List[dict], None] = None):
+        r"""Execute an SQL statement.
 
         To process the result from the method the database connection must remain open after the method
-        is executed. E.g.:
+        is executed. E.g.::
+
+        import pandemy
 
         db = SQLiteDb()
 
@@ -341,45 +326,40 @@ class DatabaseManager(ABC):
             for row in result:
                 pass  # process the results
 
-
-        See also
-        --------
-
-        - https://docs.sqlalchemy.org/en/14/core/connections.html#sqlalchemy.engine.Connection.execute
-
-        - https://docs.sqlalchemy.org/en/14/core/connections.html#sqlalchemy.engine.CursorResult
-
         Parameters
         ----------
-
-        sql: str or sqlalchemy.text
+        sql : str or sqlalchemy.sql.elements.TextClause
             The SQL statement string to process.
 
             Remainder from SQLAlchemy Docs:
             SQLAlchemy Deprecation Warning:"passing a string to Connection.execute() is deprecated
             and will be removed in version 2.0. Use the text() construct with Connection.execute()[...]"
 
-        conn: sqlalchemy database connection
+        conn : sqlalchemy database connection
             An open connection to the database.
 
-        params: dict or list of dict, default None
+        params : dict or list of dict, default None
             Parameters to bind to the sql query using % or :name.
             All params should be dicts or sequences of dicts as of SQLAlchemy 2.0.
 
         Returns
         -------
-
         sqlalchemy.engine.CursorResult
             A result object from the statement.
 
         Raises
         ------
-
         TypeError
             If `sql` is not of type str or sqlalchemy.text.
 
         pandemy.ExecuteStatementError
             If an error occurs when executing the statement.
+
+        See Also
+        --------
+        - https://docs.sqlalchemy.org/en/14/core/connections.html#sqlalchemy.engine.Connection.execute
+
+        - https://docs.sqlalchemy.org/en/14/core/connections.html#sqlalchemy.engine.CursorResult
         """
 
         if isinstance(sql, str):
@@ -398,21 +378,18 @@ class DatabaseManager(ABC):
             raise pandemy.ExecuteStatementError(f'{type(e).__name__}: {e.args}', data=e.args) from None
 
     def delete_all_records_from_table(self, table: str, conn: Connection) -> None:
-        """
-        Delete all records from the specified table.
+        r"""Delete all records from the specified table.
 
         Parameters
         ----------
-
-        table: str
+        table : str
             The table to delete all records from.
 
-        conn: sqlalchemy database connection (sqlalchemy.engine.base.Connection)
+        conn : sqlalchemy database connection (sqlalchemy.engine.base.Connection)
             An open connection to the database.
 
         Raises
         ------
-
         pandemy.InvalidTableNameError
             If the supplied table name is invalid.
 
@@ -440,34 +417,23 @@ class DatabaseManager(ABC):
                 chunksize: Optional[int] = None, schema: Optional[str] = None,
                 dtype: Optional[Union[Dict[str, Union[str, object]], object]] = None,
                 method: Optional[Union[str, Callable]] = None) -> None:
-        """
-        Save the DataFrame `df` to specified table in the database.
+        r"""Save the DataFrame `df` to specified table in the database.
 
         The column names of the DataFrame df must match the table defintion.
-
         Uses the pandas DataFrame method `to_sql`.
-
-        References
-        ----------
-
-        - https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.to_sql.html
-
-        - https://pandas.pydata.org/pandas-docs/stable/user_guide/io.html#io-sql-method
-
 
         Parameters
         ----------
-
-        df: pd.DataFrame
+        df : pd.DataFrame
             The DataFrame to save to the database.
 
-        table: str
+        table : str
             The name of the table to save the DataFrame.
 
-        conn: sqlalchemy database connection (sqlalchemy.engine.base.Connection)
+        conn : sqlalchemy database connection (sqlalchemy.engine.base.Connection)
             An open connection to the database.
 
-        if_exists: str, ('append', 'replace', 'fail'), default 'append'
+        if_exists : str, {'append', 'replace', 'fail'}, default 'append'
             How to update an existing table in the database:
 
             - 'append': Append the DataFrame to the existing table.
@@ -476,27 +442,27 @@ class DatabaseManager(ABC):
 
             - 'fail': Raise pandemy.TableExistsError if the table exists.
 
-        index: bool, default True
+        index : bool, default True
             Write DataFrame index as a column. Uses the name of the index as the
             column name for the table.
 
-        index_label: str or sequence, default None
+        index_label : str or sequence, default None
             Column label for index column(s). If None is given (default) and `index` is True,
             then the index names are used. A sequence should be given if the DataFrame uses a MultiIndex.
 
-        chunksize: int or None, default None
+        chunksize : int or None, default None
             The number of rows in each batch to be written at a time.
             If None, all rows will be written at once.
 
-        schema: str, None, default None
+        schema : str, None, default None
             Specify the schema (if database flavor supports this). If None, use default schema.
 
-        dtype: dict or scalar, default None
+        dtype : dict or scalar, default None
             Specifying the datatype for columns. If a dictionary is used, the keys should be the column names
             and the values should be the SQLAlchemy types or strings for the sqlite3 legacy mode.
             If a scalar is provided, it will be applied to all columns.
 
-        method: None, 'multi', callable, default None
+        method : None, 'multi', callable, default None
             Controls the SQL insertion clause used:
 
             - None: Uses standard SQL INSERT clause (one per row).
@@ -513,7 +479,6 @@ class DatabaseManager(ABC):
 
         Raises
         ------
-
         pandemy.TableExistsError
             If the table exists and `if_exists` = 'fail'.
 
@@ -525,6 +490,12 @@ class DatabaseManager(ABC):
 
         pandemy.InvalidTableNameError
             If the supplied table name is invalid.
+
+        See Also
+        --------
+        - https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.to_sql.html
+
+        - https://pandas.pydata.org/pandas-docs/stable/user_guide/io.html#io-sql-method
         """
 
         # ==========================================
@@ -577,14 +548,173 @@ class DatabaseManager(ABC):
             nr_rows = df.shape[0]
             logger.info(f'Successfully wrote {nr_rows} rows over {nr_cols} columns to table {table}.')
 
+    def load_table(self, sql: Union[str, TextClause], conn: Connection,
+                   params: Optional[Union[dict, List[dict]]] = None,
+                   index_col: Optional[Union[str, Sequence[str]]] = None,
+                   columns: Optional[Sequence[str]] = None, 
+                   parse_dates: Optional[List[dict]] = None,
+                   localize_tz: Optional[str] = None, target_tz: Optional[str] = None,
+                   dtypes: Optional[dict] = None,
+                   chunksize: Optional[int] = None,
+                   coerce_float: bool = True) -> Union[pd.DataFrame, Iterator[pd.DataFrame]]:
+        r"""Load an SQL table into a DataFrame.
+
+        Specify a table name or an SQL query. Uses the pandas `read_sql` DataFrame method.
+
+        Parameters
+        ----------
+        sql : str or sqlalchemy.sql.elements.TextClause
+            The table name or SQL query.
+
+        conn : sqlalchemy database connection (sqlalchemy.engine.base.Connection)
+            An open connection to the database to use for the query.
+
+        params : dict or list of dict, default None
+            Parameters to bind to the sql query using % or :name.
+            All params should be dicts or sequences of dicts as of SQLAlchemy 2.0.
+
+        index_col : str or sequence of str or None, default None
+            The column(s) to set as index of the DataFrame.
+
+        columns : list of str or None
+            List of column names to select from SQL table (only used when `sql` is a table name).
+
+        parse_dates : list, dict or None, default None
+            - List of column names to parse as dates.
+
+            - Dict of {column_name: format string} where format string is strftime compatible
+              in case of parsing string times, or is one of (D, s, ns, ms, us)
+              in case of parsing integer timestamps.
+
+            - Dict of {column_name: arg dict}, where the arg dict corresponds to the keyword arguments of
+              pandas.to_datetime(). Especially useful with databases without native Datetime support, such as SQLite.
+
+            Parse selected columns with specified datetime format to datetime columns using `pd.to_datetime`
+            {column_name: 'datetime format'}
+
+        localize_tz : str or None, default None
+            Localize naive datetime columns of the DataFrame to specified timezone.
+            If None no localization is performed.
+
+        target_tz : str or None, default None
+            The timezone to convert the datetime columns of the DataFrame into after
+            they have been localized. If None no conversion is performed.
+
+        dtypes : dict or None, default None
+            Desired data types for specified columns {column_name: datatype}
+            If None no data type conversion is performed.
+
+        chunksize : int or None, default None
+            If chunksize is specified an iterator of DataFrames will be returned where chunksize
+            is the number of rows in each DataFrame.
+            If chunksize is supplied timezone localization and conversion as well as dtype
+            conversion cannot be performed i.e. `localize_tz`, `target_tz` and `dtypes` have
+            no effect.
+
+        coerce_float : bool, default True
+            Attempts to convert values of non-string, non-numeric objects (like decimal.Decimal)
+            to floating point, useful for SQL result sets.
+
+        Returns
+        -------
+        df : pd.DataFrame
+            DataFrame with the result of the query.
+
+        Raises
+        ------
+        pandemy.LoadTableError
+            If errors when loading the table using `pd.read_sql`.
+
+        pandemy.SetIndexError
+            If setting the index of the output DataFrame fails when index_col is specified
+            and chunksize is None.
+
+        pandemy.DataTypeConversionError
+            If errors when converting data types using the `dtypes` parameter.
+
+        See Also
+        --------
+        - https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.read_sql.html
+
+        - https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.to_datetime.html
+
+        Examples
+        --------
+        When specifying the chunksize parameter the database connection must remain open
+        to be able to process the results from the generator of DataFrames::
+
+        import pandemy
+
+        db = pandemy.SQLiteDb()
+
+        with db.engine.connect() as conn:
+            df_gen = db.load_tabel(sql='MyTableName', conn=conn, chunksize=3)
+
+            for df in df_gen:
+                print(df)  # Process your DataFrame
+                ...
+        """
+
+        # To get the correct index column(s) if chunksize is specified
+        # Not using index_col in pd.read_sql allows to set the data type of the index explicitly
+        index_col_pd_read_sql = None if chunksize is None else index_col
+
+        try:
+            df = pd.read_sql(sql, con=conn, params=params, parse_dates=parse_dates, index_col=index_col_pd_read_sql,
+                             columns=columns, chunksize=chunksize, coerce_float=coerce_float)
+        except Exception as e:
+            raise pandemy.LoadTableError(f'{e.args}\nsql={sql}\nparams={params}\ncolumns={columns}',
+                                         data=(e.args, sql, params, columns)) from None
+
+        if chunksize:
+            return df
+
+        if len(df.index) == 0:
+            logger.warning('No rows were returned form the query.')
+
+        # Convert specifed columns to desired data types
+        if dtypes is not None:
+            logger.debug('Convert columns to desired data types.')
+            try:
+                df = df.astype(dtype=dtypes)
+            except KeyError:
+                # The keys that are not in the columns
+                difference = ', '.join([key for key in dtypes.keys() if key not in (cols := set(df.columns))])
+                cols = df.columns.tolist()
+                raise pandemy.DataTypeConversionError(f'Only column names can be used for the keys in dtypes parameter.'
+                                                      f'\nColumns   : {cols}\ndtypes    : {dtypes}\n'
+                                                      f'Difference: {difference}',
+                                                      data=(cols, dtypes, difference)) from None
+            except TypeError as e:
+                raise pandemy.DataTypeConversionError(f'Cannot convert data types: {e.args[0]}.\ndtypes={dtypes}',
+                                                      data=(e.args, dtypes)) from None
+
+        # Localize (and convert) to desired timezone
+        if localize_tz is not None:
+            pandemy.datetime.datetime_columns_to_timezone(df=df, localize_tz=localize_tz, target_tz=target_tz)
+
+        # Nr of rows and columns retrieved by the query
+        nr_rows = df.shape[0]
+        nr_cols = df.shape[1]
+
+        # Set the index/indices column(s)
+        if index_col is not None:
+            try:
+                df.set_index(index_col, inplace=True)
+            except KeyError as e:
+                raise pandemy.SetIndexError(f'Cannot set index to {index_col}: {e.args[0]}.',
+                                            data=index_col) from None
+
+        logger.info(f'Successfully loaded {nr_rows} rows and {nr_cols} columns.')
+
+        return df
+
 
 class SQLiteDb(DatabaseManager):
-    """
-    A SQLite DatabaseManager.
+    r"""A SQLite DatabaseManager.
 
     Reference
     ---------
-
     - https://docs.sqlalchemy.org/en/14/core/engines.html#sqlalchemy.create_engine
 
     - https://docs.sqlalchemy.org/en/14/dialects/sqlite.html
@@ -592,9 +722,7 @@ class SQLiteDb(DatabaseManager):
 
     def _set_attributes(self, file: Union[str, Path],  must_exist: bool, statement: Optional[DbStatement],
                         engine_config: Optional[Dict[str, Any]]) -> None:
-        """
-        Validate the input parameters from `self.__init__` and set attributes on the instance.
-        """
+        r"""Validate the input parameters from `self.__init__` and set attributes on the instance."""
 
         # file
         # =================================
@@ -641,12 +769,10 @@ class SQLiteDb(DatabaseManager):
                             f'Received: {engine_config} {type(engine_config)}') from None
 
     def _build_conn_str(self) -> None:
-        """
-        Build the database connection string and assgin it to `self.conn_str`.
+        r"""Build the database connection string and assgin it to `self.conn_str`.
 
         Raises
         ------
-
         FileNotFoundError
             If the database file `file` does not exist.
         """
@@ -662,18 +788,15 @@ class SQLiteDb(DatabaseManager):
             self.conn_str = fr'sqlite:///{self.file}'
 
     def _create_engine(self) -> None:
-        """
-        Create the databse engine and assign it to `self.engine`.
+        r"""Create the database engine and assign it to `self.engine`.
 
         Parameters
         ----------
-
-        config: dict
+        config : dict
             Additional key word arguments passed to the SQLAlchemy create_engine function.
 
         Raises
         ------
-
         pandemy.CreateEngineError
             If the creation of the Database engine fails.
         """
@@ -693,36 +816,33 @@ class SQLiteDb(DatabaseManager):
     def __init__(self, file: Union[str, Path] = ':memory:', must_exist: bool = True,
                  statement: Optional[DbStatement] = None, engine_config: Optional[Dict[str, Any]] = None,
                  **kwargs: dict) -> None:
-        """
-        Initialize the database instance.
+        r"""Initialize the database instance.
 
         Creates the connection string and the database engine.
 
         Parameters
         ----------
-
-        file: str or Path, default ':memory:'
+        file : str or Path, default ':memory:'
             The file (with path) to the SQLite database.
             The default creates an in memory database.
 
-        must_exist: bool, default True
+        must_exist : bool, default True
             If True validate that file exists unless file = ':memory:'.
             If it does not exist FileNotFoundError is raised.
             If False the validation is omitted.
 
-        statement: DbStatement or None, default None
+        statement : DbStatement or None, default None
             A DbStatement class that contains database statements that the SQLite database can use.
 
-        engine_config: dict or None
+        engine_config : dict or None
             Additional key word arguments passed to the SQLAlchemy create_engine function.
 
-        **kwargs: dict
+        **kwargs : dict
             Additional key word arguments that are not used by SQLiteDb.
             Allows unpacking a config dict as the parameters to SQLiteDb.
 
         Raises
         ------
-
         TypeError
             If invalid types are supplied to `file`, `must_exist` and `statement`.
 
@@ -739,6 +859,6 @@ class SQLiteDb(DatabaseManager):
         self._create_engine()
 
     def __str__(self):
-        """ String representation of the object """
+        r""" String representation of the object """
 
         return f'SQLiteDb(file={self.file}, must_exist={self.must_exist})'
