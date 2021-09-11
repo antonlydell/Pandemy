@@ -1233,3 +1233,112 @@ class TestLoadTableMethod:
 
         # Clean up - None
         # ===========================================================
+
+
+class TestManageForeignKeysMethod:
+    """
+    Test the `manage_foreign_keys` method of the SQLite DatabaseManager.
+
+    Fixtures
+    --------
+    sqlite_db : pandemy.SQLiteDb
+        An instance of the test database.
+
+    sqlite_db_empty : pandemy.SQLiteDb
+        An instance of the test database where all tables are empty.
+
+    df_store : pd.DataFrame
+        The Store table in test database RSGeneralStore.db.
+
+    df_item_traded_in_store : pd.DataFrame
+        The ItemTradedInStore table of the test database.
+    """
+
+    def test_foreign_key_constraint_triggered(self, sqlite_db_empty, df_store):
+        """
+        Write data to a table with a foreign key constraint.
+        The data should violate the foreign constraint.
+        The foreign key constraint check is then activated in the SQLite database.
+
+        sqlalchemy.exc.IntegrityError is expected to be raised.
+        """
+
+        # Setup - None
+        # ===========================================================
+
+        # Exercise
+        # ===========================================================
+        with sqlite_db_empty.engine.begin() as conn:
+            sqlite_db_empty.manage_foreign_keys(conn=conn, action='ON')
+
+            with pytest.raises(sqlalchemy.exc.IntegrityError) as exe_info:
+                df_store.to_sql(name='Store', con=conn, if_exists='append')
+
+            # Verify
+            # ===========================================================
+            assert exe_info.type is sqlalchemy.exc.IntegrityError
+            assert 'FOREIGN KEY' in exe_info.value.args[0]
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_foreign_key_constraint_not_enabled(self, sqlite_db_empty, df_store):
+        """
+        Write data to a table with a foreign key constraint.
+        The data should violate the foreign constraint.
+        The foreign key constraint check is not activated.
+
+        The data should be saved ok to the table.
+        """
+
+        # Setup - None
+        # ===========================================================
+
+        # Exercise
+        # ===========================================================
+        with sqlite_db_empty.engine.begin() as conn:
+            df_store.to_sql(name='Store', con=conn, if_exists='append')
+            df_result = pd.read_sql(sql='Store', con=conn, index_col='StoreId')
+
+        # Verify
+        # ===========================================================
+
+        # OwnerId column of df_result is loaded as object dtype
+        # Cannot compare object to pd.Uint16Dtype even though check_dtype=False
+        # Cannot convert object to pd.Unit16Dtype, but np.float64 works
+        df_result = df_result.astype({'OwnerId': np.float64})
+
+        assert_frame_equal(df_result, df_store, check_dtype=False, check_index_type=False)
+
+        # Clean up - None
+        # ===========================================================
+
+    @pytest.mark.raises
+    @pytest.mark.parametrize('action', [pytest.param('on', id='on'),
+                                        pytest.param('off', id='off'),
+                                        pytest.param('f', id='f'),
+                                        pytest.param(['ON', 'OFF'], id="['ON', 'OFF']")])
+    def test_invalid_value_action(self, action, sqlite_db_empty):
+        """
+        Supply invalid values to the `action` parameter.
+
+        pandemy.InvalidInputError is expected to be raised.
+        """
+
+        # Setup - None
+        # ===========================================================
+
+        # Exercise
+        # ===========================================================
+        with sqlite_db_empty.engine.begin() as conn:
+            with pytest.raises(pandemy.InvalidInputError) as exe_info:
+                sqlite_db_empty.manage_foreign_keys(conn=conn, action=action)
+
+            # Verify
+            # ===========================================================
+            assert exe_info.type is pandemy.InvalidInputError
+            assert str(action) in exe_info.value.args[0]
+            assert action == exe_info.value.data[0]
+
+        # Clean up - None
+        # ===========================================================

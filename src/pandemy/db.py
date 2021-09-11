@@ -310,6 +310,21 @@ class DatabaseManager(ABC):
         if table.lower() in invalid_table_names:
             raise pandemy.InvalidTableNameError(f'table = {table} is among the the invalid table names: {invalid_table_names}')
 
+    def manage_foreign_keys(self, conn: Connection, action: str) -> None:
+        r"""Manage how the database handles foreign key constraints.
+
+        Should be implemented by the SQLite Databasemanger since
+        checking foreign key constraints is not enabled by default.
+
+        Parameters
+        ----------
+        conn : sqlalchemy database connection (sqlalchemy.engine.base.Connection)
+            An open connection to the database.
+
+        action : str
+            Enable or disable the check of foreign key constraints.
+        """
+
     def execute(self, sql: Union[str, TextClause], conn: Connection, params: Union[dict, List[dict], None] = None):
         r"""Execute an SQL statement.
 
@@ -862,3 +877,43 @@ class SQLiteDb(DatabaseManager):
         r""" String representation of the object """
 
         return f'SQLiteDb(file={self.file}, must_exist={self.must_exist})'
+
+    def manage_foreign_keys(self, conn: Connection, action: str = 'ON') -> None:
+        r"""Manage how the database handles foreign key constraints.
+
+        In SQLite the check of foreign key constraints is not enabled by default.
+
+        Parameters
+        ----------
+        conn : sqlalchemy database connection (sqlalchemy.engine.base.Connection)
+            An open connection to the database.
+
+        action : {'ON', 'OFF'}
+            Enable ('ON') or disable ('OFF') the check of foreign key constraints.
+
+        Returns
+        -------
+        None
+
+        Raises
+        ------
+        pandemy.InvalidInputError
+            If invalid input is supplied to `action`.
+        """
+
+        actions = {'ON', 'OFF'}
+
+        if not isinstance(action, str):
+            error = True
+        elif action not in actions:
+            error = True
+        else:
+            error = False
+
+        if error:
+            raise pandemy.InvalidInputError(f'Invalid input action = {action}. Allowed values: {actions}',
+                                            data=(action, actions))
+        try:
+            conn.execute(f'PRAGMA foreign_keys = {action};')
+        except Exception as e:
+            raise pandemy.ExecuteStatementError(f'{type(e).__name__}: {e.args}', data=e.args) from None

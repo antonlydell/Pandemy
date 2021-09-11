@@ -158,6 +158,33 @@ CustomerId;CustomerName;BirthDate;Residence;IsAdventurer
 
 
 @pytest.fixture()
+def df_store() -> pd.DataFrame:
+    """
+    DataFrame representation of the Store table in test database RSGeneralStore.db.
+
+    The OwnerId column is a foreign key reference to the OwnerId column of the Owner table.
+    """
+
+    data = io.StringIO(
+        """
+StoreId;StoreName;Location;OwnerId
+1;Lumbridge General Supplies;Lumbridge;1
+2;Varrock General Store;Varrock;2
+3;Falador General Store;Falador;3
+        """
+    )
+
+    dtypes = {
+        'StoreId': pd.UInt16Dtype(),
+        'StoreName': pd.StringDtype(),
+        'Location': pd.StringDtype(),
+        'OwnerId': pd.UInt16Dtype(),
+    }
+
+    return pd.read_csv(data, sep=CSV_DELIM, index_col='StoreId', dtype=dtypes)
+
+
+@pytest.fixture()
 def df_item_traded_in_store() -> pd.DataFrame:
     """
     DataFrame representation of the ItemTradedInStore table in test database RSGeneralStore.db.
