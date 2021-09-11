@@ -267,17 +267,21 @@ class DatabaseManager(ABC):
         # Get the attribute names of the class instance
         attributes = self.__dict__.items()
 
+        # The space to add before each new parameter on a new line
+        space = '   '
+
         # The name of the class
-        repr_str = f'{self.__class__.__name__}('
+        repr_str = f'{self.__class__.__name__}(\n'
 
         # Append the attribute names and values
         for attrib, value in attributes:
-            repr_str += f'\t{attrib}={value}, '
+            repr_str += f'{space}{attrib}={value},\n'
 
         # Remove last unwanted ', '
         repr_str = repr_str[:-2]
 
-        repr_str += '\t)'
+        # Add closing parentheses
+        repr_str += f'\n{space[:-1]})'
 
         return repr_str
 

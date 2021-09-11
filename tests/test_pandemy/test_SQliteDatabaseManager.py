@@ -1342,3 +1342,61 @@ class TestManageForeignKeysMethod:
 
         # Clean up - None
         # ===========================================================
+
+
+class TestStrAndReprMethods:
+    """Test the `__str__` and `__repr__` methods of the SQLite DatabaseManager."""
+
+    def test__str__(self):
+        """Test the output of the `__str__` method."""
+
+        # Setup
+        # ===========================================================
+        file = 'my_db_file.db'
+        must_exist = False
+        db = pandemy.SQLiteDb(file=file, must_exist=must_exist)
+
+        exp_result = f'SQLiteDb(file={file}, must_exist={must_exist})'
+
+        # Exercise
+        # ===========================================================
+        result = f'{db}'
+
+        # Verify
+        # ===========================================================
+        assert result == exp_result
+
+        # Clean up - None
+        # ===========================================================
+
+    def test__repr__(self):
+        """Test the output of the `__repr__` method."""
+
+        # Setup
+        # ===========================================================
+        file = 'my_db_file.db'
+        must_exist = False
+        statement = None
+        engine_config = None
+
+        db = pandemy.SQLiteDb(file=file, must_exist=must_exist, statement=statement, engine_config=engine_config)
+
+        exp_result = f"""SQLiteDb(
+   file={file},
+   must_exist={must_exist},
+   statement={statement},
+   engine_config={engine_config},
+   conn_str={db.conn_str},
+   engine={db.engine}
+  )"""
+
+        # Exercise
+        # ===========================================================
+        result = repr(db)
+
+        # Verify
+        # ===========================================================
+        assert result == exp_result
+
+        # Clean up - None
+        # ===========================================================
