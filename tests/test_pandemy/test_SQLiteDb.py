@@ -138,7 +138,7 @@ class TestInitSQLiteDb:
         The default option `must_exist` is set to True.
         The file does not exists on disk.
 
-        FileNotFoundError is expected to be raised.
+        pandemy.DatabaseFileNotFoundError is expected to be raised.
 
         Parameters
         ----------
@@ -151,7 +151,7 @@ class TestInitSQLiteDb:
 
         # Exercise & Verify
         # ===========================================================
-        with pytest.raises(FileNotFoundError):
+        with pytest.raises(pandemy.DatabaseFileNotFoundError):
             pandemy.SQLiteDb(file=file, must_exist=True)
 
         # Clean up - None
@@ -202,7 +202,7 @@ class TestInitSQLiteDb:
     def test_bad_input_parameters(self, file, must_exist, container, engine_config, error_msg):
         r"""Test bad input parameters.
 
-        TypeError is expected to be raised.
+        pandemy.InvalidInputError is expected to be raised.
 
         Parameters
         ----------
@@ -227,7 +227,7 @@ class TestInitSQLiteDb:
 
         # Exercise & Verify
         # ===========================================================
-        with pytest.raises(TypeError, match=error_msg):
+        with pytest.raises(pandemy.InvalidInputError, match=error_msg):
             pandemy.SQLiteDb(file=file, must_exist=must_exist, container=container, engine_config=engine_config)
 
         # Clean up - None
@@ -455,6 +455,24 @@ class TestExecuteMethod:
             # ===========================================================
             with pytest.raises(pandemy.ExecuteStatementError):
                 sqlite_db.execute(sql=self.select_owner_by_id, conn=conn, params={'di': 1})
+
+        # Clean up - None
+        # ===========================================================
+
+    @pytest.mark.raises
+    def test_invalid_sql_param(self, sqlite_db):
+        r"""Supply and invalid type to the `sql` parameter.
+
+        It should raise pandemy.InvalidInputError.
+        """
+
+        # Setup
+        # ===========================================================
+        with sqlite_db.engine.connect() as conn:
+            # Exercise & Verify
+            # ===========================================================
+            with pytest.raises(pandemy.InvalidInputError, match='list'):
+                sqlite_db.execute(sql=['Invalid query'], conn=conn, params={'di': 1})
 
         # Clean up - None
         # ===========================================================

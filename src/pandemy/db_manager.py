@@ -184,7 +184,7 @@ class DatabaseManager(ABC):
 
         Raises
         ------
-        TypeError
+        pandemy.InvalidInputError
             If `sql` is not of type str or sqlalchemy.sql.elements.TextClause.
 
         pandemy.ExecuteStatementError
@@ -202,7 +202,8 @@ class DatabaseManager(ABC):
         elif isinstance(sql, TextClause):
             stmt = sql
         else:
-            raise TypeError(f'Invalid type {type(sql)} for sql. Expected str or sqlalchemy.sql.elements.TextClause.')
+            raise pandemy.InvalidInputError(f'Invalid type {type(sql)} for sql. '
+                                            'Expected str or sqlalchemy.sql.elements.TextClause.')
 
         try:
             if params is None:
@@ -567,7 +568,7 @@ class SQLiteDb(DatabaseManager):
 
         Raises
         ------
-        TypeError
+        pandemy.InvalidInputError
             If invalid input is passed to the parameters.
         """
 
@@ -578,16 +579,16 @@ class SQLiteDb(DatabaseManager):
         elif isinstance(file, str):
             self.file = Path(file)
         else:
-            raise TypeError('file must be a string or pathlib.Path. '
-                            f'Received: {file} {type(file)}')
+            raise pandemy.InvalidInputError('file must be a string or pathlib.Path. '
+                                            f'Received: {file} {type(file)}')
 
         # must_exist
         # =================================
         if isinstance(must_exist, bool):
             self.must_exist = must_exist
         else:
-            raise TypeError('must_exist must be a boolean '
-                            f'Received: {must_exist} {type(must_exist)}')
+            raise pandemy.InvalidInputError('must_exist must be a boolean '
+                                            f'Received: {must_exist} {type(must_exist)}')
 
         # container
         # =================================
@@ -604,23 +605,23 @@ class SQLiteDb(DatabaseManager):
                 error = True
 
             if error:
-                raise TypeError('container must be a subclass of pandemy.SQLContainer '
-                                f'Received: {container} {type(container)}') from None
+                raise pandemy.InvalidInputError('container must be a subclass of pandemy.SQLContainer '
+                                                f'Received: {container} {type(container)}') from None
 
         # engine_config
         # =================================
         if engine_config is None or isinstance(engine_config, dict):
             self.engine_config = engine_config
         else:
-            raise TypeError('engine_config must be a dict '
-                            f'Received: {engine_config} {type(engine_config)}') from None
+            raise pandemy.InvalidInputError('engine_config must be a dict '
+                                            f'Received: {engine_config} {type(engine_config)}') from None
 
     def _build_conn_str(self) -> None:
         r"""Build the database connection string and assgin it to `self.conn_str`.
 
         Raises
         ------
-        FileNotFoundError
+        pandemy.DatabaseFileNotFoundError
             If the database file `self.file` does not exist.
         """
 
@@ -629,9 +630,9 @@ class SQLiteDb(DatabaseManager):
 
         else:  # Use a database on file
             if not self.file.exists() and self.must_exist:
-                raise FileNotFoundError(f'file = {self.file} does not exist and '
-                                        f'and must_exist = {self.must_exist}. '
-                                        'Cannot instantiate the SQLite DatabaseManager.')
+                raise pandemy.DatabaseFileNotFoundError(f'file = {self.file} does not exist and '
+                                                        f'and must_exist = {self.must_exist}. '
+                                                        'Cannot instantiate the SQLite DatabaseManager.')
 
             self.conn_str = fr'sqlite:///{self.file}'
 
@@ -676,7 +677,7 @@ class SQLiteDb(DatabaseManager):
 
         must_exist : bool, default True
             If True validate that `file` exists unless `file` = ':memory:'.
-            If it does not exist FileNotFoundError is raised.
+            If it does not exist pandemy.DatabaseFileNotFoundError is raised.
             If False the validation is omitted.
 
         container : pandemy.SQLContainer or None, default None
@@ -691,10 +692,10 @@ class SQLiteDb(DatabaseManager):
 
         Raises
         ------
-        TypeError
+        pandemy.InvalidInputError
             If invalid types are supplied to `file`, `must_exist` and `container`.
 
-        FileNotFoundError
+        pandemy.DatabaseFileNotFoundError
             If the database file `file` does not exist.
 
         pandemy.CreateEngineError
