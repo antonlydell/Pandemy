@@ -1,5 +1,5 @@
 """
-Tests for the DatabaseManager class through the implementation of the SQLite database (SQLiteDb).
+Tests for the DatabaseManager class through the implementation of the SQLite DatabaseManager `SQLiteDb`.
 """
 
 # =================================================
@@ -27,15 +27,15 @@ import pandemy
 # =================================================
 
 
-class SQLiteDbStatement(pandemy.DbStatement):
-    """A correctly defined pandemy.DbStatement subclass"""
+class SQLiteSQLContainer(pandemy.SQLContainer):
+    r"""A correctly defined pandemy.SQLContainer subclass"""
     my_query = 'SELECT * FROM MyTable;'
 
 
-class SQLiteFakeDbStatement:
-    """
-    DbStatement class that does not inherit from pandemy.DbStatement.
-    This class is not a valid input to the statement parameter of
+class SQLiteFakeSQLContainer:
+    r"""
+    SQLContainer class that does not inherit from `pandemy.SQLContainer`.
+    This class is not a valid input to the container parameter of
     `pandemy.DatabaseManager`.
     """
     my_query = 'SELECT * FROM MyTable;'
@@ -46,20 +46,16 @@ class SQLiteFakeDbStatement:
 
 
 class TestInitSQLiteDb:
-    """
-    Test the initalization of the SQLiteDb DatabaseManager.
+    r"""Test the initalization of the SQLite DatabaseManager `SQLiteDb`.
 
     Fixtures
     --------
-
-    sqlite_db_file: Path
+    sqlite_db_file : Path
         Path to a SQLite database that exists on disk.
     """
 
     def test_all_defaults(self):
-        """
-        Create an instance of SQLiteDb that lives in memory.
-        """
+        r"""Create an instance of SQLiteDb that lives in memory with all default values."""
 
         # Setup - None
         # ===========================================================
@@ -72,7 +68,7 @@ class TestInitSQLiteDb:
         # ===========================================================
         assert db.file == ':memory:'
         assert db.must_exist is True
-        assert db.statement is None
+        assert db.container is None
         assert db.engine_config is None
         assert db.conn_str == r'sqlite://'
         assert isinstance(db.engine, sqlalchemy.engine.base.Engine)
@@ -81,9 +77,7 @@ class TestInitSQLiteDb:
         # ===========================================================
 
     def test_in_memory(self):
-        """
-        Create an instance of SQLiteDb that lives in memory.
-        """
+        r"""Create an instance of SQLiteDb that lives in memory."""
 
         # Setup - None
         # ===========================================================
@@ -104,16 +98,14 @@ class TestInitSQLiteDb:
 
     @pytest.mark.parametrize('file_as_str', [pytest.param(True, id='str'), pytest.param(False, id='Path')])
     def test_file_must_exist(self, file_as_str, sqlite_db_file):
-        """
-        Create an instance with a file supplied as a string and pathlib.Path object.
+        r"""Create an instance with a file supplied as a string and pathlib.Path object.
 
         The default option `must_exist` is set to True.
         The file exists on disk.
 
         Parameters
         ----------
-
-        file_as_str: bool
+        file_as_str : bool
             True if the file should be supplied as a string and False for pathlib.Path.
         """
 
@@ -141,16 +133,16 @@ class TestInitSQLiteDb:
     @pytest.mark.parametrize('file', [pytest.param('does not exist', id='str'),
                                       pytest.param(Path('does not exist'), id='Path')])
     def test_on_file_must_exist_file_does_not_exist(self, file):
-        """
-        Create an instance with a file supplied as a string and pathlib.Path object.
+        r"""Create an instance with a file supplied as a string and pathlib.Path object.
 
         The default option `must_exist` is set to True.
         The file does not exists on disk.
 
+        FileNotFoundError is expected to be raised.
+
         Parameters
         ----------
-
-        file: str or Path
+        file : str or Path
             The file with the SQLite database.
         """
 
@@ -165,9 +157,8 @@ class TestInitSQLiteDb:
         # Clean up - None
         # ===========================================================
 
-    def test_on_file_with_DbStatement(self):
-        """
-        Create an instance with a DbStatement class.
+    def test_on_file_with_SQLContainer(self):
+        r"""Create an instance with a SQLContainer class.
 
         The option `must_exist` is set to False.
         The file does not exists on disk.
@@ -180,55 +171,55 @@ class TestInitSQLiteDb:
 
         # Exercise
         # ===========================================================
-        db = pandemy.SQLiteDb(file=file, must_exist=must_exist, statement=SQLiteDbStatement)
+        db = pandemy.SQLiteDb(file=file, must_exist=must_exist, container=SQLiteSQLContainer)
 
         # Verify
         # ===========================================================
         assert db.file == Path(file)
         assert db.must_exist is must_exist
-        assert db.statement is SQLiteDbStatement
+        assert db.container is SQLiteSQLContainer
 
         # Clean up - None
         # ===========================================================
 
-    # file, must_exist, statement, engine_config, error_msg
+    # file, must_exist, container, engine_config, error_msg
     input_test_bad_input = [
         pytest.param(42, False, None, None, 'Received: 42', id='file=42'),
 
         pytest.param('my_db.db', 'False', None, {'encoding': 'UTF-8'}, 'Received: False', id="must_exist='False'"),
 
-        pytest.param('my_db.db', False,  [42], None, 'statement must be a subclass of DbStatement',
-                     id="statement=[42]"),
+        pytest.param('my_db.db', False,  [42], None, 'container must be a subclass of pandemy.SQLContainer',
+                     id="container=[42]"),
 
-        pytest.param(Path('my_db.db'), False,  SQLiteFakeDbStatement, None,
-                     'statement must be a subclass of DbStatement', id="statement=FakeDbStatement"),
+        pytest.param(Path('my_db.db'), False,  SQLiteFakeSQLContainer, None,
+                     'container must be a subclass of pandemy.SQLContainer', id="container=FakeSQLContainer"),
 
         pytest.param('my_db.db', False,  None, 42, 'engine_config must be a dict', id="engine_config=42"),
     ]
 
     @pytest.mark.raises
-    @pytest.mark.parametrize('file, must_exist, statement, engine_config, error_msg', input_test_bad_input)
-    def test_bad_input_parameters(self, file, must_exist, statement, engine_config, error_msg):
-        """
-        Test bad input parameters. TypeError is expected to be raised.
+    @pytest.mark.parametrize('file, must_exist, container, engine_config, error_msg', input_test_bad_input)
+    def test_bad_input_parameters(self, file, must_exist, container, engine_config, error_msg):
+        r"""Test bad input parameters.
+
+        TypeError is expected to be raised.
 
         Parameters
         ----------
-
-        file: str or Path, default ':memory:'
+        file : str or Path, default ':memory:'
             The file (with path) to the SQLite database.
             The default creates an in memory database.
 
-        must_exist: bool, default True
+        must_exist : bool, default True
             If True validate that file exists unless file = ':memory:'.
             If it does not exist FileNotFoundError is raised.
             If False the validation is omitted.
 
-        statement: DbStatement or None, default None
-            A DbStatement class that contains database statements that the SQLite database can use.
+        container : pandemy.SQLContainer or None, default None
+            A container of database statements that the SQLite DatabaseManager can use.
 
-        engine_config: dict or None
-            Additional key word arguments passed to the SQLAlchemy create_engine function.
+        engine_config : dict or None
+            Additional keyword arguments passed to the SQLAlchemy create_engine function.
         """
 
         # Setup - None
@@ -237,19 +228,18 @@ class TestInitSQLiteDb:
         # Exercise & Verify
         # ===========================================================
         with pytest.raises(TypeError, match=error_msg):
-            pandemy.SQLiteDb(file=file, must_exist=must_exist, statement=statement, engine_config=engine_config)
+            pandemy.SQLiteDb(file=file, must_exist=must_exist, container=container, engine_config=engine_config)
 
         # Clean up - None
         # ===========================================================
 
     @pytest.mark.raises
     def test_invalid_parameter_to_create_engine(self):
-        """
-        Test to supply an invalid parameter to the SQLAlchemy create_engine function.
+        r"""Test to supply an invalid parameter to the SQLAlchemy create_engine function.
 
         pandemy.CreateEngineError is expected to be raised.
 
-        Also supply a key word argument that is not used for anything.
+        Also supply a keyword argument that is not used for anything.
         It should not affect the initialization.
         """
 
@@ -261,7 +251,7 @@ class TestInitSQLiteDb:
         # Exercise & Verify
         # ===========================================================
         with pytest.raises(pandemy.CreateEngineError, match=error_msg):
-            pandemy.SQLiteDb(file='my_db.db', must_exist=False, statement=None,
+            pandemy.SQLiteDb(file='my_db.db', must_exist=False, container=None,
                              engine_config=engine_config, kwarg='kwarg')
 
         # Clean up - None
@@ -269,19 +259,17 @@ class TestInitSQLiteDb:
 
 
 class TestExecuteMethod:
-    """
-    Test the execute method of the SQLiteDb DatabaseManager.
+    r"""Test the `execute` method of the SQLite DatabaseManager `SQLiteDb`.
 
     Fixtures
     --------
-
-    sqlite_db: pandemy.SQLiteDb
+    sqlite_db : pandemy.SQLiteDb
         An instance of the test database.
 
-    sqlite_db_empty: pandemy.SQLiteDb
+    sqlite_db_empty : pandemy.SQLiteDb
         An instance of the test database where all tables are empty.
 
-    df_owner: pd.DataFrame
+    df_owner : pd.DataFrame
         The owner table of the test database.
     """
 
@@ -291,15 +279,13 @@ class TestExecuteMethod:
     @pytest.mark.parametrize('query', [pytest.param(select_all_owners, id='query: str'),
                                        pytest.param(text(select_all_owners), id='query: sqlalchemy TextClause')])
     def test_select_all_owners(self, query, sqlite_db, df_owner):
-        """
-        Test to execute a SELECT query.
+        r"""Test to execute a SELECT query.
 
         Query all rows from the Owner table.
 
         Parameters
         ----------
-
-        query: str or text
+        query : str or text
             The SQL query to execute.
         """
 
@@ -316,7 +302,6 @@ class TestExecuteMethod:
                 assert row.OwnerId == df_owner.index[idx]
                 assert row.OwnerName == df_owner.loc[row.OwnerId, 'OwnerName']
                 assert row.BirthDate == df_owner.loc[row.OwnerId, 'BirthDate'].strftime(r'%Y-%m-%d')
-
 
         # Clean up - None
         # ===========================================================
@@ -335,20 +320,15 @@ class TestExecuteMethod:
 
     @pytest.mark.parametrize('query, owner_id', input_test_select_owner_by_id)
     def test_select_owner_by_id(self, query, owner_id, sqlite_db, df_owner):
-        """
-        Test to execute a SELECT query with a query parameter.
+        r"""Test to execute a SELECT query with a query parameter.
 
         Parameters
         ----------
-
-        query: str or text
+        query : str or sqlalchemy.sql.elements.TextClause
             The SQL query to execute.
 
-        owner_id: int
+        owner_id : int
             The parameter representing OwnerId in `query`.
-
-        owner_exp: Owner
-            The expected row of the owner from `query`.
         """
 
         # Setup
@@ -368,9 +348,7 @@ class TestExecuteMethod:
         # ===========================================================
 
     def test_select_owner_by_2_params(self, sqlite_db, df_owner):
-        """
-        Test to execute a SELECT query with 2 query parameters.
-        """
+        r"""Test to execute a SELECT query with 2 query parameters."""
 
         # Setup
         # ===========================================================
@@ -407,13 +385,11 @@ class TestExecuteMethod:
 
     @pytest.mark.parametrize('params', input_test_insert_owner)
     def test_insert_into_owner(self, params, sqlite_db_empty):
-        """
-        Test to insert new owner(s) to the Owner table of the empty test database.
+        r"""Test to insert new owner(s) into the Owner table of the empty test database.
 
         Parameters
         ----------
-
-        params: list of dict
+        params : list of dict
             The parameters to pass to the insert statement.
         """
 
@@ -445,8 +421,7 @@ class TestExecuteMethod:
 
     @pytest.mark.raises
     def test_invalid_select_syntax(self, sqlite_db):
-        """
-        Execute a SELECT query with invalid syntax.
+        r"""Execute a SELECT query with invalid syntax.
 
         No query parameters are supplied. It should raise pandemy.ExecuteStatementError.
         """
@@ -466,7 +441,7 @@ class TestExecuteMethod:
 
     @pytest.mark.raises
     def test_invalid_query_param(self, sqlite_db):
-        """
+        r"""
         Execute a SELECT query with a parameter (:id) and the name of the supplied
         parameter (:di) to the query does not match the parameter name in the query.
 
@@ -486,32 +461,28 @@ class TestExecuteMethod:
 
 
 class TestSaveDfMethod:
-    """
-    Test the save_df method of the SQLiteDb DatabaseManager.
+    r"""Test the `save_df` method of the SQLiteDb DatabaseManager `SQLiteDb`.
 
     Fixtures
     --------
-
-    sqlite_db: pandemy.SQLiteDb
+    sqlite_db : pandemy.SQLiteDb
         An instance of the test database.
 
-    sqlite_db_empty: pandemy.SQLiteDb
+    sqlite_db_empty : pandemy.SQLiteDb
         An instance of the test database where all tables are empty.
 
-    df_customer: pd.DataFrame
+    df_customer : pd.DataFrame
         The Customer table of the test database.
     """
 
     @pytest.mark.parametrize('chunksize', [pytest.param(None, id='chunksize=None'),
                                            pytest.param(2, id='chunksize=2')])
     def test_save_to_existing_empty_table(self, chunksize, sqlite_db_empty, df_customer):
-        """
-        Save a DataFrame to an exisitng empty table.
+        r"""Save a DataFrame to an exisitng empty table.
 
         Parameters
         ----------
-
-        chunksize: int or None
+        chunksize : int or None
             The number of rows in each batch to be written at a time.
             If None, all rows will be written at once.
         """
@@ -536,9 +507,9 @@ class TestSaveDfMethod:
         # ===========================================================
 
     def test_save_to_existing_non_empty_table_if_exists_replace(self, sqlite_db_empty, df_customer):
-        """
-        Save a DataFrame to an exisitng non empty table.
-        The existing rows are deleted before writing the DataFrame.
+        r"""Save a DataFrame to an exisitng non empty table.
+
+        The existing rows in the table are deleted before writing the DataFrame.
         """
 
         # Setup
@@ -561,8 +532,8 @@ class TestSaveDfMethod:
 
     @pytest.mark.raises
     def test_save_to_existing_table_if_exists_fail(self, sqlite_db_empty, df_customer):
-        """
-        Save a DataFrame to an exisitng table when `if_exists` = 'fail'.
+        r"""Save a DataFrame to an exisitng table when `if_exists` = 'fail'.
+
         pandemy.TableExistsError is expected to be raised.
         """
         # Setup
@@ -577,9 +548,10 @@ class TestSaveDfMethod:
         # Clean up - None
         # ===========================================================
 
+    @pytest.mark.raises
     def test_save_to_existing_non_empty_table_if_exists_append(self, sqlite_db_empty, df_customer):
-        """
-        Save a DataFrame to an exisitng non empty table.
+        r"""Save a DataFrame to an exisitng non empty table.
+
         The rows of the DataFrame are already present in the database table
         and inserting the rows will violate a UNIQUE constraint.
         pandemy.SaveDataFrameError is expected to be raised.
@@ -600,8 +572,8 @@ class TestSaveDfMethod:
         # ===========================================================
 
     def test_index_False(self, sqlite_db_empty, df_customer):
-        """
-        Save a DataFrame to an exisitng empty table.
+        r"""Save a DataFrame to an exisitng empty table.
+
         The index column of the DataFrame is not written to the table.
         """
 
@@ -609,20 +581,19 @@ class TestSaveDfMethod:
         # ===========================================================
         query = """SELECT * FROM Customer;"""
 
-        df = df_customer.copy()  # Copy to avoid modifying the fixture
-        df.reset_index(inplace=True)  # Convert the index CustomerId to a regular column
+        df_customer.reset_index(inplace=True)  # Convert the index CustomerId to a regular column
 
         with sqlite_db_empty.engine.begin() as conn:
 
             # Exercise
             # ===========================================================
-            sqlite_db_empty.save_df(df=df, table='Customer', conn=conn, if_exists='append', index=False)
+            sqlite_db_empty.save_df(df=df_customer, table='Customer', conn=conn, if_exists='append', index=False)
 
             # Verify
             # ===========================================================
             df_result = pd.read_sql(sql=query, con=conn, parse_dates=['BirthDate'])
 
-            assert_frame_equal(df_result, df, check_dtype=False, check_index_type=False)
+            assert_frame_equal(df_result, df_customer, check_dtype=False, check_index_type=False)
 
     # Input data to test_index_label
     # new_index_names, index_labels, index_type,
@@ -634,8 +605,8 @@ class TestSaveDfMethod:
     @pytest.mark.parametrize('new_index_names, index_labels, index_type', input_test_index_label)
     def test_index_label(self, new_index_names, index_labels, index_type,
                          sqlite_db_empty, df_customer):
-        """
-        Save a DataFrame to an exisitng empty table.
+        r"""Save a DataFrame to an exisitng empty table.
+
         Supply custom name(s) for the index of the DataFrame.
         that will be used as the column names in the database.
 
@@ -646,14 +617,13 @@ class TestSaveDfMethod:
 
         Parameters
         ----------
-
-        new_index_names: str or list of str
+        new_index_names : str or list of str
             The new index names to assign to the DataFrame to save to the database.
 
-        index_labels: str or list of str
+        index_labels : str or list of str
             The names to use for the index when saving the DataFrame to the database.
 
-        index_type: str ('Single', 'Multi')
+        index_type : str ('Single', 'Multi')
             The type of index of the DataFrame.
         """
 
@@ -661,18 +631,16 @@ class TestSaveDfMethod:
         # ===========================================================
         query = """SELECT * FROM Customer;"""
 
-        df = df_customer.copy()  # Copy to avoid modifying the fixture
-
         if index_type == 'Single':
-            df.index.name = new_index_names
+            df_customer.index.name = new_index_names
         elif index_type == 'Multi':
-            df.set_index(index_labels[1], inplace=True, append=True)
-            df.index.names = new_index_names
+            df_customer.set_index(index_labels[1], inplace=True, append=True)
+            df_customer.index.names = new_index_names
 
         with sqlite_db_empty.engine.begin() as conn:
             # Exercise
             # ===========================================================
-            sqlite_db_empty.save_df(df=df, table='Customer', conn=conn, if_exists='append',
+            sqlite_db_empty.save_df(df=df_customer, table='Customer', conn=conn, if_exists='append',
                                     index=True, index_label=index_labels)
 
             # Verify
@@ -681,18 +649,18 @@ class TestSaveDfMethod:
 
             # Change back to expected index name
             if index_type == 'Single':
-                df.index.name = 'CustomerId'
+                df_customer.index.name = 'CustomerId'
             elif index_type == 'Multi':
-                df.index.names = ['CustomerId', 'CustomerName']
+                df_customer.index.names = ['CustomerId', 'CustomerName']
 
-            assert_frame_equal(df_result, df, check_dtype=False, check_index_type=False)
+            assert_frame_equal(df_result, df_customer, check_dtype=False, check_index_type=False)
 
     @pytest.mark.raises
     @pytest.mark.parametrize('df', [pytest.param('df', id='str'),
                                     pytest.param([], id='list')])
     def test_invalid_input_df(self, df, sqlite_db_empty):
-        """
-        Supply an invalid argument to the `df` parameter.
+        r"""Supply an invalid argument to the `df` parameter.
+
         pandemy.InvalidInputError is expected to be raised.
         """
 
@@ -709,8 +677,8 @@ class TestSaveDfMethod:
     @pytest.mark.parametrize('if_exists', [pytest.param('delete', id='str'),
                                            pytest.param([], id='list')])
     def test_invalid_input_if_exists(self, if_exists, sqlite_db_empty, df_customer):
-        """
-        Supply an invalid argument to the `if_exists` parameter.
+        r"""Supply an invalid argument to the `if_exists` parameter.
+
         pandemy.InvalidInputError is expected to be raised.
         """
 
@@ -726,10 +694,10 @@ class TestSaveDfMethod:
     @pytest.mark.raises
     @pytest.mark.parametrize('conn', [pytest.param('conn', id='str'),
                                       pytest.param([], id='list'),
-                                      pytest.param(pandemy.DbStatement, id='class')])
+                                      pytest.param(pandemy.SQLContainer, id='class')])
     def test_invalid_input_conn(self, conn, sqlite_db_empty, df_customer):
-        """
-        Supply an invalid argument to the `conn` parameter.
+        r"""Supply an invalid argument to the `conn` parameter.
+
         pandemy.InvalidInputError is expected to be raised.
         """
 
@@ -747,8 +715,8 @@ class TestSaveDfMethod:
                                        pytest.param('customer name', id='customer name'),
                                        pytest.param('as', id='as')])
     def test_invalid_input_table(self, table, sqlite_db_empty, df_customer):
-        """
-        Supply an invalid argument to the `table` parameter.
+        r"""Supply an invalid argument to the `table` parameter.
+
         pandemy.InvalidTableNameError is expected to be raised.
         """
 
@@ -763,8 +731,7 @@ class TestSaveDfMethod:
 
 
 class TestLoadTableMethod:
-    """
-    Test the `load_table` method of the SQLite DatabaseManager.
+    r"""Test the `load_table` method of the SQLite DatabaseManager `SQLiteDb`.
 
     Fixtures
     --------
@@ -788,10 +755,9 @@ class TestLoadTableMethod:
                                 ]
     @pytest.mark.parametrize('parse_dates', input_load_table_by_name)
     def test_load_table_by_name_all_cols(self, parse_dates, sqlite_db, df_item_traded_in_store):
-        """
-        Load the whole table ItemTradedInStore by selecting it by name.
+        r"""Load the whole table ItemTradedInStore by selecting it by name.
 
-        Test different types of configuration of parse_dates.
+        Test different types of configuration of the `parse_dates` parameter.
 
         Parameters
         ----------
@@ -824,8 +790,8 @@ class TestLoadTableMethod:
     ])
     def test_load_table_by_name_selected_cols_and_index_col(self, columns, index_col, sqlite_db,
                                                             df_item_traded_in_store):
-        """
-        Load all rows and selected columns from table ItemTradedInStore.
+        r"""Load all rows and selected columns from table ItemTradedInStore.
+
         Select the table by name and set an index column of the DataFrame.
 
         Parameters
@@ -860,13 +826,13 @@ class TestLoadTableMethod:
         pytest.param(text("""SELECT * FROM ItemTradedInStore;"""), id='TextClause')
     ])
     def test_read_query_no_params(self, query, sqlite_db, df_item_traded_in_store):
-        """
-        Load all rows from table ItemTradedInStore through an SQL query.
+        r"""Load all rows from table ItemTradedInStore through an SQL query.
+
         The query has no parameters.
 
         Parameters
         ----------
-        query : str or TextClause
+        query : str or sqlalchemy.sql.elements.TextClause
             The query to execute.
         """
 
@@ -898,8 +864,8 @@ class TestLoadTableMethod:
                      {'TradePricePerItem': 200, 'StoreId': 2}, True, id='TextClause'),
     ])
     def test_read_query_with_params(self, query, params, as_textclause, sqlite_db, df_item_traded_in_store):
-        """
-        Load rows and columns specified by the SQL query.
+        r"""Load rows and columns specified by the SQL query.
+
         The query has parameters.
 
         Parameters
@@ -911,7 +877,7 @@ class TestLoadTableMethod:
             The query parameters.
 
         as_textclause : bool
-            True if the query should be as type sqlalchemy.sql.elements.TextClause and
+            True if the query should be of type sqlalchemy.sql.elements.TextClause and
             False for type str.
         """
 
@@ -940,9 +906,7 @@ class TestLoadTableMethod:
         # ===========================================================
 
     def test_load_table_set_dtypes(self, sqlite_db, df_item_traded_in_store):
-        """
-        Load table ItemTradedInStore by name and specify the dtypes of the columns.
-        """
+        r"""Load table ItemTradedInStore by name and specify the dtypes of the columns."""
 
         # Setup
         # ===========================================================
@@ -971,11 +935,10 @@ class TestLoadTableMethod:
         # ===========================================================
 
     def test_load_table_in_chunksize(self, sqlite_db, df_item_traded_in_store):
-        """
-        Load table ItemTradedInStore by name and specify the chunksize parameter.
+        r"""Load table ItemTradedInStore by name and specify the `chunksize` parameter.
 
-        An iterator yielding DataFrames each with the number of rows specified in
-        the chunksize parameter is expected to be returned.
+        A generator yielding DataFrames each with the number of rows specified in
+        the `chunksize` parameter is expected to be returned.
         """
 
         # Setup - None
@@ -997,8 +960,8 @@ class TestLoadTableMethod:
         # ===========================================================
 
     def test_load_table_that_is_empty(self, sqlite_db_empty, df_item_traded_in_store):
-        """
-        Try to load table ItemTradedInStore that is empty.
+        r"""Try to load table ItemTradedInStore that is empty.
+
         An empty DataFrame is expected to be returned.
         """
 
@@ -1020,13 +983,13 @@ class TestLoadTableMethod:
         # Clean up - None
         # ===========================================================
 
-    def test_load_empty_table_in_chunksize(self, sqlite_db_empty, df_item_traded_in_store):
-        """
-        Load table ItemTradedInStore by name and specify chunksize parameter.
+    def test_load_empty_table_in_chunksize(self, sqlite_db_empty):
+        r"""Load table ItemTradedInStore by name and specify `chunksize` parameter.
+
         The table ItemTradedInStore is empty.
 
-        An iterator yielding DataFrames each with the number of rows specified in
-        the chunksize parameter is expected to be returned. The iterator should not
+        A generator yielding DataFrames each with the number of rows specified in
+        the `chunksize` parameter is expected to be returned. The generator should not
         yield a single DataFrame.
         """
 
@@ -1048,7 +1011,7 @@ class TestLoadTableMethod:
         # ===========================================================
 
     def test_load_table_localize_timezone(self, sqlite_db, df_item_traded_in_store):
-        """
+        r"""
         Load table ItemTradedInStore and localize datetime column TransactionTimestamp
         to CET timezone.
         """
@@ -1073,7 +1036,7 @@ class TestLoadTableMethod:
         # ===========================================================
 
     def test_load_table_convert_timezone(self, sqlite_db, df_item_traded_in_store):
-        """
+        r"""
         Load table ItemTradedInStore and convert datetime column TransactionTimestamp
         from localized timezone CET to EET timezone.
         """
@@ -1104,8 +1067,7 @@ class TestLoadTableMethod:
 
     @pytest.mark.raises
     def test_load_table_that_does_not_exist(self, sqlite_db):
-        """
-        Try to load table TradedInStoreItems that does not exist in the test database.
+        r"""Try to load table TradedInStoreItems that does not exist in the test database.
 
         pandemy.LoadTableError is expected to be raised.
         """
@@ -1132,8 +1094,8 @@ class TestLoadTableMethod:
 
     @pytest.mark.raises
     def test_keys_in_dtypes_does_not_match_column_in_table(self, sqlite_db):
-        """
-        Try to load table ItemTradedInStore an convert data types.
+        r"""Try to load table ItemTradedInStore an convert data types.
+
         Supply column names in the `dtypes` parameter that does not exist in the table.
 
         pandemy.DataTypeConversionError is expected to be raised.
@@ -1169,8 +1131,8 @@ class TestLoadTableMethod:
 
     @pytest.mark.raises
     def test_dtypes_cannot_convert_dtype(self, sqlite_db):
-        """
-        Try to load table ItemTradedInStore an convert data types.
+        r"""Try to load table ItemTradedInStore an convert data types.
+
         The data type conversion cannot be performed for desired data types.
         TransactionTimestamp [datetime64[ns]] cannot be converted to [IntegerDtype]
 
@@ -1205,8 +1167,8 @@ class TestLoadTableMethod:
     @pytest.mark.parametrize('params', [pytest.param({'ItemId': 1}, id='Invalid value'),
                                         pytest.param((44, 33), id='Invalid type')])
     def test_invalid_parameter_value_params(self, params, sqlite_db):
-        """
-        Try to load table ItemTradedInStore and specify an invalid value or type to
+        r"""
+        Try to load table ItemTradedInStore and specify an invalid value or type for
         the `params` parameter.
 
         pandemy.LoadTableError is expected to be raised.
@@ -1236,8 +1198,7 @@ class TestLoadTableMethod:
 
 
 class TestManageForeignKeysMethod:
-    """
-    Test the `manage_foreign_keys` method of the SQLite DatabaseManager.
+    r"""Test the `manage_foreign_keys` method of the SQLite DatabaseManager `SQLiteDb`.
 
     Fixtures
     --------
@@ -1248,17 +1209,17 @@ class TestManageForeignKeysMethod:
         An instance of the test database where all tables are empty.
 
     df_store : pd.DataFrame
-        The Store table in test database RSGeneralStore.db.
+        The Store table in test database.
 
     df_item_traded_in_store : pd.DataFrame
         The ItemTradedInStore table of the test database.
     """
 
     def test_foreign_key_constraint_triggered(self, sqlite_db_empty, df_store):
-        """
-        Write data to a table with a foreign key constraint.
-        The data should violate the foreign constraint.
-        The foreign key constraint check is then activated in the SQLite database.
+        r"""Write data to a table with a foreign key constraint.
+
+        The foreign key constraint check is activated in the SQLite database.
+        The data written should violate the foreign constraint.
 
         sqlalchemy.exc.IntegrityError is expected to be raised.
         """
@@ -1283,10 +1244,10 @@ class TestManageForeignKeysMethod:
         # ===========================================================
 
     def test_foreign_key_constraint_not_enabled(self, sqlite_db_empty, df_store):
-        """
-        Write data to a table with a foreign key constraint.
-        The data should violate the foreign constraint.
+        r"""Write data to a table with a foreign key constraint.
+
         The foreign key constraint check is not activated.
+        The data written should violate the foreign constraint.
 
         The data should be saved ok to the table.
         """
@@ -1319,8 +1280,7 @@ class TestManageForeignKeysMethod:
                                         pytest.param('f', id='f'),
                                         pytest.param(['ON', 'OFF'], id="['ON', 'OFF']")])
     def test_invalid_value_action(self, action, sqlite_db_empty):
-        """
-        Supply invalid values to the `action` parameter.
+        r"""Supply invalid values to the `action` parameter.
 
         pandemy.InvalidInputError is expected to be raised.
         """
@@ -1345,10 +1305,10 @@ class TestManageForeignKeysMethod:
 
 
 class TestStrAndReprMethods:
-    """Test the `__str__` and `__repr__` methods of the SQLite DatabaseManager."""
+    r"""Test the `__str__` and `__repr__` methods of the SQLite DatabaseManager `SQLiteDb`."""
 
     def test__str__(self):
-        """Test the output of the `__str__` method."""
+        r"""Test the output of the `__str__` method."""
 
         # Setup
         # ===========================================================
@@ -1370,21 +1330,21 @@ class TestStrAndReprMethods:
         # ===========================================================
 
     def test__repr__(self):
-        """Test the output of the `__repr__` method."""
+        r"""Test the output of the `__repr__` method."""
 
         # Setup
         # ===========================================================
         file = 'my_db_file.db'
         must_exist = False
-        statement = None
+        container = None
         engine_config = None
 
-        db = pandemy.SQLiteDb(file=file, must_exist=must_exist, statement=statement, engine_config=engine_config)
+        db = pandemy.SQLiteDb(file=file, must_exist=must_exist, container=container, engine_config=engine_config)
 
         exp_result = f"""SQLiteDb(
    file={file},
    must_exist={must_exist},
-   statement={statement},
+   container={container},
    engine_config={engine_config},
    conn_str={db.conn_str},
    engine={db.engine}

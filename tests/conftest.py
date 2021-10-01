@@ -1,6 +1,4 @@
-"""
-Fixtures for testing the pandemy package.
-"""
+"""Fixtures for testing the pandemy package."""
 
 # ===============================================================
 # Imports
@@ -33,20 +31,19 @@ CSV_DELIM = ';'
 
 @pytest.fixture(scope='session')
 def sqlite_db_folder(tmp_path_factory):
-    """
-    The test folder containing the SQLite test databases.
-    """
+    r"""The test folder containing the SQLite test databases."""
 
     return tmp_path_factory.mktemp('SQLite')
 
 
 @pytest.fixture(scope='session')
 def sqlite_db_file(sqlite_db_folder) -> Path:
-    """
-    The SQLite test database RSGeneralStore.db.
+    r"""The SQLite test database.
 
     The database contains tables with mocked information about
     General Stores in Runescape.
+
+    The database is stored in the file: ./static_files/SQLite/RSGeneralStore.db
     """
 
     db_filename = 'RSGeneralStore.db'
@@ -60,11 +57,10 @@ def sqlite_db_file(sqlite_db_folder) -> Path:
 
 @pytest.fixture(scope='session')
 def sqlite_db(sqlite_db_file) -> pandemy.SQLiteDb:
-    """
-    An instance of pandemy.SQLiteDb.
+    r"""An instance of the DatabaseManager `pandemy.SQLiteDb`.
 
-    Connected to the test database RSGeneralStore.db provided in
-    fixture `sqlite_db_file`.
+    The instance is connected to the test database RSGeneralStore.db
+    provided in fixture `sqlite_db_file`.
     """
 
     return pandemy.SQLiteDb(file=sqlite_db_file, must_exist=True)
@@ -72,10 +68,11 @@ def sqlite_db(sqlite_db_file) -> pandemy.SQLiteDb:
 
 @pytest.fixture()
 def sqlite_db_file_empty(sqlite_db_folder) -> Path:
-    """
-    An empty version of the SQLite test database RSGeneralStore_empty.db.
+    r"""An empty version of the SQLite test database..
 
     All tables in the database are empty.
+
+    The database is stored in the file: ./static_files/SQLite/RSGeneralStore_empty.db
     """
 
     db_filename = 'RSGeneralStore_empty.db'
@@ -90,11 +87,10 @@ def sqlite_db_file_empty(sqlite_db_folder) -> Path:
 
 @pytest.fixture()
 def sqlite_db_empty(sqlite_db_file_empty) -> pandemy.SQLiteDb:
-    """
-    An instance of pandemy.SQLiteDb.
+    r"""An instance of pandemy.SQLiteDb.
 
-    Connected to the empty test database RSGeneralStore.db provided in
-    fixture `sqlite_db_file_empty`.
+    The instance is connected to the empty test database RSGeneralStore_empty.db
+    provided in fixture `sqlite_db_file_empty`.
     """
 
     return pandemy.SQLiteDb(file=sqlite_db_file_empty, must_exist=True)
@@ -106,9 +102,7 @@ def sqlite_db_empty(sqlite_db_file_empty) -> pandemy.SQLiteDb:
 
 @pytest.fixture(scope='session')
 def df_owner() -> pd.DataFrame:
-    """
-    DataFrame representation of the Owner table in test database RSGeneralStore.db.
-    """
+    r"""DataFrame representation of the Owner table in the test database RSGeneralStore.db."""
 
     data = io.StringIO(
         """
@@ -128,11 +122,9 @@ OwnerId;OwnerName;BirthDate
                        dtype=dtypes)
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture()
 def df_customer() -> pd.DataFrame:
-    """
-    DataFrame representation of the Customer table in test database RSGeneralStore.db.
-    """
+    r"""DataFrame representation of the Customer table in the test database RSGeneralStore.db."""
 
     data = io.StringIO(
         """
@@ -159,8 +151,7 @@ CustomerId;CustomerName;BirthDate;Residence;IsAdventurer
 
 @pytest.fixture()
 def df_store() -> pd.DataFrame:
-    """
-    DataFrame representation of the Store table in test database RSGeneralStore.db.
+    r"""DataFrame representation of the Store table in the test database RSGeneralStore.db.
 
     The OwnerId column is a foreign key reference to the OwnerId column of the Owner table.
     """
@@ -186,9 +177,7 @@ StoreId;StoreName;Location;OwnerId
 
 @pytest.fixture()
 def df_item_traded_in_store() -> pd.DataFrame:
-    """
-    DataFrame representation of the ItemTradedInStore table in test database RSGeneralStore.db.
-    """
+    r"""DataFrame representation of the ItemTradedInStore table in the test database RSGeneralStore.db."""
 
     data = io.StringIO(
         """

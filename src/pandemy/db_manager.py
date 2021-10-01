@@ -1,18 +1,7 @@
-r"""Contains the classes that represent the Database interface.
+"""Contains the classes that represent the Database interface.
 
-namedtuple
-----------
-
-Placeholder: namedtuple('Placeholder', ['key', values', 'new_key'], defaults=(True,))
-
-    key : str
-        The placeholder to replace in the substring.
-
-    values : Union[str, int, float, Iterable[Union[str, int, float]]]
-        The value(s) to replace the placeholder with.
-
-    new_key : bool, default True
-        If the values should be added as new placeholders.
+The Database is managed by the `DatabaseManager` class. Each SQL-dialect
+is implemented as a subclass of `DatabaseManager`.
 """
 
 # ===============================================================
@@ -21,10 +10,9 @@ Placeholder: namedtuple('Placeholder', ['key', values', 'new_key'], defaults=(Tr
 
 # Standard Library
 from abc import ABC, abstractmethod
-from collections import namedtuple
 import logging
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, Iterator, List, Optional, Sequence, Union
+from typing import Any, Callable, Dict, Iterator, List, Optional, Sequence, Union
 
 # Third Party
 import pandas as pd
@@ -45,198 +33,25 @@ import pandemy.datetime
 # Handlers and formatters will be inherited from the root logger
 logger = logging.getLogger(__name__)
 
-# A Placeholder to replace and its substituion value
-Placeholder = namedtuple('Placeholder', ['key', 'values', 'new_key'], defaults=(True,))
-
 # ===============================================================
-# Classes
+# DatabaseManager
 # ===============================================================
-
-
-class DbStatement(ABC):
-    r"""Base class of a container of database statements.
-
-    Each SQL-dialect will inherit from this class.
-    Each statement is implemented as a class variable.
-    """
-
-    @staticmethod
-    def validate_class_variables(cls: object, parent_cls: object, type_validation: str) -> None:
-        r"""
-        Validate that a subclass has implmeneted the class variables
-        specified on its parent class.
-
-        Intended to be used in special method `__init_subclass__`.
-
-        Parameters
-        ----------
-        cls : object
-            The class being validated.
-
-        parent_cls : object
-            The parent class that `cls` inherits from.
-
-        type_validation : str ('isinstance', 'type')
-            How to validate the type of the class variables.
-            'type' should be used if an uninstantiated class is assigned to class variables.
-
-        Raises
-        ------
-        AttributeError
-            If the parent class is missing annotated class variables.
-
-        NotImplementedError
-            If a class variable is not implemented.
-
-        TypeError
-            If a class variable is not of the type specified in the parent class.
-
-        ValueError
-            If a value other than 'isinstance', 'type' is given to type_validation parameter.
-        """
-
-        # Get the annotated class variables of the parent class
-        class_vars = parent_cls.__annotations__
-
-        for var, dtype in class_vars.items():
-
-            # Check that the class variable exists
-            if (value := getattr(cls, var, None)) is None:
-                raise NotImplementedError(f'Class {cls.__name__} has not implemented the requried variable: {var}')
-
-            # Check for correct data type
-            if type_validation == 'isinstance':
-                is_valid = isinstance(value, dtype)
-            elif type_validation == 'type':
-                is_valid = type(value) == type(dtype)
-            else:
-                raise ValueError(f"type_validation = {type_validation}. Expected 'isinstance', or 'type'")
-
-            if not is_valid:
-                raise TypeError(f'Class variable "{var}"" of class {cls.__name__} '
-                                f'is of type {type(value)} ({value}). Expected {dtype}.')
-
-    @staticmethod
-    def replace_placeholders(stmt: str, placeholders: Union[Placeholder, Iterable[Placeholder]]) -> str:
-        r"""Replace placeholders in an SQL statement.
-
-        Replaces the specified keys in placeholders with supplied values
-        in the statement string `stmt`. A single value (str, int or float)
-        are replaced as is and not replaced with new placeholders.
-
-        Parameters
-        ----------
-        stmt : str
-            The SQL statement in which to replace placeholders
-
-        placeholders : Placeholder or iterable of Placeholder
-            The replacement values for each placeholder.
-            Placeholder = namedtuple('Placeholder', ['key', 'values', 'new_key'], defaults=(True,))
-
-        Returns
-        -------
-        stmt : str
-            The SQL statement after replacements.
-
-        params : dict
-            Containing the mapping of inserted placeholders and their mapped values.
-            {'new_placeholder1': 'value1', 'new_placeholder2': 'value2'}
-
-        Raises
-        ------
-        TypeError
-            If the replacement values in a Placeholder is not of type str, int, float, bool or None
-        """
-
-        def is_valid_replacement_value(value: Union[str, int, float, bool, None], raises: bool = False) -> bool:
-            r"""Helper function to validate values of the replacements.
-
-            Parameters
-            ----------
-            value : str, int or float
-                The value to validate.
-
-            raises : bool, default False
-                If True TypeError will be raised if value is not valid.
-                If False the function will return False.
-            """
-
-            if (isinstance(value, str) or isinstance(value, int) or isinstance(value, float) 
-               or isinstance(value, bool) or value is None):
-                return True
-            else:
-                if raises:
-                    raise TypeError('values in replacements must be: str, int or float. '
-                                    f'Got {value} ({type(value)})')
-                else:
-                    return False
-
-        # Stores new placeholders and their mapped values
-        params = dict()
-
-        # Counter of number of new placeholders added. Makes sure each new placeholder is unique
-        counter = 0
-
-        # Convert to list if a single Placeholder object is passed
-        if isinstance(placeholders, Placeholder):
-            placeholders = [placeholders]
-
-        for placeholder in placeholders:
-            if is_valid_replacement_value(placeholder.values, raises=False):
-
-                # Build replacement string of new placeholder
-                if placeholder.new_key:
-                    new_placeholder = f'v{counter}'
-                    counter += 1
-                    repl_str = f':{new_placeholder}'
-                    params[new_placeholder] = placeholder.values
-                else:
-                    repl_str = placeholder.values
-
-            elif hasattr(placeholder.values, '__iter__'):  # list like
-
-                repl_str = ''
-                for value in placeholder.values:
-
-                    # Check that we have a valid replacement valuec
-                    is_valid_replacement_value(value, raises=True)
-
-                    # Build replacement string of new placeholders
-                    if placeholder.new_key:
-                        new_placeholder = f'v{counter}'
-                        counter += 1
-                        repl_str += f':{new_placeholder}, '
-                        params[new_placeholder] = value
-                    else:
-                        repl_str += f'{value}, '
-
-                # Remove last unwanted ', '
-                repl_str = repl_str[:-2]
-
-            else:
-                raise TypeError(f'placeholder replacements must be a string, int or tuple or an iterable of those. '
-                                f'Got {placeholder.values} ({type(placeholder.values)})')
-
-            # Replace the placeholder with the replacement string
-            stmt = stmt.replace(placeholder.key, repl_str)
-
-        return stmt, params
 
 
 class DatabaseManager(ABC):
     r"""Base class with functionality for managing a database.
 
-    Each specific database type will subclass from DatabaseManager.
+    Each specific database type will subclass from `DatabaseManager`.
 
     Class Variables
     ---------------
     _delete_from_table_statement : str
         Statement for deleting all records in a table.
-        Can be modified by subclasses of DatabaseManager if necessary.
+        Can be modified by subclasses of `DatabaseManager` if necessary.
 
     _invalid_table_names : set
         Set with words that are not allowed as table names.
-        Can be modified by subclasses of DatabaseManager if necessary.
+        Can be modified by subclasses of `DatabaseManager` if necessary.
     """
 
     _delete_from_table_statement: str = """DELETE FROM :table"""
@@ -244,25 +59,24 @@ class DatabaseManager(ABC):
     _invalid_table_names: set = {'create', 'select', 'delete', 'update', 'with', 'as'}
 
     @abstractmethod
-    def __init__(self, statement: Optional[DbStatement] = None, **kwargs) -> None:
+    def __init__(self, container: Optional[pandemy.SQLContainer] = None, **kwargs) -> None:
         r"""
         The initializer should support **kwargs because different types of databases
         will need different input parameters.
 
         Parameters
         ----------
-        statement : DbStatement or None, default None
-            A DbSatement object containing database statements
-            that can be used by the DatabaseManager.
+        container : pandemy.SQLContainer or None, default None
+            A container of database statements that can be used by the DatabaseManager.
         """
 
     def __str__(self) -> str:
-        r"""String representation of the object"""
+        r"""String representation of the object."""
 
         return self.__class__.__name__
 
     def __repr__(self) -> str:
-        r"""Debug representation of the object"""
+        r"""Debug representation of the object."""
 
         # Get the attribute names of the class instance
         attributes = self.__dict__.items()
@@ -306,23 +120,25 @@ class DatabaseManager(ABC):
 
         # Check that only one word was input as the table name
         if (len_table_splitted := len(table_splitted)) > 1:
-            raise pandemy.InvalidTableNameError(f'{len_table_splitted} words were input for the table name! Only a single word is allowed for the table name.',
-                                                f'table: {table}')
+            raise pandemy.InvalidTableNameError(f'{len_table_splitted} words were input for the table name! '
+                                                f'Only a single word is allowed for the table name.\ntable = {table}',
+                                                data=table)
 
         table = table_splitted[0]
 
         if table.lower() in invalid_table_names:
-            raise pandemy.InvalidTableNameError(f'table = {table} is among the the invalid table names: {invalid_table_names}')
+            raise pandemy.InvalidTableNameError(f'table = {table} is among the the invalid table names: '
+                                                f'{invalid_table_names}')
 
     def manage_foreign_keys(self, conn: Connection, action: str) -> None:
         r"""Manage how the database handles foreign key constraints.
 
-        Should be implemented by the SQLite Databasemanger since
+        Should be implemented by the SQLite DatabaseManger since
         checking foreign key constraints is not enabled by default.
 
         Parameters
         ----------
-        conn : sqlalchemy database connection (sqlalchemy.engine.base.Connection)
+        conn : sqlalchemy.engine.base.Connection
             An open connection to the database.
 
         action : str
@@ -343,7 +159,7 @@ class DatabaseManager(ABC):
             result = db.execute('SELECT * FROM MyTable;', conn=conn)
 
             for row in result:
-                pass  # process the results
+                print(row)  # process the results
 
         Parameters
         ----------
@@ -354,7 +170,7 @@ class DatabaseManager(ABC):
             SQLAlchemy Deprecation Warning:"passing a string to Connection.execute() is deprecated
             and will be removed in version 2.0. Use the text() construct with Connection.execute()[...]"
 
-        conn : sqlalchemy database connection
+        conn : sqlalchemy.engine.base.Connection
             An open connection to the database.
 
         params : dict or list of dict, default None
@@ -364,12 +180,12 @@ class DatabaseManager(ABC):
         Returns
         -------
         sqlalchemy.engine.CursorResult
-            A result object from the statement.
+            A result object from the executed statement.
 
         Raises
         ------
         TypeError
-            If `sql` is not of type str or sqlalchemy.text.
+            If `sql` is not of type str or sqlalchemy.sql.elements.TextClause.
 
         pandemy.ExecuteStatementError
             If an error occurs when executing the statement.
@@ -386,7 +202,7 @@ class DatabaseManager(ABC):
         elif isinstance(sql, TextClause):
             stmt = sql
         else:
-            raise TypeError(f'Invalid type {type(sql)} for sql. Expected str or sqlalchemy.text')
+            raise TypeError(f'Invalid type {type(sql)} for sql. Expected str or sqlalchemy.sql.elements.TextClause.')
 
         try:
             if params is None:
@@ -404,7 +220,7 @@ class DatabaseManager(ABC):
         table : str
             The table to delete all records from.
 
-        conn : sqlalchemy database connection (sqlalchemy.engine.base.Connection)
+        conn : sqlalchemy.engine.base.Connection
             An open connection to the database.
 
         Raises
@@ -432,7 +248,7 @@ class DatabaseManager(ABC):
             logger.debug(f'Successfully deleted existing data from table {table}.')
 
     def save_df(self, df: pd.DataFrame, table: str, conn: Connection, if_exists: str = 'append',
-                index: bool = True, index_label: Optional[Union[str, Iterable[str]]] = None,
+                index: bool = True, index_label: Optional[Union[str, Sequence[str]]] = None,
                 chunksize: Optional[int] = None, schema: Optional[str] = None,
                 dtype: Optional[Union[Dict[str, Union[str, object]], object]] = None,
                 method: Optional[Union[str, Callable]] = None) -> None:
@@ -447,9 +263,9 @@ class DatabaseManager(ABC):
             The DataFrame to save to the database.
 
         table : str
-            The name of the table to save the DataFrame.
+            The name of the table where to save the DataFrame.
 
-        conn : sqlalchemy database connection (sqlalchemy.engine.base.Connection)
+        conn : sqlalchemy.engine.base.Connection
             An open connection to the database.
 
         if_exists : str, {'append', 'replace', 'fail'}, default 'append'
@@ -465,7 +281,7 @@ class DatabaseManager(ABC):
             Write DataFrame index as a column. Uses the name of the index as the
             column name for the table.
 
-        index_label : str or sequence, default None
+        index_label : str, sequence of str or None, default None
             Column label for index column(s). If None is given (default) and `index` is True,
             then the index names are used. A sequence should be given if the DataFrame uses a MultiIndex.
 
@@ -510,6 +326,9 @@ class DatabaseManager(ABC):
         pandemy.InvalidTableNameError
             If the supplied table name is invalid.
 
+        pandemy.SaveDataFrameError
+            If the DataFrame cannot be saved to the table.
+
         See Also
         --------
         - https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.to_sql.html
@@ -526,7 +345,8 @@ class DatabaseManager(ABC):
 
         # Validate if_exists
         if not isinstance(if_exists, str) or if_exists not in {'replace', 'append', 'fail'}:
-            raise pandemy.InvalidInputError(f"Invalid input if_exists = {if_exists}. Expected 'append', 'replace' or 'fail'.")
+            raise pandemy.InvalidInputError(f'Invalid input if_exists = {if_exists}. '
+                                            "Expected 'append', 'replace' or 'fail'.")
 
         # Validate connection
         if not isinstance(conn, Connection):
@@ -568,9 +388,9 @@ class DatabaseManager(ABC):
             logger.info(f'Successfully wrote {nr_rows} rows over {nr_cols} columns to table {table}.')
 
     def load_table(self, sql: Union[str, TextClause], conn: Connection,
-                   params: Optional[Union[dict, List[dict]]] = None,
+                   params: Optional[Union[dict, Sequence[dict]]] = None,
                    index_col: Optional[Union[str, Sequence[str]]] = None,
-                   columns: Optional[Sequence[str]] = None, 
+                   columns: Optional[Sequence[str]] = None,
                    parse_dates: Optional[List[dict]] = None,
                    localize_tz: Optional[str] = None, target_tz: Optional[str] = None,
                    dtypes: Optional[dict] = None,
@@ -585,7 +405,7 @@ class DatabaseManager(ABC):
         sql : str or sqlalchemy.sql.elements.TextClause
             The table name or SQL query.
 
-        conn : sqlalchemy database connection (sqlalchemy.engine.base.Connection)
+        conn : sqlalchemy.engine.base.Connection
             An open connection to the database to use for the query.
 
         params : dict or list of dict, default None
@@ -596,20 +416,17 @@ class DatabaseManager(ABC):
             The column(s) to set as index of the DataFrame.
 
         columns : list of str or None
-            List of column names to select from SQL table (only used when `sql` is a table name).
+            List of column names to select from the SQL table (only used when `sql` is a table name).
 
         parse_dates : list, dict or None, default None
             - List of column names to parse as dates.
 
-            - Dict of {column_name: format string} where format string is strftime compatible
+            - Dict of `{column_name: format string}` where format string is strftime compatible
               in case of parsing string times, or is one of (D, s, ns, ms, us)
               in case of parsing integer timestamps.
 
-            - Dict of {column_name: arg dict}, where the arg dict corresponds to the keyword arguments of
+            - Dict of `{column_name: arg dict}`, where the arg dict corresponds to the keyword arguments of
               pandas.to_datetime(). Especially useful with databases without native Datetime support, such as SQLite.
-
-            Parse selected columns with specified datetime format to datetime columns using `pd.to_datetime`
-            {column_name: 'datetime format'}
 
         localize_tz : str or None, default None
             Localize naive datetime columns of the DataFrame to specified timezone.
@@ -620,13 +437,13 @@ class DatabaseManager(ABC):
             they have been localized. If None no conversion is performed.
 
         dtypes : dict or None, default None
-            Desired data types for specified columns {column_name: datatype}
+            Desired data types for specified columns `{column_name: datatype}`
             If None no data type conversion is performed.
 
         chunksize : int or None, default None
-            If chunksize is specified an iterator of DataFrames will be returned where chunksize
+            If `chunksize` is specified an iterator of DataFrames will be returned where `chunksize`
             is the number of rows in each DataFrame.
-            If chunksize is supplied timezone localization and conversion as well as dtype
+            If `chunksize` is supplied timezone localization and conversion as well as dtype
             conversion cannot be performed i.e. `localize_tz`, `target_tz` and `dtypes` have
             no effect.
 
@@ -636,8 +453,8 @@ class DatabaseManager(ABC):
 
         Returns
         -------
-        df : pd.DataFrame
-            DataFrame with the result of the query.
+        df : pd.DataFrame or generator of pd.DataFrame
+            DataFrame with the result of the query or an iterator of DataFrames.
 
         Raises
         ------
@@ -667,7 +484,7 @@ class DatabaseManager(ABC):
         db = pandemy.SQLiteDb()
 
         with db.engine.connect() as conn:
-            df_gen = db.load_tabel(sql='MyTableName', conn=conn, chunksize=3)
+            df_gen = db.load_table(sql='MyTableName', conn=conn, chunksize=3)
 
             for df in df_gen:
                 print(df)  # Process your DataFrame
@@ -729,19 +546,30 @@ class DatabaseManager(ABC):
         return df
 
 
+# ===============================================================
+# SQLite
+# ===============================================================
+
+
 class SQLiteDb(DatabaseManager):
     r"""A SQLite DatabaseManager.
 
-    Reference
-    ---------
+    See Also
+    --------
     - https://docs.sqlalchemy.org/en/14/core/engines.html#sqlalchemy.create_engine
 
     - https://docs.sqlalchemy.org/en/14/dialects/sqlite.html
     """
 
-    def _set_attributes(self, file: Union[str, Path],  must_exist: bool, statement: Optional[DbStatement],
+    def _set_attributes(self, file: Union[str, Path],  must_exist: bool, container: Optional[pandemy.SQLContainer],
                         engine_config: Optional[Dict[str, Any]]) -> None:
-        r"""Validate the input parameters from `self.__init__` and set attributes on the instance."""
+        r"""Validate the input parameters from `self.__init__` and set attributes on the instance.
+
+        Raises
+        ------
+        TypeError
+            If invalid input is passed to the parameters.
+        """
 
         # file
         # =================================
@@ -761,14 +589,14 @@ class SQLiteDb(DatabaseManager):
             raise TypeError('must_exist must be a boolean '
                             f'Received: {must_exist} {type(must_exist)}')
 
-        # statement
+        # container
         # =================================
-        if statement is None:
-            self.statement = statement
+        if container is None:
+            self.container = container
         else:
             try:
-                if issubclass(statement, DbStatement):  # Throws TypeError if statement is not a class
-                    self.statement = statement
+                if issubclass(container, pandemy.SQLContainer):  # Throws TypeError if container is not a class
+                    self.container = container
                     error = False
                 else:
                     error = True
@@ -776,8 +604,8 @@ class SQLiteDb(DatabaseManager):
                 error = True
 
             if error:
-                raise TypeError('statement must be a subclass of DbStatement '
-                                f'Received: {statement} {type(statement)}') from None
+                raise TypeError('container must be a subclass of pandemy.SQLContainer '
+                                f'Received: {container} {type(container)}') from None
 
         # engine_config
         # =================================
@@ -793,7 +621,7 @@ class SQLiteDb(DatabaseManager):
         Raises
         ------
         FileNotFoundError
-            If the database file `file` does not exist.
+            If the database file `self.file` does not exist.
         """
 
         if self.file == ':memory:':  # Use an in memory database
@@ -802,7 +630,8 @@ class SQLiteDb(DatabaseManager):
         else:  # Use a database on file
             if not self.file.exists() and self.must_exist:
                 raise FileNotFoundError(f'file = {self.file} does not exist and '
-                                        f'and must_exist = {self.must_exist}. Cannot instantiate the SQLite database.')
+                                        f'and must_exist = {self.must_exist}. '
+                                        'Cannot instantiate the SQLite DatabaseManager.')
 
             self.conn_str = fr'sqlite:///{self.file}'
 
@@ -812,7 +641,7 @@ class SQLiteDb(DatabaseManager):
         Parameters
         ----------
         config : dict
-            Additional key word arguments passed to the SQLAlchemy create_engine function.
+            Additional keyword arguments passed to the SQLAlchemy create_engine function.
 
         Raises
         ------
@@ -833,9 +662,9 @@ class SQLiteDb(DatabaseManager):
             logger.debug(f'Successfully created database engine from conn_str: {self.conn_str}.')
 
     def __init__(self, file: Union[str, Path] = ':memory:', must_exist: bool = True,
-                 statement: Optional[DbStatement] = None, engine_config: Optional[Dict[str, Any]] = None,
+                 container: Optional[pandemy.SQLContainer] = None, engine_config: Optional[Dict[str, Any]] = None,
                  **kwargs: dict) -> None:
-        r"""Initialize the database instance.
+        r"""Initialize the SQLite DatabaseManager instance.
 
         Creates the connection string and the database engine.
 
@@ -846,24 +675,24 @@ class SQLiteDb(DatabaseManager):
             The default creates an in memory database.
 
         must_exist : bool, default True
-            If True validate that file exists unless file = ':memory:'.
+            If True validate that `file` exists unless `file` = ':memory:'.
             If it does not exist FileNotFoundError is raised.
             If False the validation is omitted.
 
-        statement : DbStatement or None, default None
-            A DbStatement class that contains database statements that the SQLite database can use.
+        container : pandemy.SQLContainer or None, default None
+            A container of database statements that the SQLite DatabaseManager can use.
 
         engine_config : dict or None
-            Additional key word arguments passed to the SQLAlchemy create_engine function.
+            Additional keyword arguments passed to the SQLAlchemy create_engine function.
 
         **kwargs : dict
-            Additional key word arguments that are not used by SQLiteDb.
-            Allows unpacking a config dict as the parameters to SQLiteDb.
+            Additional keyword arguments that are not used by `SQLiteDb`.
+            Allows unpacking a config dict as the parameters to `SQLiteDb`.
 
         Raises
         ------
         TypeError
-            If invalid types are supplied to `file`, `must_exist` and `statement`.
+            If invalid types are supplied to `file`, `must_exist` and `container`.
 
         FileNotFoundError
             If the database file `file` does not exist.
@@ -873,7 +702,7 @@ class SQLiteDb(DatabaseManager):
         """
 
         self._set_attributes(file=file, must_exist=must_exist,
-                             statement=statement, engine_config=engine_config)
+                             container=container, engine_config=engine_config)
         self._build_conn_str()
         self._create_engine()
 
@@ -889,7 +718,7 @@ class SQLiteDb(DatabaseManager):
 
         Parameters
         ----------
-        conn : sqlalchemy database connection (sqlalchemy.engine.base.Connection)
+        conn : sqlalchemy.engine.base.Connection
             An open connection to the database.
 
         action : {'ON', 'OFF'}
