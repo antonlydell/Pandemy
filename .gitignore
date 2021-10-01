@@ -5,6 +5,8 @@ __pycache__/
 
 # Custom
 .vscode
+Old/
+todo.md
 
 # C extensions
 *.so
