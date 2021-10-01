@@ -1,6 +1,4 @@
-"""
-Module with the exceptions raised by pandemy.
-"""
+"""Module with the exceptions raised by pandemy."""
 
 # ===============================================================
 # Imports
@@ -10,63 +8,67 @@ Module with the exceptions raised by pandemy.
 from typing import Optional
 
 
+# ===============================================================
+# Classes
+# ===============================================================
+
 class PandemyError(Exception):
-    """"Base Exception for pandemy"""
+    r""""Base Exception for pandemy"""
 
     def __init__(self, message: str, data: Optional[str] = None) -> None:
-        """Save optional data as an attribute on the Exception instance."""
+        r"""Save optional data as an attribute on the Exception instance."""
 
         self.data = data
         super().__init__(message)
 
 
 class InvalidInputError(PandemyError):
-    """Invalid input to a function or method"""
+    r"""Invalid input to a function or method"""
+
+# ---------------------------------------------------------------
+# DatabaseManagerError
+# ---------------------------------------------------------------
 
 
 class DatabaseManagerError(PandemyError):
-    """Base exceptions for errors from the DatabaseManager class."""
-
-
-class ExecuteStatementError(DatabaseManagerError):
-    """Errors when executing an SQL statement with the DatabaseManager."""
+    r"""Base Exception for errors related to the DatabaseManager class."""
 
 
 class CreateEngineError(DatabaseManagerError):
-    """Error when creating the database engine.."""
+    r"""Error when creating the database engine."""
 
 
-class TableExistsError(DatabaseManagerError):
-    """Error when saving a DataFrame to a table and the table already exists."""
-
-
-class CreateTableError(DatabaseManagerError):
-    """Errors when creating tables in the database."""
-
-
-class LoadTableError(DatabaseManagerError):
-    """Errors when loading tables from the database."""
+class DatabaseFileNotFoundError(DatabaseManagerError):
+    r"""Error when the file of an SQLite database cannot be found."""
 
 
 class DataTypeConversionError(DatabaseManagerError):
-    """Errors converting data types of columns in a DataFrame."""
-
-
-class SetIndexError(DatabaseManagerError):
-    """Errors when setting an index of a DataFrame."""
-
-
-class CreateIndexError(DatabaseManagerError):
-    """Errors when creating indices in the database."""
+    r"""Errors converting data types of columns in a DataFrame."""
 
 
 class DeleteFromTableError(DatabaseManagerError):
-    """Errors when deleting data from a table in the database."""
+    r"""Errors when deleting data from a table in the database."""
 
 
-class SaveDataFrameError(DatabaseManagerError):
-    """Errors when saving a DataFrame to a table in the database."""
+class ExecuteStatementError(DatabaseManagerError):
+    r"""Errors when executing an SQL statement with the DatabaseManager."""
 
 
 class InvalidTableNameError(DatabaseManagerError):
-    """When supplying an invalid table name."""
+    r"""Errors when supplying an invalid table name to a database operation."""
+
+
+class LoadTableError(DatabaseManagerError):
+    r"""Errors when loading tables from the database."""
+
+
+class SaveDataFrameError(DatabaseManagerError):
+    r"""Errors when saving a DataFrame to a table in the database."""
+
+
+class SetIndexError(DatabaseManagerError):
+    r"""Errors when setting an index of a DataFrame after loading a table from the database."""
+
+
+class TableExistsError(DatabaseManagerError):
+    r"""Errors when saving a DataFrame to a table and the table already exists."""
