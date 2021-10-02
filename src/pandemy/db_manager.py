@@ -541,6 +541,10 @@ class DatabaseManager(ABC):
             except KeyError as e:
                 raise pandemy.SetIndexError(f'Cannot set index to {index_col}: {e.args[0]}.',
                                             data=index_col) from None
+            except TypeError as e:
+                raise pandemy.SetIndexError(f'Cannot set index to {index_col}: '
+                                            f'{e.args[0].replace("""keys""", "index_col")}.',
+                                            data=index_col) from None
 
         logger.info(f'Successfully loaded {nr_rows} rows and {nr_cols} columns.')
 

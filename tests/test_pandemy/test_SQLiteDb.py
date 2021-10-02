@@ -1214,6 +1214,50 @@ class TestLoadTableMethod:
         # Clean up - None
         # ===========================================================
 
+    @pytest.mark.raises
+    @pytest.mark.parametrize('index_col', [pytest.param('Transaction', id='Single index, str'),
+
+                                           pytest.param(1, id='Single index, int'),
+
+                                           pytest.param(['Transaction', 'Action', 'Id'],
+                                                        id='Multiindex'),
+
+                                           pytest.param(('Transaction', 'TransactionId'),
+                                                        id='Multiindex, 1 valid column'),
+
+                                           pytest.param({'Transaction': 'Id'}, id='dict')])
+    def test_set_index_error(self, index_col, sqlite_db):
+        r"""Try to load table ItemTradedInStore and set column(s) as the index.
+
+        One or all columns specified in `index_col` do not exist in the loaded DataFrame.
+        pandemy.SetIndexError is expected to be raised.
+
+        Parameters
+        ----------
+        index_col: str, int or sequence of str, int
+            The columns(s) to set as the index of the DataFrame.
+        """
+
+        # Setup
+        # ===========================================================
+        sql = 'ItemTradedInStore'
+
+        # Exercise
+        # ===========================================================
+        with sqlite_db.engine.begin() as conn:
+            with pytest.raises(pandemy.SetIndexError) as exe_info:
+                sqlite_db.load_table(sql=sql, conn=conn, index_col=index_col,
+                                     parse_dates='TransactionTimestamp')
+
+            # Verify
+            # ===========================================================
+            assert exe_info.type is pandemy.SetIndexError
+            assert str(index_col) in exe_info.value.args[0]
+            assert index_col == exe_info.value.data
+
+        # Clean up - None
+        # ===========================================================
+
 
 class TestManageForeignKeysMethod:
     r"""Test the `manage_foreign_keys` method of the SQLite DatabaseManager `SQLiteDb`.
