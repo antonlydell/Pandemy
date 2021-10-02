@@ -17,8 +17,9 @@ from typing import Any, Callable, Dict, Iterator, List, Optional, Sequence, Unio
 # Third Party
 import pandas as pd
 from sqlalchemy import create_engine
-from sqlalchemy.sql import text
 from sqlalchemy.engine.base import Connection
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.sql import text
 from sqlalchemy.sql.elements import TextClause
 
 # Local
@@ -239,9 +240,9 @@ class DatabaseManager(ABC):
         sql = self._delete_from_table_statement.replace(':table', table)
 
         try:
-            self.execute(sql=sql, conn=conn)
+            conn.execute(sql)
 
-        except pandemy.ExecuteStatementError as e:
+        except SQLAlchemyError as e:
             raise pandemy.DeleteFromTableError(f'Could not delete records from table: {table}: {e.args[0]}',
                                                data=e.args) from None
 

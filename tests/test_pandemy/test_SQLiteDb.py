@@ -478,6 +478,104 @@ class TestExecuteMethod:
         # ===========================================================
 
 
+class TestDeleteAllRecorsFromTable:
+    r"""Test the `delete_all_records_from_table` method of the SQLiteDb DatabaseManager `SQLiteDb`.
+
+    Fixtures
+    --------
+    sqlite_db_empty : pandemy.SQLiteDb
+        An instance of the test database where all tables are empty.
+
+    df_customer : pd.DataFrame
+        The Customer table of the test database.
+    """
+
+    def test_delete_all_records(self, sqlite_db_empty, df_customer):
+        r"""Delete all records from the table Customer in the test database."""
+
+        # Setup
+        # ===========================================================
+        query = """SELECT * FROM Customer;"""
+
+        df_exp_result = pd.DataFrame(columns=df_customer.columns)
+        df_exp_result.index.name = df_customer.index.name
+
+        with sqlite_db_empty.engine.begin() as conn:
+            # Write data to the empty table
+            df_customer.to_sql(name='Customer', con=conn, if_exists='append')
+
+        # Exercise
+        # ===========================================================
+        with sqlite_db_empty.engine.begin() as conn:
+            sqlite_db_empty.delete_all_records_from_table(table='Customer', conn=conn)
+
+        # Verify
+        # ===========================================================
+        with sqlite_db_empty.engine.begin() as conn:
+            df_result = pd.read_sql(sql=query, con=conn, index_col='CustomerId', parse_dates=['BirthDate'])
+
+        assert_frame_equal(df_result, df_exp_result, check_dtype=False, check_index_type=False)
+
+    @pytest.mark.raises
+    def test_delete_all_records_table_does_not_exist(self, sqlite_db_empty):
+        r"""Try to delete all records from the table Custom that does not exist in the database.
+
+        pandemy.DeleteFromTableError is expected to be raised.
+        """
+
+        # Setup
+        # ===========================================================
+        table = 'Custom'
+
+        # Exercise
+        # ===========================================================
+        with pytest.raises(pandemy.DeleteFromTableError) as exe_info:
+            with sqlite_db_empty.engine.begin() as conn:
+                sqlite_db_empty.delete_all_records_from_table(table=table, conn=conn)
+
+            # Verify
+            # ===========================================================
+            assert exe_info.type is pandemy.DeleteFromTableError
+            assert table in exe_info.value.args[0]
+            assert table in exe_info.value.data[0]
+
+        # Clean up - None
+        # ===========================================================
+
+    @pytest.mark.raises
+    @pytest.mark.parametrize('table', [pytest.param('Customer DELETE', id='table name = 2 words'),
+                                       pytest.param('"DROP TABLE Customer"', id='table name = 3 words'),
+                                       pytest.param(';""DELETE FROM TABLE Customer;"', id='table name = 4 words')])
+    def test_delete_all_records_invalid_table_name(self, table, sqlite_db_empty):
+        r"""Try to delete all records from specified table when supplying and invalid table name.
+
+        pandemy.InvalidTableNameError is expected to be raised.
+
+        Parameters
+        ----------
+        table: str
+            The name of the table to delete records from.
+        """
+
+        # Setup - None
+        # ===========================================================
+
+        # Exercise
+        # ===========================================================
+        with pytest.raises(pandemy.InvalidTableNameError) as exe_info:
+            with sqlite_db_empty.engine.begin() as conn:
+                sqlite_db_empty.delete_all_records_from_table(table=table, conn=conn)
+
+            # Verify
+            # ===========================================================
+            assert exe_info.type is pandemy.InvalidTableNameError
+            assert table in exe_info.value.args[0]
+            assert table == exe_info.value.data
+
+        # Clean up - None
+        # ===========================================================
+
+
 class TestSaveDfMethod:
     r"""Test the `save_df` method of the SQLiteDb DatabaseManager `SQLiteDb`.
 
