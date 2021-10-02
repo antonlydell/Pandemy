@@ -85,7 +85,9 @@ class SQLContainer(ABC):
 
         type_validation : {'isinstance', 'type'}
             How to validate the type of the class variables.
-            'type' should be used if a class is assigned to class variables.
+            'type' should be used if a class is assigned to class variables and 'isinstance'
+            in other cases. You cannot combine class variables with classes assigned and
+            class variables with other types assigned e.g. str or int.
 
         Raises
         ------
@@ -98,7 +100,7 @@ class SQLContainer(ABC):
         TypeError
             If a class variable is not of the type specified in the parent class.
 
-        ValueError
+        pandemy.InvalidInputError
             If a value other than 'isinstance' or 'type' is given to the `type_validation` parameter.
         """
 
@@ -118,7 +120,8 @@ class SQLContainer(ABC):
             elif type_validation == 'type':
                 is_valid = type(value) == type(dtype)
             else:
-                raise ValueError(f"type_validation = {type_validation}. Expected 'isinstance', or 'type'")
+                raise pandemy.InvalidInputError(f'type_validation = {type_validation}. '
+                                                "Expected 'isinstance', or 'type'")
 
             if not is_valid:
                 raise TypeError(f'Class variable "{var}"" of class {cls.__name__} '

@@ -18,13 +18,71 @@ import pandemy
 # =================================================
 
 
-class SQLContainer(pandemy.SQLContainer):
+class SQLContainerIsinstance(pandemy.SQLContainer):
     r"""Container of database statements.
 
-    Each SQL-dialect will subclass from SQLContainer and implement
+    Each SQL-dialect will subclass from SQLContainerIsinstance and implement
     the statements annotated here. If a subclass has not implemented
-    the statement correctly the an error will be triggerd by the validation in
-    `__init_subclass__`.
+    the statements correctly an error will be triggerd by the validation in
+    __init_subclass__ special method.
+    """
+
+    select_from_storesupply: str
+    nr_queries: int
+    select_with_params: dict
+
+    def __init_subclass__(cls):
+        r"""
+        Check that all required SQL statements are implemented
+        in subclasses created from this class.
+        """
+
+        # Validate that subclasses of SQLContainer have implemented the annotated class variables
+        pandemy.SQLContainer.validate_class_variables(cls=cls, parent_cls=SQLContainerIsinstance,
+                                                      type_validation='isinstance')
+
+
+class NotAnSQLContainer:
+    r"""Not an SQLContainer of type pandemy.SQLContainer.
+
+    Used for testing the validate_class_variables method of pandemy.SQLContainer
+    when `type_validation` parameter is set to 'type'.
+    """
+
+
+class SQLContainerType(pandemy.SQLContainer):
+    r"""Container of database statements.
+
+    Each SQL-dialect will subclass from SQLContainerType and implement
+    the statements annotated here. If a subclass has not implemented
+    the statements correctly an error will be triggerd by the validation in
+    __init_subclass__ special method.
+    """
+
+    nr_queries: NotAnSQLContainer
+
+    def __init_subclass__(cls):
+        r"""
+        Check that all required SQL statements are implemented
+        in subclasses created from this class.
+        """
+
+        # Validate that subclasses of SQLContainer have implemented the annotated class variables
+        pandemy.SQLContainer.validate_class_variables(cls=cls, parent_cls=SQLContainerType,
+                                                      type_validation='type')
+
+
+class SQLContainerTypeValidationError(pandemy.SQLContainer):
+    r"""Container of database statements.
+
+    Each SQL-dialect will subclass from SQLContainerTypeValidationError and implement
+    the statements annotated here. If a subclass has not implemented
+    the statements correctly an error will be triggerd by the validation in
+    __init_subclass__ special method.
+
+    This class supplies an invalid value to the `type_validation` parameter
+    in the validate_class_variables method. It should raise pandemy.InvalidInputError
+    when a subclass is created from this class.
     """
 
     select_from_storesupply: str
@@ -37,62 +95,69 @@ class SQLContainer(pandemy.SQLContainer):
         """
 
         # Validate that subclasses of SQLContainer have implemented the annotated class variables
-        pandemy.SQLContainer.validate_class_variables(cls=cls, parent_cls=SQLContainer,
-                                                      type_validation='isinstance')
+        pandemy.SQLContainer.validate_class_variables(cls=cls, parent_cls=SQLContainerIsinstance,
+                                                      type_validation='invalid')
 
 
 # =================================================
 # Tests
 # =================================================
 
-# Input to test_Placeholder
-input_test_Placeholder = [
-    pytest.param(pandemy.Placeholder(':key', 'value'), ':key', 'value', True,
-                 id='new_key default True'),
-    pytest.param(pandemy.Placeholder(':key', ['value0', 'value1'], False), ':key', ['value0', 'value1'], False,
-                 id='new_key=False')
-        ]
+class TestPlaceholder:
+    r"""Test the pandemy.Placeholder namedtuple.
 
-@pytest.mark.parametrize('placeholder, ex_key, ex_values, ex_new_key', input_test_Placeholder)
-def test_Placeholder(placeholder: pandemy.Placeholder, ex_key: str, 
-                     ex_values: Union[str, List], ex_new_key: str) -> None:
-    r"""Test the creation of the namedtuple `pandemy.Placeholder`.
-
-    The Placeholder namedtuple contains placeholder keys and their replacement values
-    to use when building parametrized SQL statements.
-    Placeholder is used as input to the `replace_placeholders` method
-    of the SQLContainer class.
-
-    Parameters
-    ----------
-    placeholder : pandemy.Placeholder
-        The placeholder instance.
-
-    ex_key : str
-        The expected value of the `key` attribute of `placeholder`.
-
-    ex_values : str or list of str
-        The expected value of the `values` attribute of `placeholder`.
-
-    ex_new_key : bool
-        The expected value of the `new_key` attribute of `placeholder`.
+    pandemy.Placeholder is used as input to the method replace_placeholders of
+    the class pandemy.SQLContainer.
     """
 
-    # Setup - None
-    # =========================================
+    # Input to test_Placeholder
+    input_test_Placeholder = [
+        pytest.param(pandemy.Placeholder(':key', 'value'), ':key', 'value', True,
+                     id='new_key default True'),
+        pytest.param(pandemy.Placeholder(':key', ['value0', 'value1'], False), ':key', ['value0', 'value1'], False,
+                     id='new_key=False')
+            ]
 
-    # Exercise & Verify
-    # =========================================
-    assert placeholder.key == ex_key
-    assert placeholder.values == ex_values
-    assert placeholder.new_key is ex_new_key
+    @pytest.mark.parametrize('placeholder, ex_key, ex_values, ex_new_key', input_test_Placeholder)
+    def test_Placeholder(self, placeholder: pandemy.Placeholder, ex_key: str, 
+                         ex_values: Union[str, List], ex_new_key: str) -> None:
+        r"""Test the creation of the namedtuple pandemy.Placeholder.
 
-    # Clean up - None
-    # =========================================
+        The Placeholder namedtuple contains placeholder keys and their replacement values
+        to use when building parametrized SQL statements.
+        Placeholder is used as input to the replace_placeholders method
+        of the SQLContainer class.
+
+        Parameters
+        ----------
+        placeholder : pandemy.Placeholder
+            The placeholder instance.
+
+        ex_key : str
+            The expected value of the `key` attribute of `placeholder`.
+
+        ex_values : str or list of str
+            The expected value of the `values` attribute of `placeholder`.
+
+        ex_new_key : bool
+            The expected value of the `new_key` attribute of `placeholder`.
+        """
+
+        # Setup - None
+        # =========================================
+
+        # Exercise & Verify
+        # =========================================
+        assert placeholder.key == ex_key
+        assert placeholder.values == ex_values
+        assert placeholder.new_key is ex_new_key
+
+        # Clean up - None
+        # =========================================
 
 
-class TestSQLContainer:
-    r"""Test the class `pandemy.SQLContainer`."""
+class TestSQLContainerReplacePlaceholders:
+    r"""Test the method replace_placeholders of the class pandemy.SQLContainer."""
 
     # Statement to in which to replace palceholders
     stmt_1 = """SELECT * FROM StoreSupply
@@ -200,13 +265,13 @@ class TestSQLContainer:
         stmt : str
             The SQL statement in which to replace placeholders.
 
-        stmt_exp: str
+        stmt_exp : str
             The expected result of the SQL statement after placeholders have been replaced.
 
         placeholders : pandemy.Placeholder or sequence of pandemy.Placeholder
             The placeholders and their replacement values.
 
-        params_exp: dict
+        params_exp : dict
             The expected new placeholders in the SQL query and their mapped values.
         """
 
@@ -262,15 +327,24 @@ class TestSQLContainer:
         # Clean up - None
         # =========================================
 
+
+class TestSQLContainerInitSubclass:
+    r"""Test the creation of subclasses from a class inheriting from pandemy.SQLContainer.
+
+    Tests the use of the validate_class_variables method that is used within the
+    special method __init_subclass__.
+    """
+
     @pytest.mark.parametrize('exception', [pytest.param(None, id='No Error'),
                                            pytest.param(NotImplementedError, id='NotImplementedError'),
                                            pytest.param(TypeError, id='TypeError')])
-    def test_create_SQLContainer_subclass(self, exception: Optional[Exception]):
+    def test_create_SQLContainer_subclass_isinstance(self, exception: Optional[Exception]):
         r"""
-        Create a class that inherits from SQLContainer and fails to implement
+        Create a class that inherits from SQLContainerIsinstance and fails to implement
         the required statements correctly.
 
-        SQLContainer inherits from `pandemy.SQLContainer`
+        SQLContainerIsinstance inherits from pandemy.SQLContainer and
+        uses the parameter `type_validation` = 'isinstance' in the method validate_class_variables.
 
         Parameters
         ----------
@@ -287,28 +361,107 @@ class TestSQLContainer:
 
         # No errors expected
         if exception is None:
-            class SQLiteSQLContainer(SQLContainer):
-                """All required statements are implemented."""
+            class SQLiteSQLContainer(SQLContainerIsinstance):
+                r"""All required statements are implemented."""
 
                 select_from_storesupply = 'SELECT * FROM StoreSupply;'
+
                 nr_queries = 1
 
-        # Missing implementation of nr_queries
+                select_with_params = {'sql': 'SELECT * FROM StoreSupply WHERE StoreId = :StoreId;',
+                                      'params': {'StoreId': 2}
+                                      }
+
+        # Missing implementation of select_with_params
         elif issubclass(exception, NotImplementedError):
-            with pytest.raises(exception, match='Class SQLiteSQLContainer has not implemented the requried variable: nr_queries'):
-                class SQLiteSQLContainer(SQLContainer):
-                    """Not implemented nr_queries"""
+            with pytest.raises(exception, match='select_with_params'):
+                class SQLiteSQLContainer(SQLContainerIsinstance):
+                    r"""Not implemented select_with_params"""
 
                     select_from_storesupply = 'SELECT * FROM StoreSupply;'
+
+                    nr_queries = 1
 
         # nr_queries is of type string and not int
         elif issubclass(exception, TypeError):
-            with pytest.raises(exception):
-                class SQLiteSQLContainer(SQLContainer):
-                    """nr_queries is a string and not int"""
+            with pytest.raises(exception, match='nr_queries'):
+                class SQLiteSQLContainer(SQLContainerIsinstance):
+                    r"""nr_queries is a string and not int"""
 
                     select_from_storesupply = 'SELECT * FROM StoreSupply;'
+
                     nr_queries = '1'
+
+                    select_with_params = {'sql': 'SELECT * FROM StoreSupply WHERE StoreId = :StoreId;',
+                                          'params': {'StoreId': 2}
+                                          }
+
+        # Clean up - None
+        # =========================================
+
+    @pytest.mark.parametrize('exception', [pytest.param(None, id='No Error'),
+                                           pytest.param(TypeError, id='TypeError')])
+    def test_create_SQLContainer_subclass_type(self, exception: Optional[Exception]):
+        r"""
+        Create a class that inherits from SQLContainer and fails to implement
+        the required statements correctly.
+
+        SQLContainerType inherits from pandemy.SQLContainer and
+        uses the parameter `type_validation` = 'type' in the method validate_class_variables.
+
+        Parameters
+        ----------
+        exception : Exception or None
+            The exception to check for.
+            If None no exception is expected to be raised.
+        """
+
+        # Setup - None
+        # =========================================
+
+        # Exercise & Verify
+        # =========================================
+
+        # No errors expected
+        if exception is None:
+            class SQLiteSQLContainer(SQLContainerType):
+                """All required statements are implemented."""
+
+                nr_queries = NotAnSQLContainer
+
+        # Incorrect type of nr_queries
+        elif issubclass(exception, TypeError):
+            with pytest.raises(exception, match='NotAnSQLContainer'):
+                class SQLiteSQLContainer(SQLContainerType):
+                    """Incorrect type of nr_queries"""
+
+                    nr_queries = 1
+
+        # Clean up - None
+        # =========================================
+
+    @pytest.mark.raises
+    def test_create_SQLContainer_subclass_invalid_type_validation(self):
+        r"""Create an SQLContainer sublcass that inherits from SQLContainerTypeValidationError.
+
+        pandemy.InvalidInputError is expected to be raised when the subclass is created
+        due to invalid input to the `type_validation` parameter of the validate_class_variables method
+        of SQLContainerTypeValidationError.
+        """
+
+        # Setup - None
+        # =========================================
+
+        # Exercise & Verify
+        # =========================================
+
+        with pytest.raises(pandemy.InvalidInputError, match='invalid'):
+            class SQLiteSQLContainer(SQLContainerTypeValidationError):
+                r"""type_validation = 'invalid'"""
+
+                select_from_storesupply = 'SELECT * FROM StoreSupply;'
+
+                nr_queries = 1
 
         # Clean up - None
         # =========================================
