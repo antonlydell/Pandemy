@@ -746,6 +746,40 @@ class TestSaveDfMethod:
         # Clean up - None
         # ===========================================================
 
+    def test_save_to_new_table_with_schema(self, sqlite_db_empty, df_customer):
+        r"""Save a DataFrame to a new table in the database with a schema specified.
+
+        The table Customer already exists as an empty table in the database. By saving the DataFrame
+        to a temporary table (the temp schema) called Customer, while the parameter `if_exists` = 'fail',
+        no exception should be raised since the tables called Customer exist in different schemas.
+
+        SQLite supports the schemas 'temp', 'main' or the name of an attached database.
+
+        See Also
+        --------
+        https://sqlite.org/lang_createtable.html
+        """
+
+        # Setup
+        # ===========================================================
+        schema = 'temp'
+        query = f"""SELECT * FROM {schema}.Customer;"""
+
+        # Exercise
+        # ===========================================================
+        with sqlite_db_empty.engine.begin() as conn:
+            sqlite_db_empty.save_df(df=df_customer, table='Customer', conn=conn,
+                                    schema=schema, if_exists='fail')
+
+            # Verify
+            # ===========================================================
+            df_result = pd.read_sql(sql=query, con=conn, index_col='CustomerId', parse_dates=['BirthDate'])
+
+            assert_frame_equal(df_result, df_customer, check_dtype=False, check_index_type=False)
+
+        # Clean up - None
+        # ===========================================================
+
     def test_save_to_existing_non_empty_table_if_exists_replace(self, sqlite_db_empty, df_customer):
         r"""Save a DataFrame to an exisitng non empty table.
 
