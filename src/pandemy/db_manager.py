@@ -1,7 +1,7 @@
 """Contains the classes that represent the Database interface.
 
-The Database is managed by the `DatabaseManager` class. Each SQL-dialect
-is implemented as a subclass of `DatabaseManager`.
+The Database is managed by the DatabaseManager class. Each SQL-dialect
+is implemented as a subclass of DatabaseManager.
 """
 
 # ===============================================================
@@ -42,22 +42,16 @@ logger = logging.getLogger(__name__)
 class DatabaseManager(ABC):
     r"""Base class with functionality for managing a database.
 
-    Each specific database type will subclass from `DatabaseManager`.
+    Each specific database type will subclass from DatabaseManager.
 
     Class Variables
     ---------------
     _delete_from_table_statement : str
         Statement for deleting all records in a table.
-        Can be modified by subclasses of `DatabaseManager` if necessary.
-
-    _invalid_table_names : set
-        Set with words that are not allowed as table names.
-        Can be modified by subclasses of `DatabaseManager` if necessary.
+        Can be modified by subclasses of DatabaseManager if necessary.
     """
 
     _delete_from_table_statement: str = """DELETE FROM :table"""
-
-    _invalid_table_names: set = {'create', 'select', 'delete', 'update', 'with', 'as'}
 
     @abstractmethod
     def __init__(self, container: Optional[pandemy.SQLContainer] = None, **kwargs) -> None:
@@ -101,7 +95,7 @@ class DatabaseManager(ABC):
         return repr_str
 
     def _is_valid_table_name(self, table: str) -> None:
-        r"""Check if the supplied table name is vaild.
+        r"""Check if the table name is vaild.
 
         Parameters
         ----------
@@ -110,26 +104,25 @@ class DatabaseManager(ABC):
 
         Raises
         ------
+        pandemy.InvalidInputError
+            If the table name is not a string.
+
         pandemy.InvalidTableNameError
             If the table name is not valid.
         """
 
-        invalid_table_names = self._invalid_table_names
+        if not isinstance(table, str):
+            raise pandemy.InvalidInputError(f'table must be a string. Got {type(table)} ({table})',
+                                            data=table)
 
         # Get the first word of the string to prevent entering an SQL query.
         table_splitted = table.split(' ')
 
         # Check that only one word was input as the table name
         if (len_table_splitted := len(table_splitted)) > 1:
-            raise pandemy.InvalidTableNameError(f'{len_table_splitted} words were input for the table name! '
-                                                f'Only a single word is allowed for the table name.\ntable = {table}',
+            raise pandemy.InvalidTableNameError(f'Table name contains spaces ({len_table_splitted - 1})! '
+                                                f'The table name must be a single word.\ntable = {table}',
                                                 data=table)
-
-        table = table_splitted[0]
-
-        if table.lower() in invalid_table_names:
-            raise pandemy.InvalidTableNameError(f'table = {table} is among the the invalid table names: '
-                                                f'{invalid_table_names}')
 
     def manage_foreign_keys(self, conn: Connection, action: str) -> None:
         r"""Manage how the database handles foreign key constraints.

@@ -478,7 +478,131 @@ class TestExecuteMethod:
         # ===========================================================
 
 
-class TestDeleteAllRecorsFromTable:
+class TestIsValidTableName:
+    r"""Test the `_is_valid_table_name` method of the SQLiteDb DatabaseManager `SQLiteDb`.
+
+    Fixtures
+    --------
+    sqlite_db_empty : pandemy.SQLiteDb
+        An instance of the test database where all tables are empty.
+    """
+
+    @pytest.mark.parametrize('table', [pytest.param('Customer', id='Customer'),
+                                       pytest.param('1', id='1'),
+                                       pytest.param('', id='empty string'),
+                                       pytest.param('DELETE', id='DELETE'),
+                                       pytest.param('"DROP"', id='DROP'),
+                                       pytest.param('""DELETEFROMTABLE""', id='""DELETEFROMTABLE""')])
+    def test_is_valid_table_name_valid_table_names(self, table, sqlite_db_empty):
+        r"""Test that valid table names can pass the validation.
+
+        The `_is_valid_table_name method` checks that the table name consists
+        of a single word. If the table name is valid the method returns None
+        and no exception should be raised.
+
+        Parameters
+        ----------
+        table : str
+            The name of the table.
+        """
+
+        # Setup - None
+        # ===========================================================
+
+        # Exercise
+        # ===========================================================
+        result = sqlite_db_empty._is_valid_table_name(table=table)
+
+        # Verify
+        # ===========================================================
+        assert result is None
+
+        # Clean up - None
+        # ===========================================================
+
+    @pytest.mark.raises
+    @pytest.mark.parametrize('table, spaces', [pytest.param('Customer DELETE', '1',
+                                                            id='2 words, 1 space'),
+
+                                               pytest.param(' Customer  DELETE', '3',
+                                                            id='2 words, 3 spaces'),
+
+                                               pytest.param('"DROP TABLE Customer"', '2',
+                                                            id='3 words, 2 spaces'),
+
+                                               pytest.param(';""DELETE FROM TABLE Customer;"', '3',
+                                                            id='4 words, 3 spaces')])
+    def test_is_valid_table_name_invalid_table_names(self, table, spaces, sqlite_db_empty):
+        r"""Test that invalid table names can be detected correctly.
+
+        The `_is_valid_table_name method` checks that the table name consists
+        of a single word.
+
+        pandemy.InvalidTableNameError is expected to be raised
+        if the table name is invalid.
+
+        Parameters
+        ----------
+        table : str
+            The name of the table.
+
+        spaces : str
+            The number of space characters in `table`.
+        """
+
+        # Setup - None
+        # ===========================================================
+
+        # Exercise
+        # ===========================================================
+        with pytest.raises(pandemy.InvalidTableNameError) as exc_info:
+            sqlite_db_empty._is_valid_table_name(table=table)
+
+        # Verify
+        # ===========================================================
+        assert exc_info.type is pandemy.InvalidTableNameError
+        assert table in exc_info.value.args[0]
+        assert spaces in exc_info.value.args[0]
+        assert table == exc_info.value.data
+
+        # Clean up - None
+        # ===========================================================
+
+    @pytest.mark.raises
+    @pytest.mark.parametrize('table', [pytest.param(1, id='int'),
+                                       pytest.param(3.14, id='float'),
+                                       pytest.param([1, '1'], id='list'),
+                                       pytest.param({'table': 'name'}, id='dict')])
+    def test_is_valid_table_name_invalid_input(self, table, sqlite_db_empty):
+        r"""Test invalid input to the `table` parameter.
+
+        If `table` is not a string pandemy.InvalidInputError should be raised.
+
+        Parameters
+        ----------
+        table : str
+            The name of the table.
+        """
+
+        # Setup - None
+        # ===========================================================
+
+        # Exercise
+        # ===========================================================
+        with pytest.raises(pandemy.InvalidInputError) as exc_info:
+            sqlite_db_empty._is_valid_table_name(table=table)
+
+        # Verify
+        # ===========================================================
+        assert exc_info.type is pandemy.InvalidInputError
+        assert str(table) in exc_info.value.args[0]
+        assert table == exc_info.value.data
+
+        # Clean up - None
+        # ===========================================================
+
+
+class TestDeleteAllRecordsFromTable:
     r"""Test the `delete_all_records_from_table` method of the SQLiteDb DatabaseManager `SQLiteDb`.
 
     Fixtures
@@ -529,15 +653,15 @@ class TestDeleteAllRecorsFromTable:
 
         # Exercise
         # ===========================================================
-        with pytest.raises(pandemy.DeleteFromTableError) as exe_info:
+        with pytest.raises(pandemy.DeleteFromTableError) as exc_info:
             with sqlite_db_empty.engine.begin() as conn:
                 sqlite_db_empty.delete_all_records_from_table(table=table, conn=conn)
 
-            # Verify
-            # ===========================================================
-            assert exe_info.type is pandemy.DeleteFromTableError
-            assert table in exe_info.value.args[0]
-            assert table in exe_info.value.data[0]
+        # Verify
+        # ===========================================================
+        assert exc_info.type is pandemy.DeleteFromTableError
+        assert table in exc_info.value.args[0]
+        assert table in exc_info.value.data[0]
 
         # Clean up - None
         # ===========================================================
@@ -562,15 +686,15 @@ class TestDeleteAllRecorsFromTable:
 
         # Exercise
         # ===========================================================
-        with pytest.raises(pandemy.InvalidTableNameError) as exe_info:
+        with pytest.raises(pandemy.InvalidTableNameError) as exc_info:
             with sqlite_db_empty.engine.begin() as conn:
                 sqlite_db_empty.delete_all_records_from_table(table=table, conn=conn)
 
-            # Verify
-            # ===========================================================
-            assert exe_info.type is pandemy.InvalidTableNameError
-            assert table in exe_info.value.args[0]
-            assert table == exe_info.value.data
+        # Verify
+        # ===========================================================
+        assert exc_info.type is pandemy.InvalidTableNameError
+        assert table in exc_info.value.args[0]
+        assert table == exc_info.value.data
 
         # Clean up - None
         # ===========================================================
@@ -827,9 +951,9 @@ class TestSaveDfMethod:
                 sqlite_db_empty.save_df(df=df_customer, table='Customer', conn=conn)
 
     @pytest.mark.raises
-    @pytest.mark.parametrize('table', [pytest.param('delete', id='delete'),
+    @pytest.mark.parametrize('table', [pytest.param('delete from', id='delete from'),
                                        pytest.param('customer name', id='customer name'),
-                                       pytest.param('as', id='as')])
+                                       pytest.param('DROP TABLE', id='DROP TABLE')])
     def test_invalid_input_table(self, table, sqlite_db_empty, df_customer):
         r"""Supply an invalid argument to the `table` parameter.
 
@@ -1195,15 +1319,15 @@ class TestLoadTableMethod:
         # Exercise
         # ===========================================================
         with sqlite_db.engine.begin() as conn:
-            with pytest.raises(pandemy.LoadTableError) as exe_info:
+            with pytest.raises(pandemy.LoadTableError) as exc_info:
                 sqlite_db.load_table(sql=sql, conn=conn, index_col='TransactionId',
                                      parse_dates='TransactionTimestamp')
 
             # Verify
             # ===========================================================
-            assert exe_info.type is pandemy.LoadTableError
-            assert sql in exe_info.value.args[0]
-            assert sql == exe_info.value.data[1]
+            assert exc_info.type is pandemy.LoadTableError
+            assert sql in exc_info.value.args[0]
+            assert sql == exc_info.value.data[1]
 
         # Clean up - None
         # ===========================================================
@@ -1230,17 +1354,17 @@ class TestLoadTableMethod:
         # Exercise
         # ===========================================================
         with sqlite_db.engine.begin() as conn:
-            with pytest.raises(pandemy.DataTypeConversionError) as exe_info:
+            with pytest.raises(pandemy.DataTypeConversionError) as exc_info:
                 sqlite_db.load_table(sql=sql, conn=conn, index_col='TransactionId',
                                      parse_dates='TransactionTimestamp', dtypes=dtypes)
 
             # Verify
             # ===========================================================
-            assert exe_info.type is pandemy.DataTypeConversionError
-            assert 'Qty' in exe_info.value.args[0]
-            assert 'TradePrice' in exe_info.value.args[0]
-            assert dtypes == exe_info.value.data[1]
-            assert 'Qty, TradePrice' == exe_info.value.data[2]
+            assert exc_info.type is pandemy.DataTypeConversionError
+            assert 'Qty' in exc_info.value.args[0]
+            assert 'TradePrice' in exc_info.value.args[0]
+            assert dtypes == exc_info.value.data[1]
+            assert 'Qty, TradePrice' == exc_info.value.data[2]
 
         # Clean up - None
         # ===========================================================
@@ -1267,14 +1391,14 @@ class TestLoadTableMethod:
         # Exercise
         # ===========================================================
         with sqlite_db.engine.begin() as conn:
-            with pytest.raises(pandemy.DataTypeConversionError) as exe_info:
+            with pytest.raises(pandemy.DataTypeConversionError) as exc_info:
                 sqlite_db.load_table(sql=sql, conn=conn, index_col='TransactionId',
                                      parse_dates='TransactionTimestamp', dtypes=dtypes)
 
             # Verify
             # ===========================================================
-            assert exe_info.type is pandemy.DataTypeConversionError
-            assert dtypes == exe_info.value.data[1]
+            assert exc_info.type is pandemy.DataTypeConversionError
+            assert dtypes == exc_info.value.data[1]
 
         # Clean up - None
         # ===========================================================
@@ -1298,16 +1422,16 @@ class TestLoadTableMethod:
         # Exercise
         # ===========================================================
         with sqlite_db.engine.begin() as conn:
-            with pytest.raises(pandemy.LoadTableError) as exe_info:
+            with pytest.raises(pandemy.LoadTableError) as exc_info:
                 sqlite_db.load_table(sql=sql, conn=conn, params=params, index_col='TransactionId',
                                      parse_dates='TransactionTimestamp')
 
             # Verify
             # ===========================================================
-            assert exe_info.type is pandemy.LoadTableError
-            assert sql in exe_info.value.args[0]
-            assert sql in exe_info.value.data[1]
-            assert params == exe_info.value.data[2]
+            assert exc_info.type is pandemy.LoadTableError
+            assert sql in exc_info.value.args[0]
+            assert sql in exc_info.value.data[1]
+            assert params == exc_info.value.data[2]
 
         # Clean up - None
         # ===========================================================
@@ -1343,15 +1467,15 @@ class TestLoadTableMethod:
         # Exercise
         # ===========================================================
         with sqlite_db.engine.begin() as conn:
-            with pytest.raises(pandemy.SetIndexError) as exe_info:
+            with pytest.raises(pandemy.SetIndexError) as exc_info:
                 sqlite_db.load_table(sql=sql, conn=conn, index_col=index_col,
                                      parse_dates='TransactionTimestamp')
 
             # Verify
             # ===========================================================
-            assert exe_info.type is pandemy.SetIndexError
-            assert str(index_col) in exe_info.value.args[0]
-            assert index_col == exe_info.value.data
+            assert exc_info.type is pandemy.SetIndexError
+            assert str(index_col) in exc_info.value.args[0]
+            assert index_col == exc_info.value.data
 
         # Clean up - None
         # ===========================================================
@@ -1392,13 +1516,13 @@ class TestManageForeignKeysMethod:
         with sqlite_db_empty.engine.begin() as conn:
             sqlite_db_empty.manage_foreign_keys(conn=conn, action='ON')
 
-            with pytest.raises(sqlalchemy.exc.IntegrityError) as exe_info:
+            with pytest.raises(sqlalchemy.exc.IntegrityError) as exc_info:
                 df_store.to_sql(name='Store', con=conn, if_exists='append')
 
             # Verify
             # ===========================================================
-            assert exe_info.type is sqlalchemy.exc.IntegrityError
-            assert 'FOREIGN KEY' in exe_info.value.args[0]
+            assert exc_info.type is sqlalchemy.exc.IntegrityError
+            assert 'FOREIGN KEY' in exc_info.value.args[0]
 
         # Clean up - None
         # ===========================================================
@@ -1451,14 +1575,14 @@ class TestManageForeignKeysMethod:
         # Exercise
         # ===========================================================
         with sqlite_db_empty.engine.begin() as conn:
-            with pytest.raises(pandemy.InvalidInputError) as exe_info:
+            with pytest.raises(pandemy.InvalidInputError) as exc_info:
                 sqlite_db_empty.manage_foreign_keys(conn=conn, action=action)
 
             # Verify
             # ===========================================================
-            assert exe_info.type is pandemy.InvalidInputError
-            assert str(action) in exe_info.value.args[0]
-            assert action == exe_info.value.data[0]
+            assert exc_info.type is pandemy.InvalidInputError
+            assert str(action) in exc_info.value.args[0]
+            assert action == exc_info.value.data[0]
 
         # Clean up - None
         # ===========================================================
