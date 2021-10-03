@@ -1,4 +1,4 @@
-r"""Tests for the datetime module of pandemy.
+"""Tests for the datetime module of pandemy.
 
 The datetime module handles timezone conversions.
 """
@@ -28,7 +28,7 @@ CSV_DELIM = ';'
 
 @pytest.fixture()
 def df_datetime() -> pd.DataFrame:
-    """A DataFrame with naive datetime columns.
+    r"""A DataFrame with naive datetime columns.
 
     Used for testing to localize and convert the datetime columns
     to a desired timezone.
@@ -60,9 +60,9 @@ Id;Datetime1;Datetime2;Datetime3;Price;City;DatetimeAsString
 
 
 class TestDatetimeColumnsToTimezone:
-    """
-    Test the function `datetime_columns_to_timezone`
-    from the `pandemy.datetime` module.
+    r"""
+    Test the function datetime_columns_to_timezone
+    from the pandemy.datetime module.
 
     Fixtures
     --------
@@ -73,7 +73,7 @@ class TestDatetimeColumnsToTimezone:
     @pytest.mark.parametrize('localize_tz', [pytest.param('UTC', id='UTC'),
                                              pytest.param('CET', id='CET')])
     def test_localize_to_tz(self, localize_tz, df_datetime):
-        """Localize naive datetime columns to specified timezone.
+        r"""Localize naive datetime columns to specified timezone.
 
         Parameters
         ----------
@@ -101,10 +101,9 @@ class TestDatetimeColumnsToTimezone:
         # ===========================================================
 
     def test_localize_to_tz_no_datetime_columns(self, df_datetime):
-        """
-        Localize naive datetime columns to CET timezone.
-        No naive datetime columns are found in the input DataFrame.
+        r"""Localize naive datetime columns to CET timezone.
 
+        No naive datetime columns are found in the input DataFrame.
         No columns of the input DataFrame should be modified.
         """
 
@@ -133,7 +132,7 @@ class TestDatetimeColumnsToTimezone:
                               pytest.param('UTC', 'UTC', id='localize=UTC, target=UTC'),
                               pytest.param('UTC', None, id='localize=UTC, target=None')])
     def test_localize_and_convert_to_tz(self, localize_tz, target_tz, df_datetime):
-        """
+        r"""
         Localize naive datetime columns to a timezone and then convert them
         into the target timezone.
 
@@ -144,7 +143,8 @@ class TestDatetimeColumnsToTimezone:
 
         target_tz : str or None, default 'CET'
             Name of the target timezone of the timezone aware columns.
-            If None no timezone conversion will be performed.
+            If `target_tz` is None or `target_tz = `localize_tz`
+            no timezone conversion will be performed.
         """
 
         # Setup
@@ -175,7 +175,7 @@ class TestDatetimeColumnsToTimezone:
                               pytest.param('UTC', 'T', id='localize=UTC, target=T'),
                               pytest.param(None, None, id='localize=None, target=None')])
     def test_localize_and_convert_with_unknown_timezone(self, localize_tz, target_tz, df_datetime):
-        """
+        r"""
         Try to localize and convert naive datetime columns when supplying an
         unknown timezone.
 
@@ -188,7 +188,8 @@ class TestDatetimeColumnsToTimezone:
 
         target_tz : str or None, default 'CET'
             Name of the target timezone of the timezone aware columns.
-            If None no timezone conversion will be performed.
+            If `target_tz` is None or `target_tz = `localize_tz`
+            no timezone conversion will be performed.
         """
 
         # Setup - None

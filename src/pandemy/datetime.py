@@ -1,4 +1,4 @@
-r"""Internal module that contains functions to handle datetime related operations."""
+"""Internal module that contains functions to handle datetime related operations."""
 
 # ===============================================================
 # Imports
@@ -46,7 +46,8 @@ def datetime_columns_to_timezone(df: pd.DataFrame,  localize_tz: str = 'UTC',
 
     target_tz : str or None, default 'CET'
         Name of the target timezone to convert datetime columns into after
-        they have been localized. If None no timezone conversion will be performed.
+        they have been localized. If `target_tz` is None or `target_tz = `localize_tz`
+        no timezone conversion will be performed.
 
     Returns
     -------
