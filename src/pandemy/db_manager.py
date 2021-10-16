@@ -660,7 +660,7 @@ class SQLiteDb(DatabaseManager):
         else:
             logger.debug(f'Successfully created database engine from conn_str: {self.conn_str}.')
 
-    def __init__(self, file: Union[str, Path] = ':memory:', must_exist: bool = True,
+    def __init__(self, file: Union[str, Path] = ':memory:', must_exist: bool = False,
                  container: Optional[pandemy.SQLContainer] = None, engine_config: Optional[Dict[str, Any]] = None,
                  **kwargs: dict) -> None:
         r"""Initialize the SQLite DatabaseManager instance.
@@ -673,7 +673,7 @@ class SQLiteDb(DatabaseManager):
             The file (with path) to the SQLite database.
             The default creates an in memory database.
 
-        must_exist : bool, default True
+        must_exist : bool, default False
             If True validate that `file` exists unless `file` = ':memory:'.
             If it does not exist pandemy.DatabaseFileNotFoundError is raised.
             If False the validation is omitted.

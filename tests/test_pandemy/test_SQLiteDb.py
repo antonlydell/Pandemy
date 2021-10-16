@@ -67,7 +67,7 @@ class TestInitSQLiteDb:
         # Verify
         # ===========================================================
         assert db.file == ':memory:'
-        assert db.must_exist is True
+        assert db.must_exist is False
         assert db.container is None
         assert db.engine_config is None
         assert db.conn_str == r'sqlite://'
@@ -89,7 +89,7 @@ class TestInitSQLiteDb:
         # Verify
         # ===========================================================
         assert db.file == ':memory:'
-        assert db.must_exist is True
+        assert db.must_exist is False
         assert db.conn_str == r'sqlite://'
         assert isinstance(db.engine, sqlalchemy.engine.base.Engine)
 
