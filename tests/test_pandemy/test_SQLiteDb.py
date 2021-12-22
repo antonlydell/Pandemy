@@ -1,5 +1,6 @@
-"""
-Tests for the DatabaseManager class through the implementation of the SQLite DatabaseManager `SQLiteDb`.
+"""Tests for the SQLite DatabaseManager `SQLiteDb`.
+
+Tests all methods of the DatabaseManager because it is easy to test with SQLite.
 """
 
 # =================================================
@@ -21,6 +22,7 @@ import sqlalchemy
 
 # Local
 import pandemy
+from .dependencies import PANDAS_VERSION
 
 # =================================================
 # Setup
@@ -1185,14 +1187,14 @@ class TestLoadTableMethod:
         # Setup
         # ===========================================================
         dtypes = {
-            'TransactionId': pd.UInt8Dtype(),
-            'StoreId': pd.UInt8Dtype(),
-            'ItemId': pd.UInt8Dtype(),
-            'CustomerId': pd.UInt8Dtype(),
-            'CustomerBuys': pd.UInt8Dtype(),
-            'Quantity': pd.UInt16Dtype(),
-            'TradePricePerItem': np.float64,
-            'TotalTradePrice': np.float64
+            'TransactionId': 'int8',
+            'StoreId': 'int8',
+            'ItemId': 'int8',
+            'CustomerId': 'int8',
+            'CustomerBuys': 'int8',
+            'Quantity': 'int16',
+            'TradePricePerItem': 'float64',
+            'TotalTradePrice': 'float64'
         }
 
         # Exercise
@@ -1263,8 +1265,9 @@ class TestLoadTableMethod:
         The table ItemTradedInStore is empty.
 
         A generator yielding DataFrames each with the number of rows specified in
-        the `chunksize` parameter is expected to be returned. The generator should not
-        yield a single DataFrame.
+        the `chunksize` parameter is expected to be returned. If the query returns no
+        rows an empty DataFrame should be yielded from the generator in pandas >= 1.3.0
+        and in earlier versions StopIteration is expected to be raised.
         """
 
         # Setup - None
@@ -1278,6 +1281,10 @@ class TestLoadTableMethod:
 
             # Verify
             # ===========================================================
+            if PANDAS_VERSION >= (1, 3, 0):
+                df = next(df_gen)
+                assert df.empty is True
+
             with pytest.raises(StopIteration):
                 next(df_gen)
 
@@ -1403,6 +1410,10 @@ class TestLoadTableMethod:
         # Clean up - None
         # ===========================================================
 
+    @pytest.mark.skipif(PANDAS_VERSION >= (1, 3, 0),
+                        reason=('Data type conversion from [IntegerDtype] to [datetime64] '
+                                'does not raise an exception in pandas >= 1.3.0 '
+                                f'(pandas version used: {pd.__version__})'))
     @pytest.mark.raises
     def test_dtypes_cannot_convert_dtype(self, sqlite_db):
         r"""Try to load table ItemTradedInStore an convert data types.
@@ -1427,7 +1438,7 @@ class TestLoadTableMethod:
         with sqlite_db.engine.begin() as conn:
             with pytest.raises(pandemy.DataTypeConversionError) as exc_info:
                 sqlite_db.load_table(sql=sql, conn=conn, index_col='TransactionId',
-                                     parse_dates='TransactionTimestamp', dtypes=dtypes)
+                                     parse_dates=['TransactionTimestamp'], dtypes=dtypes)
 
             # Verify
             # ===========================================================
