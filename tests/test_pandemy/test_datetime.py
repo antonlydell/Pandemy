@@ -44,15 +44,16 @@ Id;Datetime1;Datetime2;Datetime3;Price;City;DatetimeAsString
     )
 
     dtypes = {
-        'Id': pd.UInt16Dtype(),
-        'Price': pd.StringDtype(),
-        'City': pd.StringDtype(),
-        'DatetimeAsString': pd.StringDtype(),
+        'Id': 'int16',
+        'Price': 'string',
+        'City': 'string',
+        'DatetimeAsString': 'string',
     }
 
     datetime_cols = ['Datetime1', 'Datetime2', 'Datetime3']
 
-    return pd.read_csv(data, sep=CSV_DELIM, index_col='Id', parse_dates=datetime_cols, dtype=dtypes)
+    return pd.read_csv(filepath_or_buffer=data, sep=CSV_DELIM, index_col='Id',
+                       parse_dates=datetime_cols, dtype=dtypes)
 
 # =================================================
 # Tests

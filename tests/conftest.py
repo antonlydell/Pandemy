@@ -10,7 +10,6 @@ from pathlib import Path
 import shutil
 
 # Third Party
-import numpy as np
 import pandas as pd
 import pytest
 
@@ -68,7 +67,7 @@ def sqlite_db(sqlite_db_file) -> pandemy.SQLiteDb:
 
 @pytest.fixture()
 def sqlite_db_file_empty(sqlite_db_folder) -> Path:
-    r"""An empty version of the SQLite test database..
+    r"""An empty version of the SQLite test database.
 
     All tables in the database are empty.
 
@@ -114,12 +113,12 @@ OwnerId;OwnerName;BirthDate
     )
 
     dtypes = {
-        'OwnerId': pd.UInt16Dtype(),
-        'OwnerName': pd.StringDtype(),
+        'OwnerId': 'int16',
+        'OwnerName': 'string',
     }
 
-    return pd.read_csv(data, sep=CSV_DELIM, index_col='OwnerId', parse_dates=['BirthDate'],
-                       dtype=dtypes)
+    return pd.read_csv(filepath_or_buffer=data, sep=CSV_DELIM, index_col='OwnerId',
+                       parse_dates=['BirthDate'], dtype=dtypes)
 
 
 @pytest.fixture()
@@ -139,14 +138,14 @@ CustomerId;CustomerName;BirthDate;Residence;IsAdventurer
     )
 
     dtypes = {
-        'CustomerId': pd.UInt16Dtype(),
-        'CustomerName': pd.StringDtype(),
-        'Residence': pd.StringDtype(),
-        'IsAdventurer': pd.BooleanDtype(),
+        'CustomerId': 'int16',
+        'CustomerName': 'string',
+        'Residence': 'string',
+        'IsAdventurer': 'boolean',
     }
 
-    return pd.read_csv(data, sep=CSV_DELIM, index_col='CustomerId', parse_dates=['BirthDate'],
-                       dtype=dtypes)
+    return pd.read_csv(filepath_or_buffer=data, sep=CSV_DELIM, index_col='CustomerId',
+                       parse_dates=['BirthDate'], dtype=dtypes)
 
 
 @pytest.fixture()
@@ -166,13 +165,13 @@ StoreId;StoreName;Location;OwnerId
     )
 
     dtypes = {
-        'StoreId': pd.UInt16Dtype(),
-        'StoreName': pd.StringDtype(),
-        'Location': pd.StringDtype(),
-        'OwnerId': pd.UInt16Dtype(),
+        'StoreId': 'int16',
+        'StoreName': 'string',
+        'Location': 'string',
+        'OwnerId': 'int16',
     }
 
-    return pd.read_csv(data, sep=CSV_DELIM, index_col='StoreId', dtype=dtypes)
+    return pd.read_csv(filepath_or_buffer=data, sep=CSV_DELIM, index_col='StoreId', dtype=dtypes)
 
 
 @pytest.fixture()
@@ -193,15 +192,15 @@ TransactionId;StoreId;ItemId;CustomerId;CustomerBuys;TransactionTimestamp;Quanti
     )
 
     dtypes = {
-        'TransactionId': pd.UInt8Dtype(),
-        'StoreId': pd.UInt8Dtype(),
-        'ItemId': pd.UInt8Dtype(),
-        'CustomerId': pd.UInt8Dtype(),
-        'CustomerBuys': pd.UInt8Dtype(),
-        'Quantity': pd.UInt16Dtype(),
-        'TradePricePerItem': np.float64,
-        'TotalTradePrice': np.float64
+        'TransactionId': 'int8',
+        'StoreId': 'int8',
+        'ItemId': 'int8',
+        'CustomerId': 'int8',
+        'CustomerBuys': 'int8',
+        'Quantity': 'int16',
+        'TradePricePerItem': 'float64',
+        'TotalTradePrice': 'float64'
     }
 
-    return pd.read_csv(data, sep=CSV_DELIM, index_col='TransactionId', parse_dates=['TransactionTimestamp'],
-                       dtype=dtypes)
+    return pd.read_csv(filepath_or_buffer=data, sep=CSV_DELIM, index_col='TransactionId',
+                       parse_dates=['TransactionTimestamp'], dtype=dtypes)
