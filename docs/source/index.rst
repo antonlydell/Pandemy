@@ -8,57 +8,45 @@ Pandemy documentation
 #####################
 
 Pandemy is a wrapper around `pandas`_ and `SQLAlchemy`_ to provide an easy class based interface for working with DataFrames and databases.
-This package is for those who enjoy working with pandas and SQL but do not want to learn all "bells and whistles" of SQLAlchemy.
+This package is for those who enjoy working with `pandas`_ and SQL but do not want to learn all "bells and whistles" of `SQLAlchemy`_.
 Use your existing SQL knowledge and provide text based SQL statements to load DataFrames from and write DataFrames to databases.
 
 .. _pandas: https://pandas.pydata.org/
 .. _SQLAlchemy: https://www.sqlalchemy.org/
 
 
-- **Release**: |release|
-- **Release Date**: YYYY-MM-DD
+- **Release**: |release| | YYYY-MM-DD
 
-***************
-Getting started
-***************
 
-The Getting started chapter describes how to install Pandemy and showcases a brief 
-roundtrip of saving a DataFrame to and reading a DataFrame from an SQLite database.
-A teaser for what the User guide has to offer.
+***********
+Disposition
+***********
 
+The documentation consists of 3 parts:
+
+* :doc:`Getting started <getting_started/index>` : Install Pandemy and get a brief overview of the package.
+
+* :doc:`User guide <user_guide/index>` : The structure of Pandemy and a walkthrough of how to use it.
+
+* :doc:`API reference <api_reference/index>` : Details about the API of Pandemy. 
+
+
+.. Adds a home button (to this page) to the navigation bar
 .. toctree::
    :maxdepth: 2
+   :hidden:
 
-   getting_started/installation
+   Home <self>
 
 
-**********
-User guide
-**********
-
-The User guide chapter explains the main concepts and use cases of Pandemy.
-It starts with a description about the core components of Pandemy: the 
-:class:`DatabaseManager <pandemy.DatabaseManager>` and :class:`SQLContainer <pandemy.SQLContainer>` classes.
-Thereafter the implemented SQL dialects are described.
-
+.. Main Table of contents
 .. toctree::
    :maxdepth: 2
-   :caption: User guide
+   :caption: Table of contents
 
-   user_guide/databasemanager
-   user_guide/sqlite
-
-
-*************
-API reference
-*************
-
-This chapter explains the complete the API of Pandemy.
-
-.. toctree::
-   :maxdepth: 3
-
-   api_reference/api_reference
+   getting_started/index
+   user_guide/index
+   api_reference/index
 
 
 ******************
