@@ -1,7 +1,7 @@
-"""Contains the classes that represent the Database interface.
+r"""Contains the classes that represent the database interface.
 
-The Database is managed by the DatabaseManager class. Each SQL-dialect
-is implemented as a subclass of DatabaseManager.
+The Database is managed by the :class:`DatabaseManager <pandemy.DatabaseManager>` class.
+Each SQL-dialect is implemented as a subclass of :class:`DatabaseManager <pandemy.DatabaseManager>`.
 """
 
 # ===============================================================
@@ -42,28 +42,55 @@ logger = logging.getLogger(__name__)
 class DatabaseManager(ABC):
     r"""Base class with functionality for managing a database.
 
-    Each specific database type will subclass from DatabaseManager.
+    Each database type will subclass from DatabaseManager and
+    implement the initializer which is specific to each database type.
+    DatabaseManager is never used on its own, but merely provides the methods
+    to interact with the database to its subclasses.
 
-    Class Variables
-    ---------------
-    _delete_from_table_statement : str
-        Statement for deleting all records in a table.
-        Can be modified by subclasses of DatabaseManager if necessary.
+    Initialization of a DatabaseManager creates the connection string and the database engine,
+    which is used to interact with the database. The initializer can contain any number of
+    parameters needed to connect to the database and should always support
+    `container`, `engine_config` and `\*\*kwargs`.
+
+    Parameters
+    ----------
+    container : pandemy.SQLContainer or None, default None
+        A container of database statements that can be used by the DatabaseManager.
+
+    engine_config : dict or None
+        Additional keyword arguments passed to the SQLAlchemy
+        :func:`create_engine <sqlalchemy:sqlalchemy.create_engine>` function.
+
+    **kwargs : dict
+        Additional keyword arguments that are not used by the DatabaseManager.
+
+    Attributes
+    ----------
+    conn_str : str
+        The connection string for the database.
+
+    container : pandemy.SQLContainer or None
+        The value of the `container` parameter.
+
+    engine : :class:`sqlalchemy:sqlalchemy.engine.Engine`
+        The database engine.
+
+    engine_config : dict or None
+        The value of the `engine_config` parameter.
     """
 
+    # Class variables
+    # ---------------
+
+    # Statement for deleting all records in a table.
+    # Can be modified by subclasses of DatabaseManager if necessary.
     _delete_from_table_statement: str = """DELETE FROM :table"""
 
     @abstractmethod
-    def __init__(self, container: Optional[pandemy.SQLContainer] = None, **kwargs) -> None:
-        r"""
-        The initializer should support **kwargs because different types of databases
-        will need different input parameters.
-
-        Parameters
-        ----------
-        container : pandemy.SQLContainer or None, default None
-            A container of database statements that can be used by the DatabaseManager.
-        """
+    def __init__(self, container: Optional[pandemy.SQLContainer] = None,
+                 engine_config: Optional[dict] = None,
+                 **kwargs) -> None:
+        pass
 
     def __str__(self) -> str:
         r"""String representation of the object."""
@@ -95,7 +122,7 @@ class DatabaseManager(ABC):
         return repr_str
 
     def _is_valid_table_name(self, table: str) -> None:
-        r"""Check if the table name is vaild.
+        r"""Check if the table name is valid.
 
         Parameters
         ----------
@@ -127,8 +154,9 @@ class DatabaseManager(ABC):
     def manage_foreign_keys(self, conn: Connection, action: str) -> None:
         r"""Manage how the database handles foreign key constraints.
 
-        Should be implemented by the SQLite DatabaseManger since
-        checking foreign key constraints is not enabled by default.
+        Should be implemented by DatabaseManagers whose SQL dialect
+        supports enabling/disabling checking foreign key constraints.
+        E.g. SQLite.
 
         Parameters
         ----------
@@ -136,40 +164,37 @@ class DatabaseManager(ABC):
             An open connection to the database.
 
         action : str
-            Enable or disable the check of foreign key constraints.
+            How to handle foreign key constraints in the database.
+
+        Raises
+        ------
+        pandemy.InvalidInputError
+            If invalid input is supplied to `action`.
+
+        pandemy.ExecuteStatementError
+            If changing the handling of foreign key constraint fails.
         """
 
     def execute(self, sql: Union[str, TextClause], conn: Connection, params: Union[dict, List[dict], None] = None):
-        r"""Execute an SQL statement.
-
-        To process the result from the method the database connection must remain open after the method
-        is executed. E.g.::
-
-        import pandemy
-
-        db = SQLiteDb()
-
-        with db.engine.connect() as conn:
-            result = db.execute('SELECT * FROM MyTable;', conn=conn)
-
-            for row in result:
-                print(row)  # process the results
+        r"""Execute a SQL statement.
 
         Parameters
         ----------
         sql : str or sqlalchemy.sql.elements.TextClause
-            The SQL statement string to process.
-
-            Remainder from SQLAlchemy Docs:
-            SQLAlchemy Deprecation Warning:"passing a string to Connection.execute() is deprecated
-            and will be removed in version 2.0. Use the text() construct with Connection.execute()[...]"
+            The SQL statement to execute.
 
         conn : sqlalchemy.engine.base.Connection
             An open connection to the database.
 
-        params : dict or list of dict, default None
-            Parameters to bind to the sql query using % or :name.
-            All params should be dicts or sequences of dicts as of SQLAlchemy 2.0.
+        params : dict or list of dict or None, default None
+            Parameters to bind to the SQL statement `sql`.
+            Parameters in the SQL statement should be prefixed by a colon (*:*) e.g. ``:myparameter``.
+            Parameters in `params` should *not* contain the colon (``{'myparameter': 'myvalue'}``).
+
+            Supply a list of parameter dictionaries to execute multiple
+            parametrized statements in the same method call, e.g.
+            ``[{'parameter1': 'a string'}, {'parameter2': 100}]``.
+            This is useful for INSERT, UPDATE and DELETE statements.
 
         Returns
         -------
@@ -186,9 +211,27 @@ class DatabaseManager(ABC):
 
         See Also
         --------
-        - https://docs.sqlalchemy.org/en/14/core/connections.html#sqlalchemy.engine.Connection.execute
+        * :meth:`sqlalchemy:sqlalchemy.engine.Connection.execute` : The SQLAlchemy method used for executing the SQL statement.
 
-        - https://docs.sqlalchemy.org/en/14/core/connections.html#sqlalchemy.engine.CursorResult
+        * :class:`sqlalchemy:sqlalchemy.engine.CursorResult` : The return type from the method.
+
+        Examples
+        --------
+        To process the result from the method the database connection must remain open after the method
+        is executed i.e. the context manager *cannot* be closed before processing the result:
+
+        .. code-block:: python
+
+           import pandemy
+
+           db = SQLiteDb(file='mydb.db')
+
+           with db.engine.connect() as conn:
+               result = db.execute('SELECT * FROM MyTable;', conn=conn)
+
+                for row in result:
+                    print(row)  # process the result
+                    ...
         """
 
         if isinstance(sql, str):
@@ -249,12 +292,14 @@ class DatabaseManager(ABC):
                 method: Optional[Union[str, Callable]] = None) -> None:
         r"""Save the DataFrame `df` to specified table in the database.
 
-        The column names of the DataFrame df must match the table defintion.
-        Uses the pandas DataFrame method `to_sql`.
+        If the table does not exist it will be created. If the table already exists
+        the column names of the DataFrame `df` must match the table column definition.
+        Uses pandas' DataFrame method :meth:`to_sql <pandas:pandas.DataFrame.to_sql>`
+        to write the DataFrame to the database.
 
         Parameters
         ----------
-        df : pd.DataFrame
+        df : pandas.DataFrame
             The DataFrame to save to the database.
 
         table : str
@@ -263,20 +308,20 @@ class DatabaseManager(ABC):
         conn : sqlalchemy.engine.base.Connection
             An open connection to the database.
 
-        if_exists : str, {'append', 'replace', 'fail'}, default 'append'
+        if_exists : str, {'append', 'replace', 'fail'}
             How to update an existing table in the database:
 
-            - 'append': Append the DataFrame to the existing table.
+            * 'append': Append the DataFrame to the existing table.
 
-            - 'replace': Delete all records from the table and then write the DataFrame to the table.
+            * 'replace': Delete all records from the table and then write the DataFrame to the table.
 
-            - 'fail': Raise pandemy.TableExistsError if the table exists.
+            * 'fail': Raise :exc:`pandemy.TableExistsError` if the table exists.
 
         index : bool, default True
             Write DataFrame index as a column. Uses the name of the index as the
             column name for the table.
 
-        index_label : str, sequence of str or None, default None
+        index_label : str or sequence of str or None, default None
             Column label for index column(s). If None is given (default) and `index` is True,
             then the index names are used. A sequence should be given if the DataFrame uses a MultiIndex.
 
@@ -295,25 +340,27 @@ class DatabaseManager(ABC):
         method : None, 'multi', callable, default None
             Controls the SQL insertion clause used:
 
-            - None: Uses standard SQL INSERT clause (one per row).
+            * None:
+                Uses standard SQL INSERT clause (one per row).
 
-            -'multi': Pass multiple values in a single INSERT clause. It uses a special SQL syntax not supported by
-                      all backends. This usually provides better performance for analytic databases like Presto and
-                      Redshift, but has worse performance for traditional SQL backend if the table contains many
-                      columns. For more information check the SQLAlchemy documentation.
+            * 'multi':
+                Pass multiple values in a single INSERT clause. It uses a special SQL syntax not supported by
+                all backends. This usually provides better performance for analytic databases like Presto and
+                Redshift, but has worse performance for traditional SQL backend if the table contains many
+                columns. For more information check the SQLAlchemy documentation.
 
-            - callable with signature (pd_table, conn, keys, data_iter):
+            * callable with signature (pd_table, conn, keys, data_iter):
                 This can be used to implement a more performant insertion method based on specific
                 backend dialect features.
-                See: https://pandas.pydata.org/pandas-docs/stable/user_guide/io.html#io-sql-method
+                See: `pandas SQL insertion method`_.
 
         Raises
         ------
         pandemy.TableExistsError
-            If the table exists and `if_exists` = 'fail'.
+            If the table exists and ``if_exists='fail'``.
 
         pandemy.DeleteFromTableError
-            If data in the table cannot be deleted when `if_exists` = 'replace'.
+            If data in the table cannot be deleted when ``if_exists='replace'``.
 
         pandemy.InvalidInputError
             Invalid values or types for input parameters.
@@ -326,9 +373,11 @@ class DatabaseManager(ABC):
 
         See Also
         --------
-        - https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.to_sql.html
+        * :meth:`pandas:pandas.DataFrame.to_sql` : Write records stored in a DataFrame to a SQL database.
 
-        - https://pandas.pydata.org/pandas-docs/stable/user_guide/io.html#io-sql-method
+        * `pandas SQL insertion method`_ : Details about using the `method` parameter.
+
+        .. _pandas SQL insertion method: https://pandas.pydata.org/pandas-docs/stable/user_guide/io.html#io-sql-method
         """
 
         # ==========================================
@@ -383,17 +432,19 @@ class DatabaseManager(ABC):
             logger.info(f'Successfully wrote {nr_rows} rows over {nr_cols} columns to table {table}.')
 
     def load_table(self, sql: Union[str, TextClause], conn: Connection,
-                   params: Optional[Union[dict, Sequence[dict]]] = None,
+                   params: Optional[Dict[str, str]] = None,
                    index_col: Optional[Union[str, Sequence[str]]] = None,
                    columns: Optional[Sequence[str]] = None,
-                   parse_dates: Optional[List[dict]] = None,
+                   parse_dates: Optional[Union[list, dict]] = None,
                    localize_tz: Optional[str] = None, target_tz: Optional[str] = None,
-                   dtypes: Optional[dict] = None,
+                   dtypes: Optional[Dict[str, Union[str, object]]] = None,
                    chunksize: Optional[int] = None,
                    coerce_float: bool = True) -> Union[pd.DataFrame, Iterator[pd.DataFrame]]:
-        r"""Load an SQL table into a DataFrame.
+        r"""Load a SQL table into a DataFrame.
 
-        Specify a table name or an SQL query. Uses the pandas `read_sql` DataFrame method.
+        Specify a table name or a SQL query to load the DataFrame from.
+        Uses pandas' :func:`read_sql <pandas:pandas.read_sql>` function
+        to read from the database.
 
         Parameters
         ----------
@@ -403,36 +454,39 @@ class DatabaseManager(ABC):
         conn : sqlalchemy.engine.base.Connection
             An open connection to the database to use for the query.
 
-        params : dict or list of dict, default None
-            Parameters to bind to the sql query using % or :name.
-            All params should be dicts or sequences of dicts as of SQLAlchemy 2.0.
+        params : dict of str or None, default None
+            Parameters to bind to the SQL query `sql`.
+            Parameters in the SQL query should be prefixed by a colon (*:*) e.g. ``:myparameter``.
+            Parameters in `params` should *not* contain the colon (``{'myparameter': 'myvalue'}``).
 
         index_col : str or sequence of str or None, default None
-            The column(s) to set as index of the DataFrame.
+            The column(s) to set as the index of the DataFrame.
 
-        columns : list of str or None
+        columns : list of str or None, default None
             List of column names to select from the SQL table (only used when `sql` is a table name).
 
-        parse_dates : list, dict or None, default None
-            - List of column names to parse as dates.
+        parse_dates : list or dict or None, default None
+            * List of column names to parse as dates.
 
-            - Dict of `{column_name: format string}` where format string is strftime compatible
+            * Dict of `{column_name: format string}` where format string is strftime compatible
               in case of parsing string times, or is one of (D, s, ns, ms, us)
               in case of parsing integer timestamps.
 
-            - Dict of `{column_name: arg dict}`, where the arg dict corresponds to the keyword arguments of
-              pandas.to_datetime(). Especially useful with databases without native Datetime support, such as SQLite.
+            * Dict of `{column_name: arg dict}`, where the arg dict corresponds to the keyword arguments of
+              :func:`pandas:pandas.to_datetime`. Especially useful with databases without native Datetime support,
+              such as SQLite.
 
         localize_tz : str or None, default None
-            Localize naive datetime columns of the DataFrame to specified timezone.
+            Localize naive datetime columns of the returned DataFrame to specified timezone.
             If None no localization is performed.
 
         target_tz : str or None, default None
-            The timezone to convert the datetime columns of the DataFrame into after
+            The timezone to convert the datetime columns of the returned DataFrame into after
             they have been localized. If None no conversion is performed.
 
         dtypes : dict or None, default None
-            Desired data types for specified columns `{column_name: datatype}`
+            Desired data types for specified columns `{'column_name': data type}`.
+            Use pandas or numpy data types or string names of those.
             If None no data type conversion is performed.
 
         chunksize : int or None, default None
@@ -448,16 +502,17 @@ class DatabaseManager(ABC):
 
         Returns
         -------
-        df : pd.DataFrame or generator of pd.DataFrame
-            DataFrame with the result of the query or an iterator of DataFrames.
+        df : pandas.DataFrame or Iterator[pandas.DataFrame]
+            DataFrame with the result of the query or an iterator of DataFrames
+            if `chunksize` is specified.
 
         Raises
         ------
         pandemy.LoadTableError
-            If errors when loading the table using `pd.read_sql`.
+            If errors when loading the table using :func:`pandas:pandas.read_sql`.
 
         pandemy.SetIndexError
-            If setting the index of the output DataFrame fails when index_col is specified
+            If setting the index of the returned DataFrame fails when `index_col` is specified
             and chunksize is None.
 
         pandemy.DataTypeConversionError
@@ -465,25 +520,28 @@ class DatabaseManager(ABC):
 
         See Also
         --------
-        - https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.read_sql.html
+        * :func:`pandas:pandas.read_sql` : Read SQL query or database table into a DataFrame.
 
-        - https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.to_datetime.html
+        * :func:`pandas:pandas.to_datetime` : The function used for datetime conversion with `parse_dates`.
 
         Examples
         --------
-        When specifying the chunksize parameter the database connection must remain open
-        to be able to process the results from the generator of DataFrames::
+        When specifying the `chunksize` parameter the database connection must remain open
+        to be able to process the DataFrames from the iterator. The processing
+        *must* occur *within* the context manager:
 
-        import pandemy
+        .. code-block:: python
 
-        db = pandemy.SQLiteDb()
+           import pandemy
 
-        with db.engine.connect() as conn:
-            df_gen = db.load_table(sql='MyTableName', conn=conn, chunksize=3)
+           db = pandemy.SQLiteDb(file='mydb.db')
 
-            for df in df_gen:
-                print(df)  # Process your DataFrame
-                ...
+           with db.engine.connect() as conn:
+               df_gen = db.load_table(sql='MyTableName', conn=conn, chunksize=3)
+
+               for df in df_gen:
+                   print(df)  # Process your DataFrames
+                   ...
         """
 
         # To get the correct index column(s) if chunksize is specified
@@ -553,14 +611,74 @@ class DatabaseManager(ABC):
 class SQLiteDb(DatabaseManager):
     r"""A SQLite DatabaseManager.
 
+    Parameters
+    ----------
+    file : str or pathlib.Path, default ':memory:'
+        The file (with path) to the SQLite database.
+        The default creates an in memory database.
+
+    must_exist : bool, default False
+        If True validate that `file` exists unless `file` = ':memory:'.
+        If it does not exist :exc:`pandemy.DatabaseFileNotFoundError` is raised.
+        If `False` the validation is omitted.
+
+    container : pandemy.SQLContainer or None, default None
+        A container of database statements that the SQLite DatabaseManager can use.
+
+    engine_config : dict or None
+        Additional keyword arguments passed to the SQLAlchemy
+        :func:`create_engine <sqlalchemy:sqlalchemy.create_engine>` function.
+
+    **kwargs : dict
+        Additional keyword arguments that are not used by `SQLiteDb`.
+
+    Attributes
+    ----------
+    file : str or pathlib.Path
+        The database file.
+
+    must_exist : bool
+        The value of the `must_exist` parameter.
+
+    Raises
+    ------
+    pandemy.InvalidInputError
+        If invalid types are supplied to `file`, `must_exist` and `container`.
+
+    pandemy.DatabaseFileNotFoundError
+        If the database file `file` does not exist.
+
+    pandemy.CreateEngineError
+        If the creation of the Database engine fails.
+
     See Also
     --------
-    - https://docs.sqlalchemy.org/en/14/core/engines.html#sqlalchemy.create_engine
+    * :class:`pandemy.DatabaseManager` : The parent class.
 
-    - https://docs.sqlalchemy.org/en/14/dialects/sqlite.html
+    * :func:`sqlalchemy:sqlalchemy.create_engine` : The SQLAlchemy function to create the database engine.
+
+    * `SQLAlchemy SQLite dialect`_ : Implementation of the SQLite dialect in SQLAlchemy.
+
+    * `SQLite <https://sqlite.org/index.html>`_ : The SQLite homepage.
+
+    .. _SQLAlchemy SQLite dialect: https://docs.sqlalchemy.org/en/14/dialects/sqlite.html
     """
 
-    def _set_attributes(self, file: Union[str, Path],  must_exist: bool, container: Optional[pandemy.SQLContainer],
+    def __init__(self, file: Union[str, Path] = ':memory:',
+                 must_exist: bool = False,
+                 container: Optional[pandemy.SQLContainer] = None,
+                 engine_config: Optional[Dict[str, Any]] = None,
+                 **kwargs: dict) -> None:
+
+        self._set_attributes(file=file, must_exist=must_exist,
+                             container=container, engine_config=engine_config)
+        self._build_conn_str()
+        self._create_engine()
+
+    def _set_attributes(self,
+                        file: Union[str, Path],
+                        must_exist: bool,
+                        container: Optional[pandemy.SQLContainer],
                         engine_config: Optional[Dict[str, Any]]) -> None:
         r"""Validate the input parameters from `self.__init__` and set attributes on the instance.
 
@@ -615,7 +733,7 @@ class SQLiteDb(DatabaseManager):
                                             f'Received: {engine_config} {type(engine_config)}') from None
 
     def _build_conn_str(self) -> None:
-        r"""Build the database connection string and assgin it to `self.conn_str`.
+        r"""Build the database connection string and assign it to `self.conn_str`.
 
         Raises
         ------
@@ -660,53 +778,8 @@ class SQLiteDb(DatabaseManager):
         else:
             logger.debug(f'Successfully created database engine from conn_str: {self.conn_str}.')
 
-    def __init__(self, file: Union[str, Path] = ':memory:', must_exist: bool = False,
-                 container: Optional[pandemy.SQLContainer] = None, engine_config: Optional[Dict[str, Any]] = None,
-                 **kwargs: dict) -> None:
-        r"""Initialize the SQLite DatabaseManager instance.
-
-        Creates the connection string and the database engine.
-
-        Parameters
-        ----------
-        file : str or Path, default ':memory:'
-            The file (with path) to the SQLite database.
-            The default creates an in memory database.
-
-        must_exist : bool, default False
-            If True validate that `file` exists unless `file` = ':memory:'.
-            If it does not exist pandemy.DatabaseFileNotFoundError is raised.
-            If False the validation is omitted.
-
-        container : pandemy.SQLContainer or None, default None
-            A container of database statements that the SQLite DatabaseManager can use.
-
-        engine_config : dict or None
-            Additional keyword arguments passed to the SQLAlchemy create_engine function.
-
-        **kwargs : dict
-            Additional keyword arguments that are not used by `SQLiteDb`.
-            Allows unpacking a config dict as the parameters to `SQLiteDb`.
-
-        Raises
-        ------
-        pandemy.InvalidInputError
-            If invalid types are supplied to `file`, `must_exist` and `container`.
-
-        pandemy.DatabaseFileNotFoundError
-            If the database file `file` does not exist.
-
-        pandemy.CreateEngineError
-            If the creation of the Database engine fails.
-        """
-
-        self._set_attributes(file=file, must_exist=must_exist,
-                             container=container, engine_config=engine_config)
-        self._build_conn_str()
-        self._create_engine()
-
     def __str__(self):
-        r""" String representation of the object """
+        r"""String representation of the object."""
 
         return f'SQLiteDb(file={self.file}, must_exist={self.must_exist})'
 
@@ -723,14 +796,13 @@ class SQLiteDb(DatabaseManager):
         action : {'ON', 'OFF'}
             Enable ('ON') or disable ('OFF') the check of foreign key constraints.
 
-        Returns
-        -------
-        None
-
         Raises
         ------
         pandemy.InvalidInputError
             If invalid input is supplied to `action`.
+
+        pandemy.ExecuteStatementError
+            If the enabling/disabling of the foreign key constraint fails.
         """
 
         actions = {'ON', 'OFF'}
