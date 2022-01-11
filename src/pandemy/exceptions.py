@@ -1,11 +1,11 @@
-"""Module with the exceptions raised by pandemy."""
+r"""The exception hierarchy of Pandemy."""
 
 # ===============================================================
 # Imports
 # ===============================================================
 
 # Standard library
-from typing import Optional
+from typing import Any, Optional
 
 
 # ===============================================================
@@ -13,17 +13,26 @@ from typing import Optional
 # ===============================================================
 
 class PandemyError(Exception):
-    r""""Base Exception for pandemy"""
+    r"""*The* base :exc:`Exception` of Pandemy.
 
-    def __init__(self, message: str, data: Optional[str] = None) -> None:
-        r"""Save optional data as an attribute on the Exception instance."""
+    Parameters
+    ----------
+    message : str
+        The exception message.
+
+    data : Any, default None
+        Optional extra data to to save as an attribute on the instance.
+        Useful to give more details about the cause of the exception.
+    """
+
+    def __init__(self, message: str, data: Optional[Any] = None) -> None:
 
         self.data = data
         super().__init__(message)
 
 
 class InvalidInputError(PandemyError):
-    r"""Invalid input to a function or method"""
+    r"""Invalid input to a function or method."""
 
 # ---------------------------------------------------------------
 # DatabaseManagerError
@@ -31,19 +40,21 @@ class InvalidInputError(PandemyError):
 
 
 class DatabaseManagerError(PandemyError):
-    r"""Base Exception for errors related to the DatabaseManager class."""
+    r"""Base :exc:`Exception` for errors related to the
+    :class:`DatabaseManager <pandemy.DatabaseManager>` class.
+    """
 
 
 class CreateEngineError(DatabaseManagerError):
-    r"""Error when creating the database engine."""
+    r"""Error when creating the database :class:`Engine <sqlalchemy.engine.Engine>`."""
 
 
 class DatabaseFileNotFoundError(DatabaseManagerError):
-    r"""Error when the file of an SQLite database cannot be found."""
+    r"""Error when the file of a SQLite database cannot be found."""
 
 
 class DataTypeConversionError(DatabaseManagerError):
-    r"""Errors converting data types of columns in a DataFrame."""
+    r"""Errors when converting data types of columns in a :class:`pandas.DataFrame`."""
 
 
 class DeleteFromTableError(DatabaseManagerError):
@@ -51,7 +62,9 @@ class DeleteFromTableError(DatabaseManagerError):
 
 
 class ExecuteStatementError(DatabaseManagerError):
-    r"""Errors when executing an SQL statement with the DatabaseManager."""
+    r"""Errors when executing a SQL statement with a
+    :class:`DatabaseManager <pandemy.DatabaseManager>`.
+    """
 
 
 class InvalidTableNameError(DatabaseManagerError):
@@ -63,12 +76,14 @@ class LoadTableError(DatabaseManagerError):
 
 
 class SaveDataFrameError(DatabaseManagerError):
-    r"""Errors when saving a DataFrame to a table in the database."""
+    r"""Errors when saving a :class:`pandas.DataFrame` to a table in the database."""
 
 
 class SetIndexError(DatabaseManagerError):
-    r"""Errors when setting an index of a DataFrame after loading a table from the database."""
+    r"""Errors when setting an index of a :class:`pandas.DataFrame`
+    after loading a table from the database.
+    """
 
 
 class TableExistsError(DatabaseManagerError):
-    r"""Errors when saving a DataFrame to a table and the table already exists."""
+    r"""Errors when saving a :class:`pandas.DataFrame` to a table and the table already exists."""
