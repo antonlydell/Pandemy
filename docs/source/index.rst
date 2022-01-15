@@ -49,6 +49,15 @@ The documentation consists of 3 parts:
    api_reference/index
 
 
+.. toctree::
+   :hidden:
+   :caption: Links
+
+   GitHub ↪ <https://github.com/antonlydell/pandemy>
+   LinkedIn ↪ <https://www.linkedin.com/in/antonlydell/>
+   PyPI ↪ <https://pypi.org/project/pandemy/>
+
+
 ******************
 Indices and tables
 ******************
