@@ -62,7 +62,7 @@ below to test Pandemy on your own.
 
 .. only:: builder_html
 
-   :download:`Runescape.db <../../../tests/static_files/SQLite/RSGeneralStore.db>` 
+   :download:`Runescape.db <../../../tests/static_files/SQLite/Runescape.db>` 
 
 
 .. only:: builder_html

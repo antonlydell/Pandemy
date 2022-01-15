@@ -1,4 +1,4 @@
-"""Fixtures for testing the pandemy package."""
+r"""Fixtures for testing the Pandemy package."""
 
 # ===============================================================
 # Imports
@@ -21,7 +21,13 @@ import pandemy
 # ===============================================================
 
 # The csv delimiter for reading DataFrames from io.StringIO
-CSV_DELIM = ';'
+CSV_DELIM: str = ';'
+
+# Path to the location of the static_files folder containing files with test data
+STATIC_FILES: Path = Path(__file__).parent / 'static_files'
+
+# Path to the location of the test data for the SQLite database
+STATIC_FILES_SQLITE: Path = STATIC_FILES / 'SQLite'
 
 
 # ===============================================================
@@ -42,11 +48,11 @@ def sqlite_db_file(sqlite_db_folder) -> Path:
     The database contains tables with mocked information about
     General Stores in Runescape.
 
-    The database is stored in the file: ./static_files/SQLite/RSGeneralStore.db
+    The database is stored in the file: ./static_files/SQLite/Runescape.db
     """
 
-    db_filename = 'RSGeneralStore.db'
-    db_file = Path(__file__).parent / 'static_files' / 'SQLite' / db_filename
+    db_filename = 'Runescape.db'
+    db_file = STATIC_FILES_SQLITE / db_filename
     target_db_file = sqlite_db_folder / db_filename
 
     shutil.copy2(db_file, target_db_file)  # copy the file with meta data
@@ -58,7 +64,7 @@ def sqlite_db_file(sqlite_db_folder) -> Path:
 def sqlite_db(sqlite_db_file) -> pandemy.SQLiteDb:
     r"""An instance of the DatabaseManager `pandemy.SQLiteDb`.
 
-    The instance is connected to the test database RSGeneralStore.db
+    The instance is connected to the test database Runescape.db
     provided in fixture `sqlite_db_file`.
     """
 
@@ -71,12 +77,11 @@ def sqlite_db_file_empty(sqlite_db_folder) -> Path:
 
     All tables in the database are empty.
 
-    The database is stored in the file: ./static_files/SQLite/RSGeneralStore_empty.db
+    The database is stored in the file: ./static_files/SQLite/Runescape_empty.db
     """
 
-    db_filename = 'RSGeneralStore_empty.db'
-
-    db_file = Path(__file__).parent / 'static_files' / 'SQLite' / db_filename
+    db_filename = 'Runescape_empty.db'
+    db_file = STATIC_FILES_SQLITE / db_filename
     target_db_file = sqlite_db_folder / db_filename
 
     shutil.copy2(db_file, target_db_file)
@@ -88,7 +93,7 @@ def sqlite_db_file_empty(sqlite_db_folder) -> Path:
 def sqlite_db_empty(sqlite_db_file_empty) -> pandemy.SQLiteDb:
     r"""An instance of pandemy.SQLiteDb.
 
-    The instance is connected to the empty test database RSGeneralStore_empty.db
+    The instance is connected to the empty test database Runescape_empty.db
     provided in fixture `sqlite_db_file_empty`.
     """
 
