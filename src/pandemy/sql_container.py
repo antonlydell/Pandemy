@@ -1,32 +1,9 @@
-"""Module with the SQLContainer class.
+r"""Module with the :class:`SQLContainer <pandemy.SQLContainer>` class.
 
-The SQLContainer handles storing text based SQL statements
-that can be executed by the DatabaseManager. It can also load
-SQL statements from text files (not implemented yet).
-
-namedtuple
-----------
-
-Placeholder: namedtuple('Placeholder', ['key', values', 'new_key'], defaults=(True,))
-    The `Placeholder` contains placeholder keys and their replacement values
-    to use when building parametrized SQL statements. An SQL placeholder is
-    always prefixed by a colon e.g. ":placeholder".
-    The `Placeholder` is used as input to the `replace_placeholders` method
-    of the `SQLContainer` class.
-
-    key : str
-        The placeholder to replace in the substring.
-
-    values : Union[str, int, float, Sequence[Union[str, int, float]]]
-        The value(s) to replace the placeholder with.
-
-    new_key : bool, default True
-        If the values should be added as new placeholders.
-        This is useful when parametrizing an IN statement and
-        the number of values for the IN statement is unknown.
-        A single placeholder can be placed in the IN statement and
-        later be replaced by new placeholders that match the length
-        of values in `values`.
+The :class:`SQLContainer <pandemy.SQLContainer>` is a storage container for the SQL statements
+used by a :class:`DatabaseManager <pandemy.DatabaseManager>` of an application.
+It also provides the :meth:`replace_placeholders <pandemy.SQLContainer.replace_placeholders>`
+method for pre-processing of placeholders in a SQL statement before it is executed on the database.
 """
 
 # ===============================================================
@@ -34,7 +11,6 @@ Placeholder: namedtuple('Placeholder', ['key', values', 'new_key'], defaults=(Tr
 # ===============================================================
 
 # Standard Library
-from abc import ABC
 from collections import namedtuple
 import logging
 from typing import Sequence, Tuple, Union
@@ -52,25 +28,71 @@ import pandemy
 # Handlers and formatters will be inherited from the root logger
 logger = logging.getLogger(__name__)
 
-# A representation of a placeholder in a parametrized SQL statement.
+
+# ===============================================================
+# Namedtuples
+# ===============================================================
+
+
 Placeholder = namedtuple('Placeholder', ['key', 'values', 'new_key'], defaults=(True,))
+r"""Container of placeholders and their replacement values for parametrized SQL statements.
+
+The :class:`Placeholder` :func:`namedtuple <python:collections.namedtuple>` handles placeholders
+and their replacement values when building parametrized SQL statements. A SQL placeholder is
+always prefixed by a colon (*:*) e.g. ``:myplaceholder`` in the SQL statement. :class:`Placeholder`
+is used as input to the :meth:`replace_placeholders <pandemy.SQLContainer.replace_placeholders>`
+method of the :meth:`SQLContainer <pandemy.SQLContainer>` class.
+
+Parameters
+----------
+key : str
+    The placeholder to replace in the SQL statement.
+
+values : str or int or float or sequence of str or int or float
+    The value(s) to replace the placeholder `key` with.
+
+new_key : bool, default True
+    If the value(s) of `values` should be mapped to new placeholders in the `params` return value
+    of the :meth:`SQLContainer.replace_placeholders <pandemy.SQLContainer.replace_placeholders>` method.
+
+Examples
+--------
+Creating a :class:`Placeholder` and accessing its attributes.
+
+.. doctest::
+
+   >>> p1 = pandemy.Placeholder(key=':itemid', values=[1, 2, 3], new_key=True)
+   >>> p1
+   Placeholder(key=':itemid', values=[1, 2, 3], new_key=True)
+   >>> p2 = pandemy.Placeholder(key=':desc', values='A%', new_key=True)
+   >>> p2
+   Placeholder(key=':desc', values='A%', new_key=True)
+   >>> p1.key
+   ':itemid'
+   >>> p2.values
+   'A%'
+   >>> p2.new_key
+   True
+"""
 
 # ===============================================================
 # Classes
 # ===============================================================
 
 
-class SQLContainer(ABC):
+class SQLContainer:
     r"""Base class of a container of SQL statements.
 
-    Each SQL-dialect will inherit from this class.
-    Each statement is implemented as a class variable.
+    Each SQL-dialect will subclass from :class:`SQLContainer` and :class:`SQLContainer`
+    is never used on its own, but merely provides methods to work with SQL statements.
+
+    Each SQL statement is implemented as a class variable.
     """
 
     @staticmethod
     def validate_class_variables(cls: object, parent_cls: object, type_validation: str) -> None:
         r"""
-        Validate that a subclass has implmeneted the class variables
+        Validate that a subclass has implemented the class variables
         specified on its parent class.
 
         Intended to be used in special method `__init_subclass__`.
@@ -129,12 +151,20 @@ class SQLContainer(ABC):
 
     @staticmethod
     def replace_placeholders(stmt: str, placeholders: Union[Placeholder, Sequence[Placeholder]]) -> Tuple[str, dict]:
-        r"""Replace placeholders in an SQL statement.
+        r"""Replace placeholders in a SQL statement.
 
-        Replace the placeholders in the SQL statement `stmt` that are specified
-        by the `key` parameter of a Placeholder instance in `placeholders` with their respective replacement value in
-        the `values` parameter of a Placeholder. A placeholder in an SQL statement is always prefixed
-        with a colon symbol, e.g. :placeholder1.
+        Replace the placeholders in the SQL statement `stmt` that are specified by the `key` parameter of a
+        :class:`Placeholder` instance, supplied to the `placeholders` parameter, with their respective replacement
+        value in the `values` parameter of a :class:`Placeholder`. A placeholder in a SQL statement is always prefixed
+        with a colon (*:*) e.g. ``:myplaceholder``.
+
+        The main purpose of the method is to handle parametrized IN statements with a variable number of values.
+        A single placeholder can be placed in the IN statement and later be replaced by new placeholders
+        that match the length of the `values` parameter of a :class:`Placeholder` instance.
+
+        The return values `stmt` and `params` can be used as input to the
+        :meth:`DatabaseManager.execute <pandemy.DatabaseManager.execute>` and
+        :meth:`DatabaseManager.load_table <pandemy.DatabaseManager.load_table>` methods.
 
         Parameters
         ----------
@@ -142,8 +172,7 @@ class SQLContainer(ABC):
             The SQL statement in which to replace placeholders.
 
         placeholders : Placeholder or sequence of Placeholder
-            The replacement values for each placeholder.
-            Placeholder = namedtuple('Placeholder', ['key', 'values', 'new_key'], defaults=(True,))
+            The replacement values for each placeholder in `stmt`.
 
         Returns
         -------
@@ -151,18 +180,72 @@ class SQLContainer(ABC):
             The SQL statement after placeholders have been replaced.
 
         params : dict
-            The new placeholders and their replacement values from the `values` parameter of a Placeholder namedtuple.
-            Entries to `params` are only written if the parameter `new_key` in a Placeholder is set to True.
-            E.g. `{'new_placeholder1': 'value1', 'new_placeholder2': 'value2'}`.
+            The new placeholders and their replacement values from the `values` parameter of a :class:`Placeholder`.
+            Entries to `params` are only written if the parameter `new_key` in a :class:`Placeholder` is set
+            to ``True``.
+
+            Example of a return value: ``{'v0': 'value1', 'v1': 3.14}``. The new placeholders
+            are always named *v* followed by a sequential number denoting the order (zero-indexed) in which the new
+            placeholder occurs in the returned SQL statement `stmt`.
+
+            The keys of `params` never contain the prefix colon (*:*) that is used in the SQL statement to identify
+            a placeholder.
 
         Raises
         ------
         pandemy.InvalidInputError
-            If the replacement values in a Placeholder are not valid.
+            If the replacement values in a :class:`Placeholder` are not valid.
 
         See Also
         --------
-        Placeholder : namedtuple with placeholders and replacement values.
+        * :class:`Placeholder` : Container of a placeholder and its replacement values.
+
+        * :meth:`DatabaseManager.execute <pandemy.DatabaseManager.execute>` : Execute a SQL statement.
+
+        * :meth:`DatabaseManager.load_table <pandemy.DatabaseManager.load_table>` : Load a SQL table into a DataFrame.
+
+        Examples
+        --------
+        Replace the placeholders of a SQL statement (``stmt``) with new placeholders and return a mapping of
+        the new placeholders to the desired values (``params``).
+
+        .. doctest::
+
+           >>> stmt = r'SELECT * FROM Item WHERE ItemId IN (:itemid);'
+           >>> p1 = pandemy.Placeholder(key=':itemid', values=[1, 2, 3], new_key=True)
+           >>> stmt, params = pandemy.SQLContainer.replace_placeholders(stmt=stmt, placeholders=p1)
+           >>> stmt
+           'SELECT * FROM Item WHERE ItemId IN (:v0, :v1, :v2);'
+           >>> params
+           {'v0': 1, 'v1': 2, 'v2': 3}
+
+        If the SQL statement contains more than one placeholder a sequence of
+        :class:`Placeholder <pandemy.Placeholder>` can be passed.
+
+        .. doctest::
+
+           >>> stmt = r'SELECT * FROM Item WHERE ItemId IN (:itemid) AND Description LIKE :desc ORDER BY :orderby;'
+           >>> p1 = pandemy.Placeholder(key=':itemid', values=[1, 2, 3], new_key=True)
+           >>> p2 = pandemy.Placeholder(key=':desc', values='A%', new_key=True)
+           >>> p3 = pandemy.Placeholder(key=':orderby', values='ItemName DESC', new_key=False)
+           >>> stmt, params = pandemy.SQLContainer.replace_placeholders(stmt=stmt, placeholders=[p1, p2, p3])
+           >>> stmt
+           'SELECT * FROM Item WHERE ItemId IN (:v0, :v1, :v2) AND Description LIKE :v3 ORDER BY ItemName DESC;'
+           >>> params
+           {'v0': 1, 'v1': 2, 'v2': 3, 'v3': 'A%'}
+
+
+        .. note::
+
+           The replacement value for the *':orderby'* placeholder is not part of the returned ``params``
+           dictionary because ``new_key=False`` for ``p3``.
+
+
+        .. warning::
+
+           Replacing *':orderby'* by an arbitrary value that is not a placeholder is not safe against
+           SQL injection attacks the way placeholders are and is therefore discouraged. The feature is
+           there if it is needed, but be aware of its security limitations.
         """
 
         def is_valid_replacement_value(value: Union[str, int, float, bool, None], raises: bool = False) -> bool:
