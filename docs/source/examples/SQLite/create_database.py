@@ -1,4 +1,4 @@
-r"""Example of creating an SQLite database.
+r"""Example of creating a SQLite database.
 
 This example is present in the section "The execute method" in the
 SQLite part of the documentation.

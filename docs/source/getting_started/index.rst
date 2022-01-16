@@ -3,7 +3,7 @@ Getting started
 ***************
 
 This chapter describes how to install Pandemy and showcases a brief 
-overview of saving a DataFrame to and reading a DataFrame from an SQLite database.
+overview of saving a DataFrame to and reading a DataFrame from a SQLite database.
 A teaser for what the :doc:`User guide <../user_guide/index>` has to offer.
 
 Throughout this documentation ``$`` will be used to distinguish a shell prompt from Python code

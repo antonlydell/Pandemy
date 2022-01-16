@@ -142,7 +142,7 @@ class DatabaseManager(ABC):
             raise pandemy.InvalidInputError(f'table must be a string. Got {type(table)} ({table})',
                                             data=table)
 
-        # Get the first word of the string to prevent entering an SQL query.
+        # Get the first word of the string to prevent entering a SQL query.
         table_splitted = table.split(' ')
 
         # Check that only one word was input as the table name

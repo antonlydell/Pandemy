@@ -6,7 +6,7 @@ This section describes the SQLite DatabseManager :class:`SQLiteDb <pandemy.SQLit
 Initialization
 --------------
 
-Initializing an SQLite :class:`DatabaseManager <pandemy.DatabaseManager>` with no arguments creates
+Initializing a SQLite :class:`DatabaseManager <pandemy.DatabaseManager>` with no arguments creates
 a database that lives in memory.
 
 
@@ -507,7 +507,7 @@ Let us load the table *Item* back into a DataFrame.
 
 .. note::
 
-   The ``sql`` parameter can be either an SQL query or a table name. 
+   The ``sql`` parameter can be either a SQL query or a table name. 
    Using a table name will not guarantee the order of the retrieved rows. 
 
 .. Add example about using the dtypes parameter
@@ -616,7 +616,7 @@ Let's use the table Customer of the Database *Runescape.db* to illustrate this.
    5             Not a Bot 2006-05-31 02:00:00+02:00    Catherby             1
    6              Max Pure 2007-08-20 02:00:00+02:00  Port Sarim             1
 
-.. _Using an SQLContainer to organize SQL statements:
+.. _Using a SQLContainer to organize SQL statements:
 
 Using the SQLContainer
 ----------------------
@@ -704,7 +704,7 @@ The :meth:`replace_placeholders <pandemy.SQLContainer.replace_placeholders>` met
 is used to replace placeholders within a parametrized SQL statement. The purpose of this method is to handle the case of
 a parametrized query using an *IN* clause with a variable number of arguments. The IN clause recieves
 a single placeholder initially which can later be replaced by the correct amount of placeholders once
-this is determined. The method can of course be used to replace any placeholder within an SQL statement.
+this is determined. The method can of course be used to replace any placeholder within a SQL statement.
 
 The method takes the SQL statement and a single or a sequence of :data:`Placeholder <pandemy.Placeholder>` namedtuple.
 It returns the SQL statement with replaced placeholders and a dictionary called ``params``. 

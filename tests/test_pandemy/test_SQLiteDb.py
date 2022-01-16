@@ -1102,7 +1102,7 @@ class TestLoadTableMethod:
         pytest.param(text("""SELECT * FROM ItemTradedInStore;"""), id='TextClause')
     ])
     def test_read_query_no_params(self, query, sqlite_db, df_item_traded_in_store):
-        r"""Load all rows from table ItemTradedInStore through an SQL query.
+        r"""Load all rows from table ItemTradedInStore through a SQL query.
 
         The query has no parameters.
 

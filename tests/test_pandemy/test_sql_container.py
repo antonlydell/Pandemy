@@ -42,8 +42,8 @@ class SQLContainerIsinstance(pandemy.SQLContainer):
                                                       type_validation='isinstance')
 
 
-class NotAnSQLContainer:
-    r"""Not an SQLContainer of type pandemy.SQLContainer.
+class NotASQLContainer:
+    r"""Not a SQLContainer of type pandemy.SQLContainer.
 
     Used for testing the validate_class_variables method of pandemy.SQLContainer
     when `type_validation` parameter is set to 'type'.
@@ -59,7 +59,7 @@ class SQLContainerType(pandemy.SQLContainer):
     __init_subclass__ special method.
     """
 
-    nr_queries: NotAnSQLContainer
+    nr_queries: NotASQLContainer
 
     def __init_subclass__(cls):
         r"""
@@ -258,7 +258,7 @@ class TestSQLContainerReplacePlaceholders:
     ]
     @pytest.mark.parametrize('stmt, stmt_exp, placeholders, params_exp', input_replace_placeholders)
     def test_replace_placeholders(self, stmt: str, stmt_exp: str, placeholders: dict, params_exp: dict) -> None:
-        r"""Given an SQL statement replace specified placeholders with specified replacement values.
+        r"""Given a SQL statement replace specified placeholders with specified replacement values.
 
         Parameters
         ----------
@@ -301,7 +301,7 @@ class TestSQLContainerReplacePlaceholders:
     @pytest.mark.raises
     @pytest.mark.parametrize('placeholders', input_replace_placeholders_invalid_input)
     def test_replace_placeholders_invalid_input(self, placeholders: dict) -> None:
-        r"""Given an SQL statement replace specified placeholders with specified replacement values.
+        r"""Given a SQL statement replace specified placeholders with specified replacement values.
 
         The Placeholder instance contains invalid replacement values.
         pandemy.InvalidInputError is expected to be raised.
@@ -427,11 +427,11 @@ class TestSQLContainerInitSubclass:
             class SQLiteSQLContainer(SQLContainerType):
                 """All required statements are implemented."""
 
-                nr_queries = NotAnSQLContainer
+                nr_queries = NotASQLContainer
 
         # Incorrect type of nr_queries
         elif issubclass(exception, TypeError):
-            with pytest.raises(exception, match='NotAnSQLContainer'):
+            with pytest.raises(exception, match='NotASQLContainer'):
                 class SQLiteSQLContainer(SQLContainerType):
                     """Incorrect type of nr_queries"""
 
@@ -442,7 +442,7 @@ class TestSQLContainerInitSubclass:
 
     @pytest.mark.raises
     def test_create_SQLContainer_subclass_invalid_type_validation(self):
-        r"""Create an SQLContainer sublcass that inherits from SQLContainerTypeValidationError.
+        r"""Create a SQLContainer sublcass that inherits from SQLContainerTypeValidationError.
 
         pandemy.InvalidInputError is expected to be raised when the subclass is created
         due to invalid input to the `type_validation` parameter of the validate_class_variables method

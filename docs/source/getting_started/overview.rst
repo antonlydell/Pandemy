@@ -163,5 +163,5 @@ If the ``must_exist`` parameter is set to ``True`` :exc:`pandemy.DatabaseFileNot
 will be raised if the database file is not found. This is useful if you expect the database to exist 
 and you want to avoid creating a new database by mistake if it does not exist.
 
-The :meth:`load_table <pandemy.DatabaseManger.load_table>` method takes either a table name or an sql statement
+The :meth:`load_table <pandemy.DatabaseManger.load_table>` method takes either a table name or a SQL statement
 for the ``sql`` parameter and uses the :func:`read_sql <pandas:pandas.read_sql>` function from pandas.
