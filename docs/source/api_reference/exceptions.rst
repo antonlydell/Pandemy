@@ -2,5 +2,29 @@ Exceptions
 ==========
 
 .. automodule:: pandemy.exceptions
-   :members:
-   :member-order: bysource
+
+.. autoexception:: pandemy.PandemyError
+
+.. autoexception:: pandemy.InvalidInputError
+
+.. autoexception:: pandemy.DatabaseManagerError
+
+.. autoexception:: pandemy.CreateEngineError
+
+.. autoexception:: pandemy.DatabaseFileNotFoundError
+
+.. autoexception:: pandemy.DataTypeConversionError
+
+.. autoexception:: pandemy.DeleteFromTableError
+
+.. autoexception:: pandemy.ExecuteStatementError
+
+.. autoexception:: pandemy.InvalidTableNameError
+
+.. autoexception:: pandemy.LoadTableError
+
+.. autoexception:: pandemy.SaveDataFrameError
+
+.. autoexception:: pandemy.SetIndexError
+
+.. autoexception:: pandemy.TableExistsError
