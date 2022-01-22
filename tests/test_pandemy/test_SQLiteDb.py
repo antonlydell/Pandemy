@@ -1634,22 +1634,43 @@ class TestManageForeignKeysMethod:
 
 
 class TestStrAndReprMethods:
-    r"""Test the `__str__` and `__repr__` methods of the SQLite DatabaseManager `SQLiteDb`."""
+    r"""Test the `__str__` and `__repr__` methods of the SQLite DatabaseManager `SQLiteDb`.
 
-    def test__str__(self):
+    Parameters
+    ----------
+    file : str or pathlib.Path, default ':memory:'
+        The file (with path) to the SQLite database.
+        The default creates an in memory database.
+
+    must_exist : bool, default False
+        If True validate that `file` exists unless `file` = ':memory:'.
+        If it does not exist :exc:`pandemy.DatabaseFileNotFoundError` is raised.
+        If `False` the validation is omitted.
+
+    container : pandemy.SQLContainer or None, default None
+        A container of database statements that the SQLite DatabaseManager can use.
+    """
+
+    @pytest.mark.parametrize(
+        'file, must_exist',
+        (
+            pytest.param(':memory:', True, id="file=':memory'"),
+            pytest.param('my_db_file.db', False, id='file=str'),
+            pytest.param(Path('my_db_file.db'), False, id='file=Path'),
+        )
+    )
+    def test__str__(self, file, must_exist):
         r"""Test the output of the `__str__` method."""
 
         # Setup
         # ===========================================================
-        file = 'my_db_file.db'
-        must_exist = False
         db = pandemy.SQLiteDb(file=file, must_exist=must_exist)
 
-        exp_result = f'SQLiteDb(file={file}, must_exist={must_exist})'
+        exp_result = f"SQLiteDb(file='{file}', must_exist={must_exist})"
 
         # Exercise
         # ===========================================================
-        result = f'{db}'
+        result = str(db)
 
         # Verify
         # ===========================================================
@@ -1658,25 +1679,36 @@ class TestStrAndReprMethods:
         # Clean up - None
         # ===========================================================
 
-    def test__repr__(self):
+    @pytest.mark.parametrize(
+        'file, must_exist, container',
+        (
+            pytest.param(
+                ':memory:', True, None,
+                id="file=':memory', no container"
+            ),
+
+            pytest.param(
+                Path('my_db_file.db'), False, SQLiteSQLContainer,
+                id='file=Path, with container'
+            ),
+        )
+    )
+    def test__repr__(self, file, must_exist, container):
         r"""Test the output of the `__repr__` method."""
 
         # Setup
         # ===========================================================
-        file = 'my_db_file.db'
-        must_exist = False
-        container = None
         engine_config = None
 
         db = pandemy.SQLiteDb(file=file, must_exist=must_exist, container=container, engine_config=engine_config)
 
         exp_result = f"""SQLiteDb(
-   file={file},
-   must_exist={must_exist},
-   container={container},
-   engine_config={engine_config},
-   conn_str={db.conn_str},
-   engine={db.engine}
+   file={file!r},
+   must_exist={must_exist!r},
+   container={container!r},
+   engine_config={engine_config!r},
+   conn_str={db.conn_str!r},
+   engine={db.engine!r}
   )"""
 
         # Exercise

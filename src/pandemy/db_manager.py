@@ -111,7 +111,7 @@ class DatabaseManager(ABC):
 
         # Append the attribute names and values
         for attrib, value in attributes:
-            repr_str += f'{space}{attrib}={value},\n'
+            repr_str += f'{space}{attrib}={value!r},\n'
 
         # Remove last unwanted ', '
         repr_str = repr_str[:-2]
@@ -746,8 +746,8 @@ class SQLiteDb(DatabaseManager):
 
         else:  # Use a database on file
             if not self.file.exists() and self.must_exist:
-                raise pandemy.DatabaseFileNotFoundError(f'file = {self.file} does not exist and '
-                                                        f'and must_exist = {self.must_exist}. '
+                raise pandemy.DatabaseFileNotFoundError(f"file='{self.file}' does not exist and "
+                                                        f'and must_exist={self.must_exist}. '
                                                         'Cannot instantiate the SQLite DatabaseManager.')
 
             self.conn_str = fr'sqlite:///{self.file}'
@@ -781,7 +781,7 @@ class SQLiteDb(DatabaseManager):
     def __str__(self):
         r"""String representation of the object."""
 
-        return f'SQLiteDb(file={self.file}, must_exist={self.must_exist})'
+        return f"SQLiteDb(file='{self.file}', must_exist={self.must_exist})"
 
     def manage_foreign_keys(self, conn: Connection, action: str = 'ON') -> None:
         r"""Manage how the database handles foreign key constraints.
