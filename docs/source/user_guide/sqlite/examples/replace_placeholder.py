@@ -90,14 +90,17 @@ class SQLiteSQLContainer(pandemy.SQLContainer):
 items = [1, 3, 5]  # The items to retrieve from table Item
 
 # The placeholder with the replacement values
-placeholder = pandemy.Placeholder(key=':itemid', values=items, new_key=True)
+placeholder = pandemy.Placeholder(placeholder=':itemid',
+                                  replacements=items,
+                                  return_new_placeholders=True)
 
 db = pandemy.SQLiteDb(file=DB_FILENAME, container=SQLiteSQLContainer)
 
-stmt, params = db.container.replace_placeholders(stmt=db.container.get_items_by_id, placeholders=placeholder)
+stmt, params = db.container.replace_placeholders(stmt=db.container.get_items_by_id,
+                                                 placeholders=placeholder)
 
 print(f'get_items_by_id after replacements:\n{stmt}\n')
-print(f'The new placeholders with mapped values:\n{params}\n')
+print(f'The new placeholders with mapped replacements:\n{params}\n')
 
 with db.engine.connect() as conn:
     df = db.load_table(sql=stmt, conn=conn, params=params, index_col='ItemId')

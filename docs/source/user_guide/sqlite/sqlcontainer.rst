@@ -144,12 +144,12 @@ The method takes the SQL statement and a single or a sequence of :class:`Placeho
 It returns the SQL statement with replaced placeholders and a dictionary called ``params``. 
 :class:`Placeholder <pandemy.Placeholder>` has 3 parameters:
 
-1. ``key`` : The placeholder to replace e.g. ``':myplaceholder'``.
+1. ``placeholder`` : The placeholder to replace e.g. ``':myplaceholder'``.
 
-2. ``values`` : A value or sequence of values to use for replacing the placeholder ``key``.
+2. ``replacements`` : A value or sequence of values to use for replacing ``placeholder``.
 
-3. ``new_key`` : A boolean, where ``True`` indicates that :meth:`replace_placeholders <pandemy.SQLContainer.replace_placeholders>`
-should return the new placeholders mapped to their respective value(s) in ``values`` as a key value pair in the dictionary  ``params``.
+3. ``return_new_placeholders`` : A boolean, where ``True`` indicates that :meth:`replace_placeholders <pandemy.SQLContainer.replace_placeholders>`
+should return new placeholders mapped to their respective ``replacements`` as a key value pair in the dictionary  ``params``.
 The dictionary  ``params`` can be passed to the ``params`` keyword argument of the :meth:`execute <pandemy.DatabaseManager.execute>` 
 or :meth:`load_table <pandemy.DatabaseManager.load_table>` methods of a :class:`DatabaseManager <pandemy.DatabaseManager>`.
 The default value is ``True``. A value of ``False`` causes the replaced placeholder to not appear in the returned  ``params`` dictionary.
@@ -185,14 +185,17 @@ is best illustrated by some examples using the previously created database *Rune
    items = [1, 3, 5]  # The items to retrieve from table Item
 
    # The placeholder with the replacement values
-   placeholder = pandemy.Placeholder(key=':itemid', values=items, new_key=True)
+   placeholder = pandemy.Placeholder(placeholder=':itemid',
+                                     replacements=items,
+                                     return_new_placeholders=True)
    
    db = pandemy.SQLiteDb(file='Runescape.db', container=SQLiteSQLContainer)
 
-   stmt, params = db.container.replace_placeholders(stmt=db.container.get_items_by_id, placeholders=placeholder)
+   stmt, params = db.container.replace_placeholders(stmt=db.container.get_items_by_id,
+                                                    placeholders=placeholder)
 
    print(f'get_items_by_id after replacements:\n{stmt}\n')
-   print(f'The new placeholders with mapped values:\n{params}\n')
+   print(f'The new placeholders with mapped replacements:\n{params}\n')
 
    with db.engine.connect() as conn:
       df = db.load_table(sql=stmt, conn=conn, params=params, index_col='ItemId')
@@ -215,7 +218,7 @@ is best illustrated by some examples using the previously created database *Rune
       WHERE ItemId IN (:v0, :v1, :v2)
       ORDER BY ItemId ASC;
        
-   The new placeholders with mapped values:
+   The new placeholders with mapped replacements:
    {'v0': 1, 'v1': 3, 'v2': 5}
 
    The DataFrame from the parametrized query:
@@ -228,8 +231,8 @@ is best illustrated by some examples using the previously created database *Rune
 
 In this example the placeholder *:itemid* of the query ``get_items_by_id`` is replaced by
 three placeholders: *:v0*, *:v1* and *:v2* (one for each of the values in the list ``items`` in the order they occur). 
-Since ``new_key=True`` the returned dictionary ``params`` contains a mapping of the new placeholders to the 
-values in the list  ``items``. If ``new_key=False`` then ``params`` would be an empty dictionary.
+Since ``return_new_placeholders=True`` the returned dictionary ``params`` contains a mapping of the new placeholders to the 
+values in the list  ``items``. If ``return_new_placeholders=False`` then ``params`` would be an empty dictionary.
 The updated version of the query ``get_items_by_id`` can then be executed with the parameters in ``params``. 
 
 The next example shows how to replace multiple placeholders.
@@ -265,18 +268,30 @@ The next example shows how to replace multiple placeholders.
 
    # The placeholders with the replacement values
    placeholders = [
-      pandemy.Placeholder(key=':itemid', values=items, new_key=True),
-      pandemy.Placeholder(key=':memberonly', values=1, new_key=True),
-      pandemy.Placeholder(key=':description', values='A%', new_key=True),
-      pandemy.Placeholder(key=':orderby', values='ItemId DESC', new_key=False),
-   ] 
+      pandemy.Placeholder(placeholder=':itemid',
+                          replacements=items,
+                          return_new_placeholders=True),
+
+      pandemy.Placeholder(placeholder=':memberonly',
+                          replacements=1,
+                          return_new_placeholders=True),
+
+      pandemy.Placeholder(placeholder=':description',
+                          replacements='A%',
+                          return_new_placeholders=True),
+
+      pandemy.Placeholder(placeholder=':orderby',
+                          replacements='ItemId DESC',
+                          return_new_placeholders=False),
+   ]
    
    db = pandemy.SQLiteDb(file='Runescape.db', container=SQLiteSQLContainer)
 
-   stmt, params = db.container.replace_placeholders(stmt=db.container.get_items_by_id, placeholders=placeholders)
+   stmt, params = db.container.replace_placeholders(stmt=db.container.get_items_by_id,
+                                                    placeholders=placeholders)
 
    print(f'get_items_by_id after replacements:\n{stmt}\n')
-   print(f'The new placeholders with mapped values:\n{params}\n')
+   print(f'The new placeholders with mapped replacements:\n{params}\n')
 
    with db.engine.connect() as conn:
       df = db.load_table(sql=stmt, conn=conn, params=params, index_col='ItemId')
@@ -303,7 +318,7 @@ The next example shows how to replace multiple placeholders.
       ORDER BY ItemId DESC;
       
 
-   The new placeholders with mapped values:
+   The new placeholders with mapped replacements:
    {'v0': 10, 'v1': 12, 'v2': 13, 'v3': 14, 'v4': 16, 'v5': 1, 'v6': 'A%'}
 
    The DataFrame from the parametrized query:
@@ -316,8 +331,8 @@ The next example shows how to replace multiple placeholders.
 
 .. note::
 
-   The replacement value for the *:orderby* placeholder is not part of the returned ``params`` dictionary because ``new_key=False``
-   for the last placeholder.
+   The replacement value for the *:orderby* placeholder is not part of the returned ``params``
+   dictionary because ``return_new_placeholders=False`` for the last placeholder.
 
 
 .. warning::

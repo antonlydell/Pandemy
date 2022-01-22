@@ -95,18 +95,30 @@ items = [10, 12, 13, 14, 16]  # The items to retrieve from table Item
 
 # The placeholders with the replacement values
 placeholders = [
-    pandemy.Placeholder(key=':itemid', values=items, new_key=True),
-    pandemy.Placeholder(key=':memberonly', values=1, new_key=True),
-    pandemy.Placeholder(key=':description', values='A%', new_key=True),
-    pandemy.Placeholder(key=':orderby', values='ItemId DESC', new_key=False),
+    pandemy.Placeholder(placeholder=':itemid',
+                        replacements=items,
+                        return_new_placeholders=True),
+
+    pandemy.Placeholder(placeholder=':memberonly',
+                        replacements=1,
+                        return_new_placeholders=True),
+
+    pandemy.Placeholder(placeholder=':description',
+                        replacements='A%',
+                        return_new_placeholders=True),
+
+    pandemy.Placeholder(placeholder=':orderby',
+                        replacements='ItemId DESC',
+                        return_new_placeholders=False),
 ]
 
 db = pandemy.SQLiteDb(file=DB_FILENAME, container=SQLiteSQLContainer)
 
-stmt, params = db.container.replace_placeholders(stmt=db.container.get_items_by_id, placeholders=placeholders)
+stmt, params = db.container.replace_placeholders(stmt=db.container.get_items_by_id,
+                                                 placeholders=placeholders)
 
 print(f'get_items_by_id after replacements:\n{stmt}\n')
-print(f'The new placeholders with mapped values:\n{params}\n')
+print(f'The new placeholders with mapped replacements:\n{params}\n')
 
 with db.engine.connect() as conn:
     df = db.load_table(sql=stmt, conn=conn, params=params, index_col='ItemId')

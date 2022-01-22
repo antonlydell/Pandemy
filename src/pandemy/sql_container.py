@@ -34,7 +34,9 @@ logger = logging.getLogger(__name__)
 # ===============================================================
 
 
-Placeholder = namedtuple('Placeholder', ['key', 'values', 'new_key'], defaults=(True,))
+Placeholder = namedtuple(
+    'Placeholder', ['placeholder', 'replacements', 'return_new_placeholders'], defaults=(True,)
+)
 r"""Container of placeholders and their replacement values for parametrized SQL statements.
 
 The :class:`Placeholder` :func:`namedtuple <python:collections.namedtuple>` handles placeholders
@@ -45,14 +47,14 @@ method of the :meth:`SQLContainer <pandemy.SQLContainer>` class.
 
 Parameters
 ----------
-key : str
-    The placeholder to replace in the SQL statement.
+placeholder : str
+    The placeholder to replace in the SQL statement. E.g. ``':myplaceholder'``.
 
-values : str or int or float or sequence of str or int or float
-    The value(s) to replace the placeholder `key` with.
+replacements : str or int or float or sequence of str or int or float
+    The value(s) to replace `placeholder` with.
 
-new_key : bool, default True
-    If the value(s) of `values` should be mapped to new placeholders in the `params` return value
+return_new_placeholders : bool, default True
+    If `replacements` should be mapped to new placeholders in the `params` return value
     of the :meth:`SQLContainer.replace_placeholders <pandemy.SQLContainer.replace_placeholders>` method.
 
 Examples
@@ -61,17 +63,21 @@ Creating a :class:`Placeholder` and accessing its attributes.
 
 .. doctest::
 
-   >>> p1 = pandemy.Placeholder(key=':itemid', values=[1, 2, 3], new_key=True)
+   >>> p1 = pandemy.Placeholder(placeholder=':itemid',
+   ...                          replacements=[1, 2, 3],
+   ...                          return_new_placeholders=True)
    >>> p1
-   Placeholder(key=':itemid', values=[1, 2, 3], new_key=True)
-   >>> p2 = pandemy.Placeholder(key=':desc', values='A%', new_key=True)
+   Placeholder(placeholder=':itemid', replacements=[1, 2, 3], return_new_placeholders=True)
+   >>> p2 = pandemy.Placeholder(placeholder=':desc',
+   ...                          replacements='A%',
+   ...                          return_new_placeholders=True)
    >>> p2
-   Placeholder(key=':desc', values='A%', new_key=True)
-   >>> p1.key
+   Placeholder(placeholder=':desc', replacements='A%', return_new_placeholders=True)
+   >>> p1.placeholder
    ':itemid'
-   >>> p2.values
+   >>> p2.replacements
    'A%'
-   >>> p2.new_key
+   >>> p2.return_new_placeholders
    True
 """
 
@@ -153,14 +159,14 @@ class SQLContainer:
     def replace_placeholders(stmt: str, placeholders: Union[Placeholder, Sequence[Placeholder]]) -> Tuple[str, dict]:
         r"""Replace placeholders in a SQL statement.
 
-        Replace the placeholders in the SQL statement `stmt` that are specified by the `key` parameter of a
-        :class:`Placeholder` instance, supplied to the `placeholders` parameter, with their respective replacement
-        value in the `values` parameter of a :class:`Placeholder`. A placeholder in a SQL statement is always prefixed
+        Replace the placeholders in the SQL statement `stmt` that are specified by the `placeholder` parameter of a
+        :class:`Placeholder` instance, supplied to the `placeholders` parameter, with their respective replacements
+        in the `replacements` parameter of a :class:`Placeholder`. A placeholder in a SQL statement is always prefixed
         with a colon (*:*) e.g. ``:myplaceholder``.
 
         The main purpose of the method is to handle parametrized IN statements with a variable number of values.
         A single placeholder can be placed in the IN statement and later be replaced by new placeholders
-        that match the length of the `values` parameter of a :class:`Placeholder` instance.
+        that match the length of the `replacements` parameter of a :class:`Placeholder` instance.
 
         The return values `stmt` and `params` can be used as input to the
         :meth:`DatabaseManager.execute <pandemy.DatabaseManager.execute>` and
@@ -172,7 +178,7 @@ class SQLContainer:
             The SQL statement in which to replace placeholders.
 
         placeholders : Placeholder or sequence of Placeholder
-            The replacement values for each placeholder in `stmt`.
+            The replacements for each placeholder in `stmt`.
 
         Returns
         -------
@@ -180,9 +186,9 @@ class SQLContainer:
             The SQL statement after placeholders have been replaced.
 
         params : dict
-            The new placeholders and their replacement values from the `values` parameter of a :class:`Placeholder`.
-            Entries to `params` are only written if the parameter `new_key` in a :class:`Placeholder` is set
-            to ``True``.
+            The new placeholders and their replacement values from the `replacements` parameter
+            of a :class:`Placeholder`. Entries to `params` are only written if the parameter
+            `return_new_placeholders` in a :class:`Placeholder` is set to ``True``.
 
             Example of a return value: ``{'v0': 'value1', 'v1': 3.14}``. The new placeholders
             are always named *v* followed by a sequential number denoting the order (zero-indexed) in which the new
@@ -211,8 +217,10 @@ class SQLContainer:
 
         .. doctest::
 
-           >>> stmt = r'SELECT * FROM Item WHERE ItemId IN (:itemid);'
-           >>> p1 = pandemy.Placeholder(key=':itemid', values=[1, 2, 3], new_key=True)
+           >>> stmt = 'SELECT * FROM Item WHERE ItemId IN (:itemid);'
+           >>> p1 = pandemy.Placeholder(placeholder=':itemid',
+           ...                          replacements=[1, 2, 3],
+           ...                          return_new_placeholders=True)
            >>> stmt, params = pandemy.SQLContainer.replace_placeholders(stmt=stmt, placeholders=p1)
            >>> stmt
            'SELECT * FROM Item WHERE ItemId IN (:v0, :v1, :v2);'
@@ -224,11 +232,24 @@ class SQLContainer:
 
         .. doctest::
 
-           >>> stmt = r'SELECT * FROM Item WHERE ItemId IN (:itemid) AND Description LIKE :desc ORDER BY :orderby;'
-           >>> p1 = pandemy.Placeholder(key=':itemid', values=[1, 2, 3], new_key=True)
-           >>> p2 = pandemy.Placeholder(key=':desc', values='A%', new_key=True)
-           >>> p3 = pandemy.Placeholder(key=':orderby', values='ItemName DESC', new_key=False)
-           >>> stmt, params = pandemy.SQLContainer.replace_placeholders(stmt=stmt, placeholders=[p1, p2, p3])
+           >>> stmt = ('SELECT * FROM Item '
+           ...         'WHERE ItemId IN (:itemid) AND Description LIKE :desc '
+           ...         'ORDER BY :orderby;')
+           ...
+           >>> p1 = pandemy.Placeholder(placeholder=':itemid',
+           ...                          replacements=[1, 2, 3],
+           ...                          return_new_placeholders=True)
+           ...
+           >>> p2 = pandemy.Placeholder(placeholder=':desc',
+           ...                          replacements='A%',
+           ...                          return_new_placeholders=True)
+           ...
+           >>> p3 = pandemy.Placeholder(placeholder=':orderby',
+           ...                          replacements='ItemName DESC',
+           ...                          return_new_placeholders=False)
+           ...
+           >>> stmt, params = pandemy.SQLContainer.replace_placeholders(stmt=stmt,
+           ...                                                          placeholders=[p1, p2, p3])
            >>> stmt
            'SELECT * FROM Item WHERE ItemId IN (:v0, :v1, :v2) AND Description LIKE :v3 ORDER BY ItemName DESC;'
            >>> params
@@ -237,8 +258,8 @@ class SQLContainer:
 
         .. note::
 
-           The replacement value for the *':orderby'* placeholder is not part of the returned ``params``
-           dictionary because ``new_key=False`` for ``p3``.
+           The replacement for the *':orderby'* placeholder is not part of the returned ``params``
+           dictionary because ``return_new_placeholders=False`` for ``p3``.
 
 
         .. warning::
@@ -295,27 +316,27 @@ class SQLContainer:
             placeholders = [placeholders]
 
         for placeholder in placeholders:
-            if is_valid_replacement_value(placeholder.values, raises=False):
+            if is_valid_replacement_value(placeholder.replacements, raises=False):
 
                 # Build replacement string of new placeholder
-                if placeholder.new_key:
+                if placeholder.return_new_placeholders:
                     new_placeholder = f'v{counter}'
                     counter += 1
                     repl_str = f':{new_placeholder}'
-                    params[new_placeholder] = placeholder.values
+                    params[new_placeholder] = placeholder.replacements
                 else:
-                    repl_str = str(placeholder.values)
+                    repl_str = str(placeholder.replacements)
 
-            elif hasattr(placeholder.values, '__iter__'):  # list like
+            elif hasattr(placeholder.replacements, '__iter__'):  # list like
 
                 repl_str = ''
-                for value in placeholder.values:
+                for value in placeholder.replacements:
 
                     # Check that we have a valid replacement value
                     is_valid_replacement_value(value, raises=True)
 
                     # Build replacement string of new placeholders
-                    if placeholder.new_key:
+                    if placeholder.return_new_placeholders:
                         new_placeholder = f'v{counter}'
                         counter += 1
                         repl_str += f':{new_placeholder}, '
@@ -329,10 +350,10 @@ class SQLContainer:
             else:
                 raise pandemy.InvalidInputError(f'placeholder replacement values must be of type str, int, float, bool '
                                                 'or a sequence of those. '
-                                                f'Got {placeholder.values} ({type(placeholder.values)})')
+                                                f'Got {placeholder.replacements} ({type(placeholder.replacements)})')
 
             # Replace the placeholder with the replacement string
-            stmt = stmt.replace(placeholder.key, repl_str)
+            stmt = stmt.replace(placeholder.placeholder, repl_str)
             logger.debug(f'stmt = {stmt}')
             logger.debug(f'params = {params}')
 
