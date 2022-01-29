@@ -42,24 +42,23 @@ logger = logging.getLogger(__name__)
 class DatabaseManager(ABC):
     r"""Base class with functionality for managing a database.
 
-    Each database type will subclass from DatabaseManager and
+    Each database type will subclass from :class:`DatabaseManager` and
     implement the initializer which is specific to each database type.
-    DatabaseManager is never used on its own, but merely provides the methods
+    :class:`DatabaseManager` is never used on its own, but merely provides the methods
     to interact with the database to its subclasses.
 
-    Initialization of a DatabaseManager creates the connection string and the database engine,
-    which is used to interact with the database. The initializer can contain any number of
-    parameters needed to connect to the database and should always support
-    `container`, `engine_config` and `\*\*kwargs`.
+    Initialization of a :class:`DatabaseManager` creates the connection string and the database
+    :class:`engine <sqlalchemy.engine.Engine>`, which is used to interact with the database.
+    The initializer can contain any number of parameters needed to connect to the database
+    and should always support `container`, `engine_config` and `\*\*kwargs`.
 
     Parameters
     ----------
-    container : pandemy.SQLContainer or None, default None
-        A container of database statements that can be used by the DatabaseManager.
+    container : SQLContainer or None, default None
+        A container of database statements that can be used by the :class:`DatabaseManager`.
 
     engine_config : dict or None
-        Additional keyword arguments passed to the SQLAlchemy
-        :func:`create_engine <sqlalchemy:sqlalchemy.create_engine>` function.
+        Additional keyword arguments passed to the :func:`sqlalchemy.create_engine` function.
 
     **kwargs : dict
         Additional keyword arguments that are not used by the DatabaseManager.
@@ -69,10 +68,10 @@ class DatabaseManager(ABC):
     conn_str : str
         The connection string for the database.
 
-    container : pandemy.SQLContainer or None
+    container : :class:`SQLContainer <pandemy.SQLContainer>` or None
         The value of the `container` parameter.
 
-    engine : :class:`sqlalchemy:sqlalchemy.engine.Engine`
+    engine : :class:`sqlalchemy.engine.Engine`
         The database engine.
 
     engine_config : dict or None
@@ -181,7 +180,9 @@ class DatabaseManager(ABC):
         Parameters
         ----------
         sql : str or sqlalchemy.sql.elements.TextClause
-            The SQL statement to execute.
+            The SQL statement to execute. A string value is automatically converted to a
+            :class:`sqlalchemy.sql.elements.TextClause` with the
+            :func:`sqlalchemy.sql.expression.text` function.
 
         conn : sqlalchemy.engine.base.Connection
             An open connection to the database.
@@ -211,9 +212,9 @@ class DatabaseManager(ABC):
 
         See Also
         --------
-        * :meth:`sqlalchemy:sqlalchemy.engine.Connection.execute` : The SQLAlchemy method used for executing the SQL statement.
+        * :meth:`sqlalchemy.engine.Connection.execute` : The method used for executing the SQL statement.
 
-        * :class:`sqlalchemy:sqlalchemy.engine.CursorResult` : The return type from the method.
+        * :class:`sqlalchemy.engine.CursorResult` : The return type from the method.
 
         Examples
         --------
@@ -290,12 +291,11 @@ class DatabaseManager(ABC):
                 chunksize: Optional[int] = None, schema: Optional[str] = None,
                 dtype: Optional[Union[Dict[str, Union[str, object]], object]] = None,
                 method: Optional[Union[str, Callable]] = None) -> None:
-        r"""Save the DataFrame `df` to specified table in the database.
+        r"""Save the :class:`pandas.DataFrame` `df` to specified table in the database.
 
         If the table does not exist it will be created. If the table already exists
-        the column names of the DataFrame `df` must match the table column definition.
-        Uses pandas' DataFrame method :meth:`to_sql <pandas:pandas.DataFrame.to_sql>`
-        to write the DataFrame to the database.
+        the column names of the :class:`pandas.DataFrame` `df` must match the table column definitions.
+        Uses :meth:`pandas.DataFrame.to_sql` method to write the :class:`pandas.DataFrame` to the database.
 
         Parameters
         ----------
@@ -303,7 +303,7 @@ class DatabaseManager(ABC):
             The DataFrame to save to the database.
 
         table : str
-            The name of the table where to save the DataFrame.
+            The name of the table where to save the :class:`pandas.DataFrame`.
 
         conn : sqlalchemy.engine.base.Connection
             An open connection to the database.
@@ -311,19 +311,20 @@ class DatabaseManager(ABC):
         if_exists : str, {'append', 'replace', 'fail'}
             How to update an existing table in the database:
 
-            * 'append': Append the DataFrame to the existing table.
+            * 'append': Append the :class:`pandas.DataFrame` to the existing table.
 
-            * 'replace': Delete all records from the table and then write the DataFrame to the table.
+            * 'replace': Delete all records from the table and then write the :class:`pandas.DataFrame` to the table.
 
             * 'fail': Raise :exc:`pandemy.TableExistsError` if the table exists.
 
         index : bool, default True
-            Write DataFrame index as a column. Uses the name of the index as the
+            Write :class:`pandas.DataFrame` index as a column. Uses the name of the index as the
             column name for the table.
 
         index_label : str or sequence of str or None, default None
             Column label for index column(s). If None is given (default) and `index` is True,
-            then the index names are used. A sequence should be given if the DataFrame uses a MultiIndex.
+            then the index names are used. A sequence should be given if the :class:`pandas.DataFrame`
+            uses a :class:`pandas.MultiIndex`.
 
         chunksize : int or None, default None
             The number of rows in each batch to be written at a time.
@@ -333,7 +334,7 @@ class DatabaseManager(ABC):
             Specify the schema (if database flavor supports this). If None, use default schema.
 
         dtype : dict or scalar, default None
-            Specifying the datatype for columns. If a dictionary is used, the keys should be the column names
+            Specifying the data type for columns. If a dictionary is used, the keys should be the column names
             and the values should be the SQLAlchemy types or strings for the sqlite3 legacy mode.
             If a scalar is provided, it will be applied to all columns.
 
@@ -369,11 +370,11 @@ class DatabaseManager(ABC):
             If the supplied table name is invalid.
 
         pandemy.SaveDataFrameError
-            If the DataFrame cannot be saved to the table.
+            If the :class:`pandas.DataFrame` cannot be saved to the table.
 
         See Also
         --------
-        * :meth:`pandas:pandas.DataFrame.to_sql` : Write records stored in a DataFrame to a SQL database.
+        * :meth:`pandas.DataFrame.to_sql` : Write records stored in a DataFrame to a SQL database.
 
         * `pandas SQL insertion method`_ : Details about using the `method` parameter.
 
@@ -440,11 +441,10 @@ class DatabaseManager(ABC):
                    dtypes: Optional[Dict[str, Union[str, object]]] = None,
                    chunksize: Optional[int] = None,
                    coerce_float: bool = True) -> Union[pd.DataFrame, Iterator[pd.DataFrame]]:
-        r"""Load a SQL table into a DataFrame.
+        r"""Load a SQL table into a :class:`pandas.DataFrame`.
 
-        Specify a table name or a SQL query to load the DataFrame from.
-        Uses pandas' :func:`read_sql <pandas:pandas.read_sql>` function
-        to read from the database.
+        Specify a table name or a SQL query to load the :class:`pandas.DataFrame` from.
+        Uses :func:`pandas.read_sql` function to read from the database.
 
         Parameters
         ----------
@@ -460,7 +460,7 @@ class DatabaseManager(ABC):
             Parameters in `params` should *not* contain the colon (``{'myparameter': 'myvalue'}``).
 
         index_col : str or sequence of str or None, default None
-            The column(s) to set as the index of the DataFrame.
+            The column(s) to set as the index of the :class:`pandas.DataFrame`.
 
         columns : list of str or None, default None
             List of column names to select from the SQL table (only used when `sql` is a table name).
@@ -473,15 +473,15 @@ class DatabaseManager(ABC):
               in case of parsing integer timestamps.
 
             * Dict of `{column_name: arg dict}`, where the arg dict corresponds to the keyword arguments of
-              :func:`pandas:pandas.to_datetime`. Especially useful with databases without native Datetime support,
+              :func:`pandas.to_datetime`. Especially useful with databases without native datetime support,
               such as SQLite.
 
         localize_tz : str or None, default None
-            Localize naive datetime columns of the returned DataFrame to specified timezone.
+            Localize naive datetime columns of the returned :class:`pandas.DataFrame` to specified timezone.
             If None no localization is performed.
 
         target_tz : str or None, default None
-            The timezone to convert the datetime columns of the returned DataFrame into after
+            The timezone to convert the datetime columns of the returned :class:`pandas.DataFrame` into after
             they have been localized. If None no conversion is performed.
 
         dtypes : dict or None, default None
@@ -491,7 +491,7 @@ class DatabaseManager(ABC):
 
         chunksize : int or None, default None
             If `chunksize` is specified an iterator of DataFrames will be returned where `chunksize`
-            is the number of rows in each DataFrame.
+            is the number of rows in each :class:`pandas.DataFrame`.
             If `chunksize` is supplied timezone localization and conversion as well as dtype
             conversion cannot be performed i.e. `localize_tz`, `target_tz` and `dtypes` have
             no effect.
@@ -503,16 +503,16 @@ class DatabaseManager(ABC):
         Returns
         -------
         df : pandas.DataFrame or Iterator[pandas.DataFrame]
-            DataFrame with the result of the query or an iterator of DataFrames
+            :class:`pandas.DataFrame` with the result of the query or an iterator of DataFrames
             if `chunksize` is specified.
 
         Raises
         ------
         pandemy.LoadTableError
-            If errors when loading the table using :func:`pandas:pandas.read_sql`.
+            If errors when loading the table using :func:`pandas.read_sql`.
 
         pandemy.SetIndexError
-            If setting the index of the returned DataFrame fails when `index_col` is specified
+            If setting the index of the returned :class:`pandas.DataFrame` fails when `index_col` is specified
             and chunksize is None.
 
         pandemy.DataTypeConversionError
@@ -520,9 +520,9 @@ class DatabaseManager(ABC):
 
         See Also
         --------
-        * :func:`pandas:pandas.read_sql` : Read SQL query or database table into a DataFrame.
+        * :func:`pandas.read_sql` : Read SQL query or database table into a :class:`pandas.DataFrame`.
 
-        * :func:`pandas:pandas.to_datetime` : The function used for datetime conversion with `parse_dates`.
+        * :func:`pandas.to_datetime` : The function used for datetime conversion with `parse_dates`.
 
         Examples
         --------
@@ -609,7 +609,7 @@ class DatabaseManager(ABC):
 
 
 class SQLiteDb(DatabaseManager):
-    r"""A SQLite DatabaseManager.
+    r"""A SQLite :class:`DatabaseManager`.
 
     Parameters
     ----------
@@ -618,19 +618,18 @@ class SQLiteDb(DatabaseManager):
         The default creates an in memory database.
 
     must_exist : bool, default False
-        If True validate that `file` exists unless `file` = ':memory:'.
-        If it does not exist :exc:`pandemy.DatabaseFileNotFoundError` is raised.
-        If `False` the validation is omitted.
+        If ``True`` validate that `file` exists unless ``file=':memory:'``.
+        If it does not exist :exc:`pandemy.DatabaseFileNotFoundError`
+        is raised. If ``False`` the validation is omitted.
 
-    container : pandemy.SQLContainer or None, default None
-        A container of database statements that the SQLite DatabaseManager can use.
+    container : SQLContainer or None, default None
+        A container of database statements that the SQLite :class:`DatabaseManager` can use.
 
     engine_config : dict or None
-        Additional keyword arguments passed to the SQLAlchemy
-        :func:`create_engine <sqlalchemy:sqlalchemy.create_engine>` function.
+        Additional keyword arguments passed to the :func:`sqlalchemy.create_engine` function.
 
     **kwargs : dict
-        Additional keyword arguments that are not used by `SQLiteDb`.
+        Additional keyword arguments that are not used by :class:`SQLiteDb`.
 
     Attributes
     ----------
@@ -646,16 +645,16 @@ class SQLiteDb(DatabaseManager):
         If invalid types are supplied to `file`, `must_exist` and `container`.
 
     pandemy.DatabaseFileNotFoundError
-        If the database file `file` does not exist.
+        If the database `file` does not exist when ``must_exist=True``.
 
     pandemy.CreateEngineError
-        If the creation of the Database engine fails.
+        If the creation of the database engine fails.
 
     See Also
     --------
     * :class:`pandemy.DatabaseManager` : The parent class.
 
-    * :func:`sqlalchemy:sqlalchemy.create_engine` : The SQLAlchemy function to create the database engine.
+    * :func:`sqlalchemy.create_engine` : The function used to create the database engine.
 
     * `SQLAlchemy SQLite dialect`_ : Implementation of the SQLite dialect in SQLAlchemy.
 
@@ -802,7 +801,7 @@ class SQLiteDb(DatabaseManager):
             If invalid input is supplied to `action`.
 
         pandemy.ExecuteStatementError
-            If the enabling/disabling of the foreign key constraint fails.
+            If the enabling/disabling of the foreign key constraints fails.
         """
 
         actions = {'ON', 'OFF'}

@@ -5,9 +5,10 @@ The DatabaseManager
 the database and provides the methods to do so. Each SQL dialect will inherit from the :class:`DatabaseManager <pandemy.DatabaseManager>`
 and define the specific details of how to connect to the database and create the database :class:`engine <sqlalchemy.engine.Engine>`.
 The database :class:`engine <sqlalchemy.engine.Engine>` is the core component that allows for connection and interaction with the database.
-The engine is created through the :func:`create_engine <sqlalchemy.create_engine>` function from SQLAlchemy.
-The creation of the connection string needed to create the engine is all handled in the initialization of the :class:`DatabaseManager <pandemy.DatabaseManager>`.
-This class is never used on its own instead it serves as the facilitator of functionality to each database dialect. 
+The :class:`engine <sqlalchemy.engine.Engine>` is created through the :func:`sqlalchemy.create_engine` function. The creation of the
+connection string needed to create the :class:`engine <sqlalchemy.engine.Engine>` is all handled during the initialization of an
+instance of :class:`DatabaseManager <pandemy.DatabaseManager>`. This class is never used on its own instead it serves as the facilitator
+of functionality for each database dialect. 
 
 
 Database dialects
@@ -27,13 +28,13 @@ Core functionality
 
 All database dialects inherit these methods from :class:`DatabaseManager <pandemy.DatabaseManager>`:
 
-- :meth:`delete_all_records_from_table <pandemy.DatabaseManager.delete_all_records_from_table>`: Delete all records from an existing table in the database.
+- :meth:`delete_all_records_from_table() <pandemy.DatabaseManager.delete_all_records_from_table>`: Delete all records from an existing table in the database.
 
-- :meth:`execute <pandemy.DatabaseManager.execute>`: Execute arbitrary SQL statements on the database.
+- :meth:`execute() <pandemy.DatabaseManager.execute>`: Execute arbitrary SQL statements on the database.
 
-- :meth:`load_table <pandemy.DatabaseManager.load_table>`: Load a table by name or SQL query into a :class:`DataFrame <pandas.DataFrame>`.
+- :meth:`load_table() <pandemy.DatabaseManager.load_table>`: Load a table by name or SQL query into a :class:`pandas.DataFrame`.
 
-- :meth:`save_df <pandemy.DatabaseManager.save_df>`: Save a :class:`DataFrame <pandas.DataFrame>` to a table in the database.
+- :meth:`save_df() <pandemy.DatabaseManager.save_df>`: Save a :class:`pandas.DataFrame` to a table in the database.
 
 Examples of using these methods are shown in the :doc:`sqlite/index` section, but they work the same regardless of the SQL dialect used.  
 

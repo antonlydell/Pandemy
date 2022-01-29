@@ -134,7 +134,7 @@ in a :class:`SQLContainer <pandemy.SQLContainer>` like this.
 Replace placeholders
 ^^^^^^^^^^^^^^^^^^^^
 
-The :meth:`SQLContainer.replace_placeholders <pandemy.SQLContainer.replace_placeholders>` method is used
+The :meth:`SQLContainer.replace_placeholders() <pandemy.SQLContainer.replace_placeholders>` method is used
 to replace placeholders within a parametrized SQL statement. The purpose of this method is to handle the
 case of a parametrized query using an *IN* clause with a variable number of arguments. The *IN* clause receives
 a single placeholder initially which can later be replaced by the correct amount of placeholders once
@@ -148,13 +148,13 @@ It returns the SQL statement with replaced placeholders and a dictionary called 
 
 2. ``replacements`` : A value or sequence of values to use for replacing ``placeholder``.
 
-3. ``return_new_placeholders`` : A boolean, where ``True`` indicates that :meth:`replace_placeholders <pandemy.SQLContainer.replace_placeholders>`
+3. ``return_new_placeholders`` : A boolean, where ``True`` indicates that :meth:`replace_placeholders() <pandemy.SQLContainer.replace_placeholders>`
 should return new placeholders mapped to their respective ``replacements`` as a key value pair in the dictionary  ``params``.
-The dictionary  ``params`` can be passed to the ``params`` keyword argument of the :meth:`execute <pandemy.DatabaseManager.execute>` 
-or :meth:`load_table <pandemy.DatabaseManager.load_table>` methods of a :class:`DatabaseManager <pandemy.DatabaseManager>`.
+The dictionary  ``params`` can be passed to the ``params`` keyword argument of the :meth:`execute() <pandemy.DatabaseManager.execute>` 
+or :meth:`load_table() <pandemy.DatabaseManager.load_table>` methods of a :class:`DatabaseManager <pandemy.DatabaseManager>`.
 The default value is ``True``. A value of ``False`` causes the replaced placeholder to not appear in the returned  ``params`` dictionary.
 
-The use of :meth:`replace_placeholders <pandemy.SQLContainer.replace_placeholders>` and :data:`Placeholder <pandemy.Placeholder>`
+The use of :meth:`replace_placeholders() <pandemy.SQLContainer.replace_placeholders>` and :class:`Placeholder <pandemy.Placeholder>`
 is best illustrated by some examples using the previously created database *Runescape.db*.
 
 

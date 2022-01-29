@@ -1,7 +1,7 @@
 The execute method
 ------------------
 
-The :meth:`DatabaseManager.execute <pandemy.DatabaseManager.execute>` method can be used to execute arbitrary
+The :meth:`DatabaseManager.execute() <pandemy.DatabaseManager.execute>` method can be used to execute arbitrary
 SQL statements e.g. creating a table. Let us create a SQLite database that can be used to further
 demonstrate how Pandemy works.
 
@@ -140,15 +140,15 @@ Let's insert some data into the *Item* table we just created in *Runescape.db*.
    (3, 'Shears', 0, 'For shearing sheep')  
    (4, 'Bucket', 0, 'Its a wooden bucket.')
 
-The :meth:`execute <pandemy.DatabaseManager.execute>` method returns an object called
-:class:`CursorResult <sqlalchemy:sqlalchemy.engine.CursorResult>` (the variable ``result``).
-This object is an iterator that can be used to retrieve rows from the result set of a *SELECT* statement. 
+The :meth:`DatabaseManager.execute() <pandemy.DatabaseManager.execute>` method returns an object called
+:class:`sqlalchemy.engine.CursorResult` (the variable ``result``). This object is an iterator that can
+be used to retrieve rows from the result set of a *SELECT* statement. 
 
 
 .. note::
 
    The database connection must remain open while iterating over the rows in the
-   :class:`CursorResult <sqlalchemy:sqlalchemy.engine.CursorResult>` object,
+   :class:`CursorResult <sqlalchemy.engine.CursorResult>` object,
    since it is fetching one row from the database at the time.
    This means that the for loop must be placed inside the context manager.
 
@@ -156,11 +156,11 @@ This object is an iterator that can be used to retrieve rows from the result set
 Using transactions
 ^^^^^^^^^^^^^^^^^^
 
-Database transactions can be invoked by calling the :meth:`begin <sqlalchemy:sqlalchemy.engine.Engine.begin>` method of the
-database engine instead of :meth:`connect <sqlalchemy:sqlalchemy.engine.Engine.connect>`. When executing SQL statements under
-an open transaction all statements will automatically be rolled back to the latest valid state if an error occurs in one of the
-statements. This differs from using the connect method where only the statement where the error occurs will be rolled back.
-The example below illustrates this difference.
+Database transactions can be invoked by calling the :meth:`begin() <sqlalchemy.engine.Engine.begin>` method of the
+database :class:`engine <sqlalchemy.engine.Engine>` instead of :meth:`connect() <sqlalchemy.engine.Engine.connect>`.
+When executing SQL statements under an open transaction all statements will automatically be rolled back to the latest
+valid state if an error occurs in one of the statements. This differs from using the connect method where only the
+statement where the error occurs will be rolled back. The example below illustrates this difference.
 
 
 .. only:: builder_html
@@ -253,24 +253,23 @@ The example below illustrates this difference.
 
 .. note::
 
-   The :meth:`fetchall <sqlalchemy:sqlalchemy.engine.CursorResult.fetchall>` method of the
-   :class:`CursorResult <sqlalchemy:sqlalchemy.engine.CursorResult>` object can be used to
-   retrieve all rows from the query into a list.
+   The :meth:`sqlalchemy.engine.CursorResult.fetchall` method
+   can be used to retrieve all rows from the query into a list.
 
 
 .. warning::
 
-   The method :meth:`delete_all_records_from_table <pandemy.DatabaseManager.delete_all_records_from_table>` will delete all records from a table.
+   The method :meth:`DatabaseManager.delete_all_records_from_table() <pandemy.DatabaseManager.delete_all_records_from_table>` will delete all records from a table.
    Use this method with caution. It is mainly used to clear all content of a table before replacing it with new data. This method is used by
-   the :meth:`save_df <pandemy.DatabaseManager.save_df>` method when using ``if_exists='replace'``, which is described in the next section.
+   the :meth:`DatabaseManager.save_df() <pandemy.DatabaseManager.save_df>` method when using ``if_exists='replace'``, which is described in the next section.
 
 
 .. seealso::
 
    The SQLAlchemy documentation provides more information about transactions: 
 
-   * :meth:`sqlalchemy:sqlalchemy.engine.Engine.begin` : Establish a database connection with a transaction.
+   * :meth:`sqlalchemy.engine.Engine.begin` : Establish a database connection with a transaction.
 
-   * :meth:`sqlalchemy:sqlalchemy.engine.Engine.connect` : Establish a database connection.
+   * :meth:`sqlalchemy.engine.Engine.connect` : Establish a database connection.
 
-   * :class:`sqlalchemy:sqlalchemy.engine.Transaction` : A database transaction object.
+   * :class:`sqlalchemy.engine.Transaction` : A database transaction object.

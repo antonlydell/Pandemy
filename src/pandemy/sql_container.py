@@ -2,7 +2,7 @@ r"""Module with the :class:`SQLContainer <pandemy.SQLContainer>` class.
 
 The :class:`SQLContainer <pandemy.SQLContainer>` is a storage container for the SQL statements
 used by a :class:`DatabaseManager <pandemy.DatabaseManager>` of an application.
-It also provides the :meth:`replace_placeholders <pandemy.SQLContainer.replace_placeholders>`
+It also provides the :meth:`replace_placeholders() <pandemy.SQLContainer.replace_placeholders>`
 method for pre-processing of placeholders in a SQL statement before it is executed on the database.
 """
 
@@ -42,8 +42,8 @@ r"""Container of placeholders and their replacement values for parametrized SQL 
 The :class:`Placeholder` :func:`namedtuple <python:collections.namedtuple>` handles placeholders
 and their replacement values when building parametrized SQL statements. A SQL placeholder is
 always prefixed by a colon (*:*) e.g. ``:myplaceholder`` in the SQL statement. :class:`Placeholder`
-is used as input to the :meth:`replace_placeholders <pandemy.SQLContainer.replace_placeholders>`
-method of the :meth:`SQLContainer <pandemy.SQLContainer>` class.
+is used as input to the :meth:`SQLContainer.replace_placeholders() <pandemy.SQLContainer.replace_placeholders>`
+method.
 
 Parameters
 ----------
@@ -55,7 +55,7 @@ replacements : str or int or float or sequence of str or int or float
 
 return_new_placeholders : bool, default True
     If `replacements` should be mapped to new placeholders in the `params` return value
-    of the :meth:`SQLContainer.replace_placeholders <pandemy.SQLContainer.replace_placeholders>` method.
+    of the :meth:`SQLContainer.replace_placeholders() <pandemy.SQLContainer.replace_placeholders>` method.
 
 Examples
 --------
@@ -169,8 +169,9 @@ class SQLContainer:
         that match the length of the `replacements` parameter of a :class:`Placeholder` instance.
 
         The return values `stmt` and `params` can be used as input to the
-        :meth:`DatabaseManager.execute <pandemy.DatabaseManager.execute>` and
-        :meth:`DatabaseManager.load_table <pandemy.DatabaseManager.load_table>` methods.
+        :meth:`execute() <pandemy.DatabaseManager.execute>` and
+        :meth:`load_table() <pandemy.DatabaseManager.load_table>` methods
+        of a :class:`DatabaseManager <pandemy.DatabaseManager>`.
 
         Parameters
         ----------
@@ -206,9 +207,9 @@ class SQLContainer:
         --------
         * :class:`Placeholder` : Container of a placeholder and its replacement values.
 
-        * :meth:`DatabaseManager.execute <pandemy.DatabaseManager.execute>` : Execute a SQL statement.
+        * :meth:`DatabaseManager.execute() <pandemy.DatabaseManager.execute>` : Execute a SQL statement.
 
-        * :meth:`DatabaseManager.load_table <pandemy.DatabaseManager.load_table>` : Load a SQL table into a DataFrame.
+        * :meth:`DatabaseManager.load_table() <pandemy.DatabaseManager.load_table>` : Load a SQL table into a :class:`pandas.DataFrame`.
 
         Examples
         --------

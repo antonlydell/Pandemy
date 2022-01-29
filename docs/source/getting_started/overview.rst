@@ -1,8 +1,8 @@
 Overview
 ========
 
-This section shows a simple example of using Pandemy to write a DataFrame 
-to an `SQLite`_ database and reading it back again.
+This section shows a simple example of using Pandemy to write a :class:`pandas.DataFrame`
+to a `SQLite`_ database and reading it back again.
 
 .. _SQLite: https://sqlite.org/index.html
 
@@ -10,7 +10,7 @@ to an `SQLite`_ database and reading it back again.
 Save a DataFrame to a table
 ---------------------------
 
-Let's create a new SQLite database and save a DataFrame to it.
+Let's create a new SQLite database and save a :class:`pandas.DataFrame` to it.
 
 
 .. only:: builder_html
@@ -66,19 +66,19 @@ Let's create a new SQLite database and save a DataFrame to it.
 
 The database is managed through the :class:`DatabaseManager <pandemy.DatabaseManager>` class which is this case is the 
 :class:`SQLiteDb <pandemy.SQLiteDb>` instance. Each SQL dialect will be a subclass of :class:`DatabaseManager <pandemy.DatabaseManager>`.
-The creation of the :class:`DatabaseManager <pandemy.DatabaseManager>` instance creates the database engine, which is used to create a
-connection to the database. The :class:`engine <sqlalchemy:sqlalchemy.engine.Engine>` is created with the :func:`create_engine <sqlalchemy:sqlalchemy.create_engine>` 
-function from SQLAlchemy. The connection is automatically closed when the context manager exits. If the database file does not exist it will be created.
+The creation of the :class:`DatabaseManager <pandemy.DatabaseManager>` instance creates the database :class:`engine <sqlalchemy.engine.Engine>`,
+which is used to create a connection to the database. The :class:`engine <sqlalchemy.engine.Engine>` is created with the :func:`sqlalchemy.create_engine`
+function. The connection is automatically closed when the context manager exits. If the database file does not exist it will be created.
 
-The :meth:`execute <pandemy.DatabaseManager.execute>` method allows for execution of arbitrary SQL statements such as creating a table.
-The :meth:`save_df <pandemy.DatabaseManager.save_df>` method saves the DataFrame ``df`` to the table *Item* in the database ``db`` 
-by using pandas' :meth:`to_sql <pandas:pandas.DataFrame.to_sql>` DataFrame method.
+The :meth:`DatabaseManager.execute() <pandemy.DatabaseManager.execute>` method allows for execution of arbitrary SQL statements such as creating a table.
+The :meth:`DatabaseManager.save_df() <pandemy.DatabaseManager.save_df>` method saves the DataFrame ``df`` to the table *Item* in the database ``db`` 
+by using the :meth:`pandas.DataFrame.to_sql` method.
 
 
 Load a table into a DataFrame
 -----------------------------
 
-The DataFrame saved to the table *Item* of the database *Runescape.db* can easily be read back into a DataFrame.
+The :class:`pandas.DataFrame` saved to the table *Item* of the database *Runescape.db* can easily be read back into a :class:`pandas.DataFrame`.
 
 
 .. testsetup:: getting_started_overview_load_table
@@ -163,5 +163,5 @@ If the ``must_exist`` parameter is set to ``True`` :exc:`pandemy.DatabaseFileNot
 will be raised if the database file is not found. This is useful if you expect the database to exist 
 and you want to avoid creating a new database by mistake if it does not exist.
 
-The :meth:`load_table <pandemy.DatabaseManger.load_table>` method takes either a table name or a SQL statement
-for the ``sql`` parameter and uses the :func:`read_sql <pandas:pandas.read_sql>` function from pandas.
+The :meth:`DatabaseManager.load_table() <pandemy.DatabaseManager.load_table>` method takes either a table name
+or a SQL statement for the ``sql`` parameter and uses the :func:`pandas.read_sql` function.

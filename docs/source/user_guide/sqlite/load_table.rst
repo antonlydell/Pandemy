@@ -1,11 +1,11 @@
 Load a DataFrame from a table
 -----------------------------
 
-To load data from a table into a :class:`DataFrame <pandas.DataFrame>` the
-:meth:`DatabaseManager.load_table <pandemy.DatabaseManager.load_table>` method is used.
-It uses the :func:`pandas.read_sql <pandas.read_sql>` function with some extra features.
+To load data from a table into a :class:`pandas.DataFrame` the
+:meth:`DatabaseManager.load_table() <pandemy.DatabaseManager.load_table>` method
+is used. It uses the :func:`pandas.read_sql` function with some extra features.
 
-Let us load the table *Item* back into a :class:`DataFrame <pandas.DataFrame>`.
+Let us load the table *Item* back into a :class:`pandas.DataFrame`.
 
 
 .. testsetup:: load_table
@@ -115,8 +115,8 @@ Let us load the table *Item* back into a :class:`DataFrame <pandas.DataFrame>`.
 Working with datetimes and timezones
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Columns with datetime information can be converted into datetime columns by the use of the ``parse_dates`` keyword argument,
-which is a direct link to the ``parse_dates`` option of :func:`pandas.read_sql <pandas.read_sql>` function.
+Columns with datetime information can be converted into datetime columns by using the ``parse_dates`` keyword argument,
+which is a direct link to the ``parse_dates`` option of :func:`pandas.read_sql` function.
 
 ``parse_dates`` only returns naive datetime columns. To load datetime columns with timezone information the keyword arguments 
 ``localize_tz`` and ``target_tz`` can be specified. ``localize_tz`` lets you localize the the naive datetime columns to a specified
