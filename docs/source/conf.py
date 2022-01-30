@@ -6,7 +6,11 @@
 
 # -- Imports -----------------------------------------------------------------
 
+# Standard Library
 from datetime import date
+
+# Local
+import pandemy
 
 
 # -- Path setup --------------------------------------------------------------
@@ -27,11 +31,15 @@ copyright = f'2021-{date.today().year}, Anton Lydell'
 author = 'Anton Lydell'
 
 # The full version, including alpha/beta/rc tags
-release = '1.0.0'
+release = pandemy.__version__
 
 # The major project version, used as the replacement for |version|.
 # For example, for the Python documentation, this may be something like 2.6.
 version = release
+
+# The release date of the current version of Pandemy.
+# Used as the replacement for |today|.
+today = pandemy.__releasedate__.strftime(r'%Y-%m-%d')
 
 
 # -- General configuration ---------------------------------------------------

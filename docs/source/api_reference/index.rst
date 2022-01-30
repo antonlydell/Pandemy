@@ -15,3 +15,4 @@ serves as a container of the SQL statements used by the :class:`DatabaseManager 
    databasemanager
    sqlcontainer
    exceptions
+   attributes

@@ -15,7 +15,11 @@ Use your existing SQL knowledge and provide text based SQL statements to load Da
 .. _SQLAlchemy: https://www.sqlalchemy.org/
 
 
-- **Release**: |release| | YYYY-MM-DD
+- **Release**: |release| \| |today|
+
+- **License**: Pandemy is distributed under the `MIT-license`_.
+
+.. _MIT-license: https://opensource.org/licenses/mit-license.php
 
 
 ***********
