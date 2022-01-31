@@ -47,10 +47,11 @@ class DatabaseManager(ABC):
     :class:`DatabaseManager` is never used on its own, but merely provides the methods
     to interact with the database to its subclasses.
 
-    Initialization of a :class:`DatabaseManager` creates the connection string and the database
-    :class:`engine <sqlalchemy.engine.Engine>`, which is used to interact with the database.
-    The initializer can contain any number of parameters needed to connect to the database
-    and should always support `container`, `engine_config` and `\*\*kwargs`.
+    Initialization of a :class:`DatabaseManager` creates the connection string (`conn_str`)
+    and the database `engine`, which are used to connect to and interact with the database.
+    These are available as attributes on the instance. The initializer can contain any number
+    of parameters needed to connect to the database and should always support
+    `container`, `engine_config` and `\*\*kwargs`.
 
     Parameters
     ----------
@@ -61,21 +62,15 @@ class DatabaseManager(ABC):
         Additional keyword arguments passed to the :func:`sqlalchemy.create_engine` function.
 
     **kwargs : dict
-        Additional keyword arguments that are not used by the DatabaseManager.
+        Additional keyword arguments that are not used by the :class:`DatabaseManager`.
 
     Attributes
     ----------
     conn_str : str
-        The connection string for the database.
-
-    container : :class:`SQLContainer <pandemy.SQLContainer>` or None
-        The value of the `container` parameter.
+        The connection string for connecting to the database.
 
     engine : :class:`sqlalchemy.engine.Engine`
-        The database engine.
-
-    engine_config : dict or None
-        The value of the `engine_config` parameter.
+        The engine for interacting with the database.
     """
 
     # Class variables
@@ -630,14 +625,6 @@ class SQLiteDb(DatabaseManager):
 
     **kwargs : dict
         Additional keyword arguments that are not used by :class:`SQLiteDb`.
-
-    Attributes
-    ----------
-    file : str or pathlib.Path
-        The database file.
-
-    must_exist : bool
-        The value of the `must_exist` parameter.
 
     Raises
     ------
