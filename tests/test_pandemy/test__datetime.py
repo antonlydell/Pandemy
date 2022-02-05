@@ -1,6 +1,6 @@
-"""Tests for the datetime module of pandemy.
+r"""Tests for the _datetime module of Pandemy.
 
-The datetime module handles timezone conversions.
+The _datetime module handles timezone conversions.
 """
 
 # =================================================
@@ -17,7 +17,7 @@ import pytest
 
 # Local
 import pandemy
-import pandemy.datetime
+import pandemy._datetime
 
 # =================================================
 # Setup
@@ -61,9 +61,7 @@ Id;Datetime1;Datetime2;Datetime3;Price;City;DatetimeAsString
 
 
 class TestDatetimeColumnsToTimezone:
-    r"""
-    Test the function datetime_columns_to_timezone
-    from the pandemy.datetime module.
+    r"""Test the function datetime_columns_to_timezone.
 
     Fixtures
     --------
@@ -91,8 +89,8 @@ class TestDatetimeColumnsToTimezone:
 
         # Exercise
         # ===========================================================
-        pandemy.datetime.datetime_columns_to_timezone(df=df_datetime,
-                                                      localize_tz=localize_tz, target_tz=None)
+        pandemy._datetime.datetime_columns_to_timezone(df=df_datetime,
+                                                       localize_tz=localize_tz, target_tz=None)
 
         # Verify
         # ===========================================================
@@ -118,8 +116,8 @@ class TestDatetimeColumnsToTimezone:
 
         # Exercise
         # ===========================================================
-        pandemy.datetime.datetime_columns_to_timezone(df=df_datetime,
-                                                      localize_tz='UTC', target_tz='CET')
+        pandemy._datetime.datetime_columns_to_timezone(df=df_datetime,
+                                                       localize_tz='UTC', target_tz='CET')
 
         # Verify
         # ===========================================================
@@ -160,8 +158,8 @@ class TestDatetimeColumnsToTimezone:
 
         # Exercise
         # ===========================================================
-        pandemy.datetime.datetime_columns_to_timezone(df=df_datetime,
-                                                      localize_tz=localize_tz, target_tz=target_tz)
+        pandemy._datetime.datetime_columns_to_timezone(df=df_datetime,
+                                                       localize_tz=localize_tz, target_tz=target_tz)
 
         # Verify
         # ===========================================================
@@ -199,8 +197,8 @@ class TestDatetimeColumnsToTimezone:
         # Exercise & Verify
         # ===========================================================
         with pytest.raises(pandemy.InvalidInputError):
-            pandemy.datetime.datetime_columns_to_timezone(df=df_datetime,
-                                                          localize_tz=localize_tz, target_tz=target_tz)
+            pandemy._datetime.datetime_columns_to_timezone(df=df_datetime,
+                                                           localize_tz=localize_tz, target_tz=target_tz)
 
         # Clean up - None
         # ===========================================================

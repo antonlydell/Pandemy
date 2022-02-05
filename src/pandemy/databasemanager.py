@@ -24,7 +24,7 @@ from sqlalchemy.sql.elements import TextClause
 
 # Local
 import pandemy
-import pandemy.datetime
+import pandemy._datetime
 
 # ===============================================================
 # Set Logger
@@ -575,7 +575,7 @@ class DatabaseManager(ABC):
 
         # Localize (and convert) to desired timezone
         if localize_tz is not None:
-            pandemy.datetime.datetime_columns_to_timezone(df=df, localize_tz=localize_tz, target_tz=target_tz)
+            pandemy._datetime.datetime_columns_to_timezone(df=df, localize_tz=localize_tz, target_tz=target_tz)
 
         # Nr of rows and columns retrieved by the query
         nr_rows = df.shape[0]
