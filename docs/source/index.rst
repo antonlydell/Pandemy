@@ -7,6 +7,9 @@
 Pandemy documentation
 #####################
 
+.. meta::
+   :keywords: Anton Lydell, data, database, DataFrame, data analytics, data science, GitHub, pandas, Pandemy, PyPI, Python, Python package, read_sql, SQLAlchemy, SQLite, sql statement, to_sql
+
 Pandemy is a wrapper around `pandas`_ and `SQLAlchemy`_ to provide an easy class based interface for working with DataFrames and databases.
 This package is for those who enjoy working with `pandas`_ and SQL but do not want to learn all "bells and whistles" of `SQLAlchemy`_.
 Use your existing SQL knowledge and provide text based SQL statements to load DataFrames from and write DataFrames to databases.

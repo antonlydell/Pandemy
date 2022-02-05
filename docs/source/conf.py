@@ -55,7 +55,8 @@ extensions = [
     'sphinx.ext.coverage',  # .\make coverage
     'sphinx.ext.doctest',  # .\make doctest
     'sphinx.ext.intersphinx',
-    'sphinx.ext.napoleon'
+    'sphinx.ext.napoleon',
+    'sphinx.ext.viewcode'
 ]
 
 # Minimum version, enforced by sphinx
