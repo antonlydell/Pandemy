@@ -2,6 +2,8 @@
 Pandemy
 *******
 
+|PyPI| |Python| |Docs| |LICENSE|
+
 Pandemy is a wrapper around `pandas`_ and `SQLAlchemy`_ to provide an easy class based interface for working with DataFrames and databases.
 This package is for those who enjoy working with pandas and SQL but do not want to learn all "bells and whistles" of SQLAlchemy.
 Use your existing SQL knowledge and provide text based SQL statements to load DataFrames from and write DataFrames to databases.
@@ -13,14 +15,14 @@ Use your existing SQL knowledge and provide text based SQL statements to load Da
 Installation
 ============
 
-Pandemy is available for installation through `PyPI`_ using `pip`_ and the source code is hosted on GitHub at: https://github.com/antonlydell/pandemy
+Pandemy is available for installation through `PyPI`_ using `pip`_ and the source code is hosted on GitHub at: https://github.com/antonlydell/Pandemy
 
 .. _PyPI: https://pypi.org/project/pandemy/
 .. _pip: https://pip.pypa.io/en/stable/getting-started/
 
 .. code-block:: bash
 
-    $ pip install pandemy
+    $ pip install Pandemy
 
 
 Dependencies
@@ -133,8 +135,7 @@ uses the `read_sql`_ DataFrame method from pandas.
 Documentation
 =============
 
-The full documentation is under development.
-
+The full documentation is hosted at: https://pandemy.readthedocs.io
 
 Tests
 =====
@@ -143,7 +144,7 @@ Pandemy has a test suite that is using the `pytest`_ framework.
 The test suite is located in the directory `tests`_.
 
 .. _pytest: https://docs.pytest.org/en/latest/
-.. _tests: https://github.com/antonlydell/pandemy/tests
+.. _tests: https://github.com/antonlydell/Pandemy/tree/main/tests
 
 Run the test suite with the ``pytest`` command from the root directory of the repository:
 
@@ -170,10 +171,31 @@ Please use the category `Ideas`_ for suggestions and feature request and the `Ge
 Bug reports should be submitted at the `Github Issues`_ tab.
 
 
-.. _Github Discussions: https://github.com/antonlydell/pandemy/discussions
+.. _Github Discussions: https://github.com/antonlydell/Pandemy/discussions
 
-.. _Ideas: https://github.com/antonlydell/pandemy/discussions/categories/ideas
+.. _Ideas: https://github.com/antonlydell/Pandemy/discussions/categories/ideas
 
-.. _General: https://github.com/antonlydell/pandemy/discussions/categories/general
+.. _General: https://github.com/antonlydell/Pandemy/discussions/categories/general
 
-.. _Github Issues: https://github.com/antonlydell/pandemy/issues
+.. _Github Issues: https://github.com/antonlydell/Pandemy/issues
+
+
+.. |Docs| image:: https://readthedocs.org/projects/pip/badge/?version=latest&style=plastic  
+    :alt: Documentation status
+    :scale: 100%
+    :target: https://pandemy.readthedocs.io/en/latest/?badge=latest
+
+.. |LICENSE| image:: https://img.shields.io/pypi/l/Pandemy?style=plastic
+    :alt: PyPI - License
+    :scale: 100%
+    :target: https://github.com/antonlydell/Pandemy/blob/main/LICENSE
+
+.. |PyPI| image:: https://img.shields.io/pypi/v/Pandemy?style=plastic
+    :alt: PyPI
+    :scale: 100%
+    :target: https://pypi.org/project/Pandemy/
+
+.. |Python| image:: https://img.shields.io/pypi/pyversions/Pandemy?style=plastic
+    :alt: PyPI - Python Version
+    :scale: 100%
+    :target: https://pypi.org/project/Pandemy/
