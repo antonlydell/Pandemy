@@ -66,7 +66,7 @@ Examples
 __version__ = '1.0.0'
 r"""The Pandemy version string."""
 
-__releasedate__: date = date(2022, 1, 30)
+__releasedate__: date = date(2022, 2, 12)
 r"""The release date of the version specified in :data:`__versiontuple__`."""
 
 # ===============================================================
