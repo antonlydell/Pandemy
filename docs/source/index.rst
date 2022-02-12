@@ -60,9 +60,9 @@ The documentation consists of 3 parts:
    :hidden:
    :caption: Links
 
-   GitHub ↪ <https://github.com/antonlydell/pandemy>
+   GitHub ↪ <https://github.com/antonlydell/Pandemy>
    LinkedIn ↪ <https://www.linkedin.com/in/antonlydell/>
-   PyPI ↪ <https://pypi.org/project/pandemy/>
+   PyPI ↪ <https://pypi.org/project/Pandemy/>
 
 
 ******************

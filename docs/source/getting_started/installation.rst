@@ -1,16 +1,16 @@
 Installation
 ============
 
-Pandemy is available for installation through `PyPI`_ using `pip`_ and the source code is hosted on GitHub at: https://github.com/antonlydell/pandemy
+Pandemy is available for installation through `PyPI`_ using `pip`_ and the source code is hosted on GitHub at: https://github.com/antonlydell/Pandemy
 
-.. _PyPI: https://pypi.org/project/pandemy/
+.. _PyPI: https://pypi.org/project/Pandemy/
 .. _pip: https://pip.pypa.io/en/stable/getting-started/
 
 Install Pandemy by running:
 
 .. code-block:: bash
 
-    $ pip install pandemy
+    $ pip install Pandemy
 
 
 Dependencies
