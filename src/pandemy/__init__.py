@@ -21,6 +21,7 @@ from pandemy.exceptions import (
    PandemyError,
    InvalidInputError,
    DatabaseManagerError,
+   CreateConnectionURLError,
    CreateEngineError,
    DatabaseFileNotFoundError,
    DataTypeConversionError,
@@ -40,7 +41,8 @@ from pandemy.sqlcontainer import (
 
 from pandemy.databasemanager import (
    DatabaseManager,
-   SQLiteDb
+   SQLiteDb,
+   OracleDb
 )
 
 # ===============================================================
@@ -78,6 +80,7 @@ __all__ = [
    'PandemyError',
    'InvalidInputError',
    'DatabaseManagerError',
+   'CreateConnectionURLError,'
    'CreateEngineError',
    'DatabaseFileNotFoundError',
    'DataTypeConversionError',
@@ -96,6 +99,7 @@ __all__ = [
    # databasemanager
    'DatabaseManager',
    'SQLiteDb',
+   'OracleDb',
 
    # attributes
    '__versiontuple__',

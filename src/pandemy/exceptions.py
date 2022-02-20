@@ -45,6 +45,13 @@ class DatabaseManagerError(PandemyError):
     """
 
 
+class CreateConnectionURLError(DatabaseManagerError):
+    r"""Error when creating a connection URL to create the database :class:`Engine <sqlalchemy.engine.Engine>`.
+
+    .. versionadded:: 1.1.0
+    """
+
+
 class CreateEngineError(DatabaseManagerError):
     r"""Error when creating the database :class:`Engine <sqlalchemy.engine.Engine>`."""
 

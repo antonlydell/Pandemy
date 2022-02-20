@@ -13,11 +13,13 @@ from abc import ABC, abstractmethod
 import logging
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterator, List, Optional, Sequence, Union
+import urllib
 
 # Third Party
 import pandas as pd
 from sqlalchemy import create_engine
 from sqlalchemy.engine.base import Connection
+from sqlalchemy.engine import URL
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.sql import text
 from sqlalchemy.sql.elements import TextClause
@@ -807,3 +809,150 @@ class SQLiteDb(DatabaseManager):
             conn.execute(f'PRAGMA foreign_keys = {action};')
         except Exception as e:
             raise pandemy.ExecuteStatementError(f'{type(e).__name__}: {e.args}', data=e.args) from None
+
+
+class OracleDb(DatabaseManager):
+    r"""An Oracle :class:`DatabaseManager`.
+
+    Requires the `cx_Oracle`_ package to be able
+    to create a connection to the database.
+
+    To use a DSN connection specified in the Oracle connection config file, *tnsnames.ora*,
+    set `host` to the name of the desired network service name in *tnsnames.ora* and leave
+    `port`, `service_name` and `sid` as ``None``. Using a *tnsnames.ora* file is needed
+    to connect to `Oracle Cloud Autononmous Databases`_.
+
+    .. _cx_Oracle: https://oracle.github.io/python-cx_Oracle/
+
+    Parameters
+    ----------
+    username : str
+        The username of the database account.
+
+    password : str
+        The password of the database account.
+
+    host : str
+        The host name or server IP-address where the database is located.
+
+    port : int or str or None, default None
+        The port the `host` is listening on.
+        The default port of Oracle databases is 1521.
+
+    service_name : str or None, default None
+        The name of the service used for the database connection.
+
+    sid : str or None, default None
+        The SID used for the connection. SID is the name of the database instance on the `host`.
+        Note that `sid` and `service_name` should not be specified at the same time.
+
+    container : SQLContainer or None, default None
+        A container of database statements that the Oracle :class:`DatabaseManager` can use.
+
+    connect_args : dict or None, default None
+        Additional arguments sent to the driver upon connection that further
+        customizes the connection.
+
+    engine_config : dict or None, default None
+        Additional keyword arguments passed to the :func:`sqlalchemy.create_engine` function.
+
+    **kwargs : dict
+        Additional keyword arguments that are not used by :class:`OracleDb`.
+
+    Raises
+    ------
+    pandemy.InvalidInputError
+        If both `service` and `sid` are specified at the same time.
+
+    pandemy.CreateConnectionURLError
+        If the creation of the connection URL fails.
+
+    pandemy.CreateEngineError
+        If the creation of the database engine fails.
+
+    See Also
+    --------
+    * :class:`pandemy.DatabaseManager` : The parent class.
+
+    * :func:`sqlalchemy.create_engine` : The function used to create the database engine.
+
+    * `The cx_Oracle database driver`_ : Details of the cx_Oracle driver and its usage in SQLAlchemy.
+
+    * `cx_Oracle documentation <https://cx-oracle.readthedocs.io/en/latest/>`_
+
+    * `Specifying connect_args`_ : Details about the `connect_args` parameter.
+
+    * `tnsnames.ora`_ : Oracle connection config file.
+
+    * `Oracle Cloud Autononmous Databases`_
+
+    .. _The cx_Oracle database driver: https://docs.sqlalchemy.org/en/14/dialects/oracle.html#module-sqlalchemy.dialects.oracle.cx_oracle
+
+    .. _Specifying connect_args: https://docs.sqlalchemy.org/en/14/core/engines.html#custom-dbapi-args
+
+    .. _tnsnames.ora: https://docs.oracle.com/database/121/NETRF/tnsnames.htm#NETRF259
+
+    .. _Oracle Cloud Autononmous Databases : https://cx-oracle.readthedocs.io/en/latest/user_guide/connection_handling.html#connecting-to-oracle-cloud-autononmous-databases
+    """
+
+    def __init__(self,
+                 username: str,
+                 password: str,
+                 host: str,
+                 port: Optional[Union[int, str]] = None,
+                 service_name: Optional[str] = None,
+                 sid: Optional[str] = None,
+                 connect_args: Optional[Dict[str, Any]] = None,
+                 container: Optional[pandemy.SQLContainer] = None,
+                 engine_config: Optional[Dict[str, Any]] = None,
+                 **kwargs: dict) -> None:
+
+        self.username = username
+        self.password = password
+        self.host = host
+        self.port = port
+        self.service_name = service_name
+        self.sid = sid
+        self.container = container
+        self.connect_args = connect_args if connect_args is not None else {}
+        self.engine_config = engine_config if engine_config is not None else {}
+
+        # Check that service_name and sid are not used together
+        if service_name is not None and sid is not None:
+            raise pandemy.InvalidInputError(
+                        'Use either service_name or sid to connect to the database, not both! '
+                        f'service={service_name!r}, sid={sid!r}',
+                        data=(service_name, sid)
+                    )
+
+        # Encode username and password to make special characters url compatible
+        try:
+            username = urllib.parse.quote_plus(username)
+            password = urllib.parse.quote_plus(password)
+        except UnicodeEncodeError as e:
+            raise pandemy.CreateConnectionURLError(
+                        f'Could not URL encode username or password: {e.args}',
+                        data=e.args
+                    ) from None
+
+        # Build the connection URL
+        try:
+            self.url = URL.create(
+                    drivername='oracle+cx_oracle',
+                    username=username,
+                    password=password,
+                    host=host,
+                    port=port,
+                    database=sid,
+                    query={'service_name': service_name} if service_name is not None else {}
+                )
+        except Exception as e:
+            raise pandemy.CreateConnectionURLError(message=f'{type(e).__name__}: {e.args}', data=e.args) from None
+
+        # Create the engine
+        try:
+            self.engine = create_engine(self.url, connect_args=self.connect_args, **self.engine_config)
+        except Exception as e:
+            raise pandemy.CreateEngineError(message=f'{type(e).__name__}: {e.args}', data=e.args) from None
+        else:
+            logger.debug(f'Successfully created database engine from url: {self.url}.')
