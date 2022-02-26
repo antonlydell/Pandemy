@@ -91,7 +91,7 @@ class DatabaseManager(ABC):
     def __str__(self) -> str:
         r"""String representation of the object."""
 
-        return self.__class__.__name__
+        return f'{self.__class__.__name__}({repr(self.url)})'
 
     def __repr__(self) -> str:
         r"""Debug representation of the object."""
@@ -107,6 +107,9 @@ class DatabaseManager(ABC):
 
         # Append the attribute names and values
         for attrib, value in attributes:
+            if attrib == 'password':  # Mask the password
+                value = '***'
+
             repr_str += f'{space}{attrib}={value!r},\n'
 
         # Remove last unwanted ', '
