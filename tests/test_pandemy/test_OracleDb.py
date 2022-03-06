@@ -9,6 +9,7 @@ r"""Tests for the Oracle DatabaseManager `OracleDb`."""
 # Third Party
 import cx_Oracle
 import pytest
+from sqlalchemy import create_engine
 
 # Local
 import pandemy
@@ -429,6 +430,231 @@ class TestInitOracleDb:
         # ===========================================================
 
 
+class TestFromURLMethod:
+    r"""Test the `from_url` class method of the Oracle DatabaseManager `OracleDb`.
+
+    `from_url` is an alternative constructor to create an instance of `OracleDb`
+    from a SQLAlchemy URL.
+    """
+
+    @pytest.mark.parametrize(
+        'container',
+        (
+            pytest.param(None, id='container=None'),
+            pytest.param(OracleSQLContainer, id='container=OracleSQLContainer')
+        )
+    )
+    def test_from_url(self, container):
+        r"""Given a URL, create an instance of `OracleDb`.
+
+        Parameters
+        ----------
+        container : None or pandemy.SQLContainer
+            The value of the container parameter of `OracleDb`.
+        """
+
+        # Setup
+        # ===========================================================
+        drivername = 'oracle+cx_oracle'
+        username = 'Fred_the_Farmer'
+        password = 'Penguins-sheep-are-not'
+        host = 'fred.farmer.rs'
+        port = 1234
+        service_name = 'woollysheep'
+        url_str = f'{drivername}://{username}:{password}@{host}:{port}?service_name={service_name}'
+        url_repr = f'{drivername}://{username}:***@{host}:{port}?service_name={service_name}'
+
+        # Exercise
+        # ===========================================================
+        db = pandemy.OracleDb.from_url(url=url_str, container=container)
+
+        # Verify
+        # ===========================================================
+        assert db.username == username
+        assert db.password == password
+        assert db.host == host
+        assert db.port == port
+        assert db.service_name == service_name
+        assert db.sid is None
+        assert db.container is container
+        assert db.connect_args == {}
+        assert db.engine_config == {}
+        assert str(db.url) == url_str
+        assert repr(db.url) == url_repr
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_from_url_with_engine_config(self):
+        r"""Create an instance of `OracleDb` from a URL with extra engine configuration."""
+
+        # Setup
+        # ===========================================================
+        drivername = 'oracle+cx_oracle'
+        username = 'Fred_the_Farmer'
+        password = 'Penguins-sheep-are-not'
+        host = 'fred.farmer.rs'
+        port = 1234
+        service_name = 'woollysheep'
+        engine_config = {
+            'coerce_to_unicode': False,
+            'arraysize': 40,
+            'auto_convert_lobs': False
+        }
+        url_str = f'{drivername}://{username}:{password}@{host}:{port}?service_name={service_name}'
+        url_repr = f'{drivername}://{username}:***@{host}:{port}?service_name={service_name}'
+
+        # Exercise
+        # ===========================================================
+        db = pandemy.OracleDb.from_url(url=url_str, engine_config=engine_config)
+
+        # Verify
+        # ===========================================================
+        assert db.username == username
+        assert db.password == password
+        assert db.host == host
+        assert db.port == port
+        assert db.service_name == service_name
+        assert db.sid is None
+        assert db.container is None
+        assert db.connect_args == {}
+        assert db.engine_config == engine_config
+        assert str(db.url) == url_str
+        assert repr(db.url) == url_repr
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_from_url_with_query_params(self):
+        r"""The URL contains connect arguments as query parameters.
+
+        SQLAlchemy orders the query parameters alphabetically when
+        the string URL is converted to a `sqlalchemy.engine.URL`.
+        """
+
+        # Setup
+        # ===========================================================
+        drivername = 'oracle+cx_oracle'
+        username = 'Fred_the_Farmer'
+        password = 'Penguins-sheep-are-not'
+        host = 'fred.farmer.rs'
+        port = 1234
+        service_name = 'woollysheep'
+        url_str = (
+            f'{drivername}://{username}:{password}@{host}:{port}?service_name={service_name}'
+            '&encoding=UTF-8&nencoding=UTF-8&mode=SYSDBA&events=true'
+        )
+        query_dict_exp = {
+            'service_name': 'woollysheep',
+            'encoding': 'UTF-8',
+            'nencoding': 'UTF-8',
+            'mode': 'SYSDBA',
+            'events': 'true'
+        }
+
+        # Exercise
+        # ===========================================================
+        db = pandemy.OracleDb.from_url(url=url_str)
+
+        # Verify
+        # ===========================================================
+        assert db.username == username
+        assert db.password == password
+        assert db.host == host
+        assert db.port == port
+        assert db.service_name == service_name
+        assert db.sid is None
+        assert db.container is None
+        assert db.connect_args == {}
+        assert db.engine_config == {}
+        assert db.url.query == query_dict_exp
+
+        # Clean up - None
+        # ===========================================================
+
+    @pytest.mark.raises
+    def test_invalid_url(self):
+        r"""The URL has invalid URL syntax.
+
+        pandemy.CreateConnectionURLError is expected to be raised.
+        """
+
+        # Setup
+        # ===========================================================
+        url = 'oracle+cx_oracle:://Fred_the_Farmer:Penguins-sheep-are-not@fred.farmer.rs:1234?service_name=woollysheep'
+
+        # Exercise
+        # ===========================================================
+        with pytest.raises(pandemy.CreateConnectionURLError) as exc_info:
+            pandemy.OracleDb.from_url(url=url)
+
+        # Verify
+        # ===========================================================
+        assert exc_info.type is pandemy.CreateConnectionURLError
+        assert exc_info.value.data is not None
+
+        # Clean up - None
+        # ===========================================================
+
+
+class TestFromEngineMethod:
+    r"""Test the `from_engine` class method of the Oracle DatabaseManager `OracleDb`.
+
+    `from_engine` is an alternative constructor to create an instance of `OracleDb`
+    from a SQLAlchemy Engine.
+    """
+
+    @pytest.mark.parametrize(
+        'container',
+        (
+            pytest.param(None, id='container=None'),
+            pytest.param(OracleSQLContainer, id='container=OracleSQLContainer')
+        )
+    )
+    def test_from_engine(self, container):
+        r"""Given a sqlalchemy.engine.Engine, create an instance of `OracleDb`.
+
+        Parameters
+        ----------
+        container : None or pandemy.SQLContainer
+            The value of the container parameter of `OracleDb`.
+        """
+
+        # Setup
+        # ===========================================================
+        drivername = 'oracle+cx_oracle'
+        username = 'Fred_the_Farmer'
+        password = 'Penguins-sheep-are-not'
+        host = 'fred.farmer.rs'
+        port = 1234
+        service_name = 'woollysheep'
+        url_str = f'{drivername}://{username}:{password}@{host}:{port}?service_name={service_name}'
+        url_repr = f'{drivername}://{username}:***@{host}:{port}?service_name={service_name}'
+        engine = create_engine(url_str)
+
+        # Exercise
+        # ===========================================================
+        db = pandemy.OracleDb.from_engine(engine=engine, container=container)
+
+        # Verify
+        # ===========================================================
+        assert db.username == username
+        assert db.password == password
+        assert db.host == host
+        assert db.port == port
+        assert db.service_name == service_name
+        assert db.sid is None
+        assert db.container is container
+        assert db.connect_args == {}
+        assert db.engine_config == {}
+        assert str(db.url) == url_str
+        assert repr(db.url) == url_repr
+        assert db.engine is engine
+
+        # Clean up - None
+        # ===========================================================
+
+
 class TestStrAndReprMethods:
     r"""Test the `__str__` and `__repr__` methods of the Oracle DatabaseManager `OracleDb`."""
 
@@ -506,18 +732,18 @@ class TestStrAndReprMethods:
         )
 
         exp_result = f"""OracleDb(
-   username={username!r},
-   password='***',
-   host={host!r},
-   port={port!r},
-   service_name=None,
-   sid={sid!r},
-   container={container!r},
-   connect_args={connect_args!r},
-   engine_config={engine_config!r},
-   url={url_repr},
-   engine={db.engine!r}
-  )"""
+    username={username!r},
+    password='***',
+    host={host!r},
+    port={port!r},
+    service_name=None,
+    sid={sid!r},
+    container={container!r},
+    connect_args={connect_args!r},
+    engine_config={engine_config!r},
+    url={url_repr},
+    engine={db.engine!r}
+)"""
 
         # Exercise
         # ===========================================================

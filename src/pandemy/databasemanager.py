@@ -9,6 +9,7 @@ Each SQL-dialect is implemented as a subclass of :class:`DatabaseManager <pandem
 # ===============================================================
 
 # Standard Library
+from __future__ import annotations
 from abc import ABC, abstractmethod
 import logging
 from pathlib import Path
@@ -19,7 +20,7 @@ import urllib
 import pandas as pd
 from sqlalchemy import create_engine
 from sqlalchemy.engine.base import Connection
-from sqlalchemy.engine import URL
+from sqlalchemy.engine import Engine, make_url, URL
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.sql import text
 from sqlalchemy.sql.elements import TextClause
@@ -100,7 +101,7 @@ class DatabaseManager(ABC):
         attributes = self.__dict__.items()
 
         # The space to add before each new parameter on a new line
-        space = '   '
+        space = ' ' * 4
 
         # The name of the class
         repr_str = f'{self.__class__.__name__}(\n'
@@ -116,7 +117,7 @@ class DatabaseManager(ABC):
         repr_str = repr_str[:-2]
 
         # Add closing parentheses
-        repr_str += f'\n{space[:-1]})'
+        repr_str += '\n)'
 
         return repr_str
 
@@ -820,8 +821,8 @@ class OracleDb(DatabaseManager):
     Requires the `cx_Oracle`_ package to be able
     to create a connection to the database.
 
-    To use a DSN connection specified in the Oracle connection config file, *tnsnames.ora*,
-    set `host` to the name of the desired network service name in *tnsnames.ora* and leave
+    To use a DSN connection string specified in the Oracle connection config file, *tnsnames.ora*,
+    set `host` to the desired network service name in *tnsnames.ora* and leave
     `port`, `service_name` and `sid` as ``None``. Using a *tnsnames.ora* file is needed
     to connect to `Oracle Cloud Autononmous Databases`_.
 
@@ -850,7 +851,7 @@ class OracleDb(DatabaseManager):
         Note that `sid` and `service_name` should not be specified at the same time.
 
     container : SQLContainer or None, default None
-        A container of database statements that the Oracle :class:`DatabaseManager` can use.
+        A container of database statements that :class:`OracleDb` can use.
 
     connect_args : dict or None, default None
         Additional arguments sent to the driver upon connection that further
@@ -861,6 +862,16 @@ class OracleDb(DatabaseManager):
 
     **kwargs : dict
         Additional keyword arguments that are not used by :class:`OracleDb`.
+
+    Other Parameters
+    ----------------
+    url : :class:`str` or :class:`sqlalchemy.engine.URL`
+        A SQLAlchemy connection URL to use for creating the database engine.
+        This parameter is set by the :meth:`OracleDb.from_url` alternative constructor method.
+
+    engine : :class:`sqlalchemy.engine.Engine`
+        A SQLAlchemy Engine to use as the database engine of :class:`OracleDb`.
+        This parameter is set by the :meth:`OracleDb.from_engine` alternative constructor method.
 
     Raises
     ------
@@ -896,6 +907,71 @@ class OracleDb(DatabaseManager):
     .. _tnsnames.ora: https://docs.oracle.com/database/121/NETRF/tnsnames.htm#NETRF259
 
     .. _Oracle Cloud Autononmous Databases : https://cx-oracle.readthedocs.io/en/latest/user_guide/connection_handling.html#connecting-to-oracle-cloud-autononmous-databases
+
+    Examples
+    --------
+    Create an instance of :class:`OracleDb` and connect using a service:
+
+    >>> db = pandemy.OracleDb(
+    ... username='Fred_the_Farmer',
+    ... password='Penguins-sheep-are-not',
+    ... host='fred.farmer.rs',
+    ... port=1234,
+    ... service_name='woollysheep'
+    ... )
+    >>> str(db)
+    'OracleDb(oracle+cx_oracle://Fred_the_Farmer:***@fred.farmer.rs:1234?service_name=woollysheep)'
+    >>> db.username
+    'Fred_the_Farmer'
+    >>> db.password
+    'Penguins-sheep-are-not'
+    >>> db.host
+    'fred.farmer.rs'
+    >>> db.port
+    1234
+    >>> db.service_name
+    'woollysheep'
+    >>> db.url
+    oracle+cx_oracle://Fred_the_Farmer:***@fred.farmer.rs:1234?service_name=woollysheep
+    >>> db.engine
+    Engine(oracle+cx_oracle://Fred_the_Farmer:***@fred.farmer.rs:1234?service_name=woollysheep)
+
+    Connect with a DSN connection string using a net service name from a *tnsnames.ora* config file
+    and supply additional connection arguments and engine configuration:
+
+    >>> import cx_Oracle
+    >>> connect_args = {
+    ... 'encoding': 'UTF-8',
+    ... 'nencoding': 'UTF-8',
+    ... 'mode': cx_Oracle.SYSDBA,
+    ... 'events': True
+    ... }
+    >>> engine_config = {
+    ... 'coerce_to_unicode': False,
+    ... 'arraysize': 40,
+    ... 'auto_convert_lobs': False
+    ... }
+    >>> db = pandemy.OracleDb(
+    ... username='Fred_the_Farmer',
+    ... password='Penguins-sheep-are-not',
+    ... host='my_dsn_name',
+    ... connect_args=connect_args,
+    ... engine_config=engine_config
+    ... )
+    >>> db
+    OracleDb(
+        username='Fred_the_Farmer',
+        password='***',
+        host='my_dsn_name',
+        port=None,
+        service_name=None,
+        sid=None,
+        container=None,
+        connect_args={'encoding': 'UTF-8', 'nencoding': 'UTF-8', 'mode': 2, 'events': True},
+        engine_config={'coerce_to_unicode': False, 'arraysize': 40, 'auto_convert_lobs': False},
+        url=oracle+cx_oracle://Fred_the_Farmer:***@my_dsn_name,
+        engine=Engine(oracle+cx_oracle://Fred_the_Farmer:***@my_dsn_name)
+    )
     """
 
     def __init__(self,
@@ -908,6 +984,8 @@ class OracleDb(DatabaseManager):
                  connect_args: Optional[Dict[str, Any]] = None,
                  container: Optional[pandemy.SQLContainer] = None,
                  engine_config: Optional[Dict[str, Any]] = None,
+                 url: Optional[Union[str, URL]] = None,
+                 engine: Optional[Engine] = None,
                  **kwargs: dict) -> None:
 
         self.username = username
@@ -919,6 +997,8 @@ class OracleDb(DatabaseManager):
         self.container = container
         self.connect_args = connect_args if connect_args is not None else {}
         self.engine_config = engine_config if engine_config is not None else {}
+        self.url = url
+        self.engine = engine
 
         # Check that service_name and sid are not used together
         if service_name is not None and sid is not None:
@@ -928,34 +1008,154 @@ class OracleDb(DatabaseManager):
                         data=(service_name, sid)
                     )
 
-        # Encode username and password to make special characters url compatible
-        try:
-            username = urllib.parse.quote_plus(username)
-            password = urllib.parse.quote_plus(password)
-        except UnicodeEncodeError as e:
-            raise pandemy.CreateConnectionURLError(
-                        f'Could not URL encode username or password: {e.args}',
-                        data=e.args
-                    ) from None
+        if self.url is None:
+            # Encode username and password to make special characters url compatible
+            try:
+                username = urllib.parse.quote_plus(username)
+                password = urllib.parse.quote_plus(password)
+            except UnicodeEncodeError as e:
+                raise pandemy.CreateConnectionURLError(
+                            f'Could not URL encode username or password: {e.args}',
+                            data=e.args
+                        ) from None
 
-        # Build the connection URL
+            # Build the connection URL
+            try:
+                self.url = URL.create(
+                        drivername='oracle+cx_oracle',
+                        username=username,
+                        password=password,
+                        host=host,
+                        port=port,
+                        database=sid,
+                        query={'service_name': service_name} if service_name is not None else {}
+                    )
+            except Exception as e:
+                raise pandemy.CreateConnectionURLError(message=f'{type(e).__name__}: {e.args}', data=e.args) from None
+
+        # Create the engine
+        if self.engine is None:
+            try:
+                self.engine = create_engine(self.url, connect_args=self.connect_args, **self.engine_config)
+            except Exception as e:
+                raise pandemy.CreateEngineError(message=f'{type(e).__name__}: {e.args}', data=e.args) from None
+            else:
+                logger.debug(f'Successfully created database engine from url: {self.url}.')
+
+    @classmethod
+    def from_url(cls,
+                 url: Union[str, URL],
+                 container: Optional[pandemy.SQLContainer] = None,
+                 engine_config: Optional[Dict[str, Any]] = None) -> OracleDb:
+        r"""Create an instance of :class:`OracleDb` from a SQLAlchemy :class:`URL <sqlalchemy.engine.URL>`.
+
+        Parameters
+        ----------
+        url : str or sqlalchemy.engine.URL
+            A SQLAlchemy URL to use for creating the database engine.
+
+        container : SQLContainer or None, default None
+            A container of database statements that :class:`OracleDb` can use.
+
+        engine_config : dict or None, default None
+            Additional keyword arguments passed to the :func:`sqlalchemy.create_engine` function.
+
+        Raises
+        ------
+        pandemy.CreateConnectionURLError
+            If `url` is invalid.
+
+        Examples
+        --------
+        If you are familiar with the connection URL syntax of SQLAlchemy you can create an instance of
+        :class:`OracleDb` directly from a URL:
+
+        >>> url = 'oracle+cx_oracle://Fred_the_Farmer:Penguins-sheep-are-not@my_dsn_name'
+        >>> db = pandemy.OracleDb.from_url(url)
+        >>> db
+        OracleDb(
+            username='Fred_the_Farmer',
+            password='***',
+            host='my_dsn_name',
+            port=None,
+            service_name=None,
+            sid=None,
+            container=None,
+            connect_args={},
+            engine_config={},
+            url=oracle+cx_oracle://Fred_the_Farmer:***@my_dsn_name,
+            engine=Engine(oracle+cx_oracle://Fred_the_Farmer:***@my_dsn_name)
+        )
+        """
+
         try:
-            self.url = URL.create(
-                    drivername='oracle+cx_oracle',
-                    username=username,
-                    password=password,
-                    host=host,
-                    port=port,
-                    database=sid,
-                    query={'service_name': service_name} if service_name is not None else {}
-                )
+            url = make_url(url)
         except Exception as e:
             raise pandemy.CreateConnectionURLError(message=f'{type(e).__name__}: {e.args}', data=e.args) from None
 
-        # Create the engine
-        try:
-            self.engine = create_engine(self.url, connect_args=self.connect_args, **self.engine_config)
-        except Exception as e:
-            raise pandemy.CreateEngineError(message=f'{type(e).__name__}: {e.args}', data=e.args) from None
-        else:
-            logger.debug(f'Successfully created database engine from url: {self.url}.')
+        return cls(
+            username=url.username,
+            password=url.password,
+            host=url.host,
+            port=url.port,
+            sid=url.database,
+            service_name=url.query.get('service_name'),
+            container=container,
+            engine_config=engine_config,
+            url=url
+        )
+
+    @classmethod
+    def from_engine(cls, engine: Engine, container: Optional[pandemy.SQLContainer] = None) -> OracleDb:
+        r"""Create an instance of :class:`OracleDb` from a SQLAlchemy :class:`Engine <sqlalchemy.engine.Engine>`.
+
+        Parameters
+        ----------
+        engine : sqlalchemy.engine.Engine
+            A SQLAlchemy Engine to use as the database engine of :class:`OracleDb`.
+
+        container : SQLContainer or None, default None
+            A container of database statements that :class:`OracleDb` can use.
+
+        Examples
+        --------
+        If you already have a database :class:`engine <sqlalchemy.engine.Engine>` and would like to use it
+        with :class:`OracleDb` simply create the instance like this:
+
+        >>> from sqlalchemy import create_engine
+        >>> url = 'oracle+cx_oracle://Fred_the_Farmer:Penguins-sheep-are-not@fred.farmer.rs:1234/shears'
+        >>> engine = create_engine(url, coerce_to_unicode=False)
+        >>> db = pandemy.OracleDb.from_engine(engine)
+        >>> db
+        OracleDb(
+            username='Fred_the_Farmer',
+            password='***',
+            host='fred.farmer.rs',
+            port=1234,
+            service_name=None,
+            sid='shears',
+            container=None,
+            connect_args={},
+            engine_config={},
+            url=oracle+cx_oracle://Fred_the_Farmer:***@fred.farmer.rs:1234/shears,
+            engine=Engine(oracle+cx_oracle://Fred_the_Farmer:***@fred.farmer.rs:1234/shears)
+        )
+
+        This is useful if you have special needs for creating the engine that cannot be accomplished
+        with the default constructor of :class:`OracleDb`. See for instance the `cx_Oracle SessionPool`_
+        example in the SQLAlchemy docs.
+
+        .. _cx_Oracle SessionPool: https://docs.sqlalchemy.org/en/14/dialects/oracle.html#using-cx-oracle-sessionpool
+        """
+
+        return cls(
+            username=engine.url.username,
+            password=engine.url.password,
+            host=engine.url.host,
+            port=engine.url.port,
+            sid=engine.url.database,
+            service_name=engine.url.query.get('service_name'),
+            container=container,
+            url=engine.url,
+            engine=engine
+        )
