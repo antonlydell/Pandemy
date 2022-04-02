@@ -826,6 +826,8 @@ class OracleDb(DatabaseManager):
     `port`, `service_name` and `sid` as ``None``. Using a *tnsnames.ora* file is needed
     to connect to `Oracle Cloud Autononmous Databases`_.
 
+    .. versionadded:: 1.1.0
+
     .. _cx_Oracle: https://oracle.github.io/python-cx_Oracle/
 
     Parameters

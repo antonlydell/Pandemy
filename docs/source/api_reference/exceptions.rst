@@ -9,6 +9,8 @@ Exceptions
 
 .. autoexception:: pandemy.DatabaseManagerError
 
+.. autoexception:: pandemy.CreateConnectionURLError
+
 .. autoexception:: pandemy.CreateEngineError
 
 .. autoexception:: pandemy.DatabaseFileNotFoundError
