@@ -1703,13 +1703,13 @@ class TestStrAndReprMethods:
         db = pandemy.SQLiteDb(file=file, must_exist=must_exist, container=container, engine_config=engine_config)
 
         exp_result = f"""SQLiteDb(
-   file={file!r},
-   must_exist={must_exist!r},
-   container={container!r},
-   engine_config={engine_config!r},
-   conn_str={db.conn_str!r},
-   engine={db.engine!r}
-  )"""
+    file={file!r},
+    must_exist={must_exist!r},
+    container={container!r},
+    engine_config={engine_config!r},
+    conn_str={db.conn_str!r},
+    engine={db.engine!r}
+)"""
 
         # Exercise
         # ===========================================================

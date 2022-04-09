@@ -18,7 +18,7 @@ This section describes the available database dialects in Pandemy and the dialec
 
 - **SQLite**: :class:`SQLiteDb <pandemy.SQLiteDb>`.
 
-- **Oracle**: Planned. 
+- **Oracle**: :class:`OracleDb <pandemy.OracleDb>` (added in version 1.1.0).
 
 - **Microsoft SQL Server**: Planned.
 
@@ -48,4 +48,4 @@ place where they can be easily accessed by the :class:`DatabaseManager <pandemy.
 the :class:`SQLContainer <pandemy.SQLContainer>` should be subclassed and not used directly. If your application supports multiple SQL databases you can 
 write the SQL statements the application needs in each SQL dialect and store the statements in one :class:`SQLContainer <pandemy.SQLContainer>` per dialect.
 Examples of using the :class:`SQLContainer <pandemy.SQLContainer>` with the SQLite DatabaseManager :class:`SQLiteDb <pandemy.SQLiteDb>` are shown in section
-:ref:`Using a SQLContainer to organize SQL statements`.
+:ref:`user_guide/sqlite/sqlcontainer:Using the SQLContainer`.

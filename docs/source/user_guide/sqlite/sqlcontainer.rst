@@ -1,5 +1,3 @@
-.. _Using a SQLContainer to organize SQL statements:
-
 Using the SQLContainer
 ----------------------
 

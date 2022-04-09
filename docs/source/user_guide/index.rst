@@ -14,3 +14,4 @@ Thereafter the implemented SQL dialects are described.
 
    databasemanager
    sqlite/index
+   oracle/index

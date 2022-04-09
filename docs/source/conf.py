@@ -144,7 +144,10 @@ except Exception:
 
 # -- Options for sphinx.ext.napoleon ------------------------------------------
 
-napoleon_custom_sections = [('Attributes', 'params_style')]
+napoleon_custom_sections = [
+    ('Attributes', 'params_style'),
+    ('Other Parameters', 'params_style')
+]
 # Attributes should be rendered by default, but is not for some reason.
 
 # Add a list of custom sections to include, expanding the list of parsed sections.
