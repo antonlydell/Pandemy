@@ -49,7 +49,7 @@ from pandemy.databasemanager import (
 # Attributes
 # ===============================================================
 
-__versiontuple__: Tuple[Union[int, str], ...] = (1, 0, 0)
+__versiontuple__: Tuple[Union[int, str], ...] = (1, 1, 0)
 r"""The version of Pandemy in a comparable form.
 
 Adheres to `Semantic Versioning <https://semver.org/spec/v2.0.0.html>`_
@@ -65,10 +65,10 @@ Examples
    True
 """
 
-__version__ = '1.0.0'
+__version__ = '1.1.0'
 r"""The Pandemy version string."""
 
-__releasedate__: date = date(2022, 2, 12)
+__releasedate__: date = date(2022, 4, 9)
 r"""The release date of the version specified in :data:`__versiontuple__`."""
 
 # ===============================================================
