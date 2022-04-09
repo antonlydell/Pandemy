@@ -63,7 +63,7 @@ CONSTRAINT ItemPk PRIMARY KEY (ItemId)
         # ===========================================================
         db = pandemy.SQLiteDb(file=db_filename)  # Create the SQLite DatabaseManager instance
 
-        with db.engine.connect() as conn:
+        with db.engine.begin() as conn:
             db.execute(sql=create_table_item, conn=conn)
             db.save_df(df=df, table='Item', conn=conn)
 

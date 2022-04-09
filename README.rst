@@ -33,18 +33,37 @@ The core dependencies of Pandemy are:
 - **pandas** : powerful Python data analysis toolkit
 - **SQLAlchemy** : The Python SQL Toolkit and Object Relational Mapper
 
-To work with other databases than `SQLite`_ (which is the only supported database in version 1.0.0) additional optional dependencies may need to be installed.
-Support for `Oracle`_ and `Microsoft SQL Server`_ databases is planned for the future.
+Databases except for SQLite_ require a third-party database driver package to be installed.
+The table below lists database driver packages for supported databases and their corresponding `optional dependency identifier`_.
 
-.. _SQLite: https://sqlite.org/index.html
+.. csv-table:: Optional dependencies of Pandemy.
+   :delim: ;
+   :header-rows: 1
+   :align: left
+
+   Database;Driver package;Optional dependency identifier;Version added
+   Oracle_;cx_Oracle_;oracle; 1.1.0
+
+
+To install `cx_Oracle`_ together with Pandemy run:
+
+.. code-block:: bash
+
+   $ pip install Pandemy[oracle]
+
+
+.. _cx_Oracle: https://oracle.github.io/python-cx_Oracle/
+.. _optional dependency identifier: https://setuptools.pypa.io/en/latest/userguide/dependency_management.html#optional-dependencies
 .. _Oracle: https://www.oracle.com/database/
-.. _Microsoft SQL Server: https://www.microsoft.com/en-us/sql-server/sql-server-downloads
+.. _SQLite: https://sqlite.org/index.html
 
 
 A DataFrame to and from table round trip
 ========================================
 
-This section shows a simple example of writing a DataFrame to a SQLite database and reading it back again.
+This section shows a simple example of writing a DataFrame_ to a SQLite database and reading it back again.
+
+.. _DataFrame: https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.html
 
 
 Save a DataFrame to a table
@@ -84,23 +103,28 @@ Let's create a new SQLite database and save a DataFrame to it.
     );
     """
 
-    db = pandemy.SQLiteDb(file= 'Runescape.db')  # Create the SQLite DatabaseManager instance
+    db = pandemy.SQLiteDb(file='Runescape.db')  # Create the SQLite DatabaseManager instance
 
-    with db.engine.connect() as conn:
+    with db.engine.begin() as conn:
         db.execute(sql=create_table_item, conn=conn)
         db.save_df(df=df, table='Item', conn=conn)
 
-The database is managed through the ``DatabaseManager`` class which in this case is the ``SQLiteDb`` instance.
-Each SQL dialect will be a subclass of ``DatabaseManager``. The creation of the ``DatabaseManager`` instance creates the database engine 
-which is used to create a connection to the database. The engine is created with the `create_engine`_ function from SQLAlchemy. 
-The connection is automatically closed when the context manager exits. If the database file does not exist it will be created.
 
-.. _create_engine: https://docs.sqlalchemy.org/en/14/core/engines.html#engine-creation-api
+The database is managed through the DatabaseManager_ class which in this case is the SQLiteDb_ instance.
+Each SQL dialect is a subclass of ``DatabaseManager``. The creation of the ``DatabaseManager`` instance
+creates the database engine_ which is used to create a connection to the database. The begin_ method of
+the engine returns a context manager with an open database transaction, which commits the statements if
+no errors occur or performs a rollback on error. The connection is automatically returned to the engine's
+connection pool when the context manager exits. If the database file does not exist it will be created.
+The execute_ method allows for execution of arbitrary SQL statements such as creating a table. The save_df_
+method saves the DataFrame ``df`` to the table *Item* in the database ``db``.
 
-The ``execute`` method allows for execution of arbitrary SQL statements such as creating a table. The ``save_df`` method 
-saves the DataFrame ``df`` to the table *Item* in the database ``db`` by using pandas' `to_sql`_ DataFrame method.
-
-.. _to_sql: https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.to_sql.html
+.. _begin: https://docs.sqlalchemy.org/en/14/core/connections.html#sqlalchemy.engine.Engine.begin
+.. _DatabaseManager: https://pandemy.readthedocs.io/en/latest/api_reference/databasemanager.html#databasemanager
+.. _engine: https://docs.sqlalchemy.org/en/14/core/connections.html#sqlalchemy.engine.Engine
+.. _execute: https://pandemy.readthedocs.io/en/latest/api_reference/databasemanager.html#pandemy.DatabaseManager.execute
+.. _save_df: https://pandemy.readthedocs.io/en/latest/api_reference/databasemanager.html#pandemy.DatabaseManager.save_df
+.. _SQliteDb: https://pandemy.readthedocs.io/en/latest/api_reference/databasemanager.html#sqlitedb
 
 
 Load a table into a DataFrame
@@ -122,20 +146,35 @@ The DataFrame saved to the table *Item* of the database *Runescape.db* can easil
         df_loaded = db.load_table(sql=sql, conn=conn, index_col='ItemId')
     
     assert_frame_equal(df, df_loaded, check_dtype=False)
+    print(df)
+
+
+.. code-block::
+
+                   ItemName  MemberOnly                          Description
+    ItemId
+    1                   Pot           0                   This pot is empty.
+    2                   Jug           0                   This jug is empty.
+    3                Shears           0                  For shearing sheep.
+    4                Bucket           0                It's a wooden bucket.
+    5                  Bowl           0            Useful for mixing things.
+    6       Amulet of glory           1  A very powerful dragonstone amulet.
+
 
 If the ``must_exist`` parameter is set to ``True`` an exception will be raised if the database file is not found. 
-This is useful if you expect the database to exist and you want to avoid creating a new database by mistake if it does not exist.
+This is useful if you expect the database to exist and you want to avoid creating a new database by mistake if it
+does not exist. The connect_ method of the engine is similar to begin_ but without opening a transaction.
+The load_table_ method supports either a table name or a sql statement for the ``sql`` parameter. 
 
-The ``load_table`` method supports either a table name or a sql statement for the ``sql`` parameter and 
-uses the `read_sql`_ DataFrame method from pandas.
-
-.. _read_sql: https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.read_sql.html
+.. _connect: https://docs.sqlalchemy.org/en/14/core/connections.html#sqlalchemy.engine.Engine.connect
+.. _load_table: https://pandemy.readthedocs.io/en/latest/api_reference/databasemanager.html#pandemy.DatabaseManager.load_table
 
 
 Documentation
 =============
 
 The full documentation is hosted at: https://pandemy.readthedocs.io
+
 
 Tests
 =====
