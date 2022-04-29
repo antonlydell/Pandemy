@@ -1,14 +1,21 @@
 Installation
 ============
 
-Pandemy is available for installation through `PyPI`_ using `pip`_ and the source code is hosted on GitHub at: https://github.com/antonlydell/Pandemy
+Pandemy is available for installation through `PyPI`_ using `pip`_ and conda-forge_ using conda_.
+The source code is hosted on GitHub at: https://github.com/antonlydell/Pandemy
 
-Install Pandemy by running:
-
+Install with pip:
 
 .. code-block:: bash
 
    $ pip install Pandemy
+
+
+Install with conda:
+
+.. code-block:: bash
+
+   $ conda install -c conda-forge pandemy
 
 
 Dependencies
@@ -43,10 +50,16 @@ and their corresponding optional dependency identifier.
 
 To install `cx_Oracle`_ together with Pandemy run:
 
-
 .. code-block:: bash
 
    $ pip install Pandemy[oracle]
+
+
+When using conda supply the driver package as a separate argument to the install command:
+
+.. code-block:: bash
+
+   $ conda install -c conda-forge pandemy cx_oracle
 
 
 .. rubric:: Footnotes
@@ -54,6 +67,8 @@ To install `cx_Oracle`_ together with Pandemy run:
 .. [#fn1] There are other drivers for SQLite, see `SQLite drivers in the SQLAlchemy documentation`_. 
 
 
+.. _conda: https://docs.conda.io/en/latest/
+.. _conda-forge: https://anaconda.org/conda-forge/pandemy
 .. _cx_Oracle: https://oracle.github.io/python-cx_Oracle/
 .. _Microsoft SQL Server: https://www.microsoft.com/en-us/sql-server/sql-server-downloads
 .. _optional dependency identifier: https://setuptools.pypa.io/en/latest/userguide/dependency_management.html#optional-dependencies

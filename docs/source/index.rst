@@ -60,6 +60,7 @@ The documentation consists of 3 parts:
    :hidden:
    :caption: Links
 
+   conda-forge ↪ <https://anaconda.org/conda-forge/pandemy>
    GitHub ↪ <https://github.com/antonlydell/Pandemy>
    LinkedIn ↪ <https://www.linkedin.com/in/antonlydell/>
    PyPI ↪ <https://pypi.org/project/Pandemy/>
