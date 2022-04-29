@@ -2,7 +2,7 @@
 Pandemy
 *******
 
-|PyPI| |Python| |Docs| |LICENSE|
+|PyPI| |conda-forge| |Python| |conda-forge-platform| |Docs| |LICENSE|
 
 Pandemy is a wrapper around `pandas`_ and `SQLAlchemy`_ to provide an easy class based interface for working with DataFrames and databases.
 This package is for those who enjoy working with pandas and SQL but do not want to learn all "bells and whistles" of SQLAlchemy.
@@ -15,14 +15,26 @@ Use your existing SQL knowledge and provide text based SQL statements to load Da
 Installation
 ============
 
-Pandemy is available for installation through `PyPI`_ using `pip`_ and the source code is hosted on GitHub at: https://github.com/antonlydell/Pandemy
+Pandemy is available for installation through `PyPI`_ using `pip`_ and conda-forge_ using conda_.
+The source code is hosted on GitHub at: https://github.com/antonlydell/Pandemy
 
-.. _PyPI: https://pypi.org/project/pandemy/
+.. _conda: https://docs.conda.io/en/latest/
+.. _conda-forge: https://anaconda.org/conda-forge/pandemy
 .. _pip: https://pip.pypa.io/en/stable/getting-started/
+.. _PyPI: https://pypi.org/project/pandemy/
+
+Install with pip:
 
 .. code-block:: bash
 
-    $ pip install Pandemy
+   $ pip install Pandemy
+
+
+Install with conda:
+
+.. code-block:: bash
+
+   $ conda install -c conda-forge pandemy
 
 
 Dependencies
@@ -52,6 +64,13 @@ To install `cx_Oracle`_ together with Pandemy run:
    $ pip install Pandemy[oracle]
 
 
+When using conda supply the driver package as a separate argument to the install command:
+
+.. code-block:: bash
+
+   $ conda install -c conda-forge pandemy cx_oracle
+
+
 .. _cx_Oracle: https://oracle.github.io/python-cx_Oracle/
 .. _optional dependency identifier: https://setuptools.pypa.io/en/latest/userguide/dependency_management.html#optional-dependencies
 .. _Oracle: https://www.oracle.com/database/
@@ -73,41 +92,41 @@ Let's create a new SQLite database and save a DataFrame to it.
 
 .. code-block:: python
 
-    import io
-    import pandas as pd 
-    import pandemy
+   import io
+   import pandas as pd 
+   import pandemy
 
-    # Data to save to the database
-    data = io.StringIO("""
-    ItemId,ItemName,MemberOnly,Description
-    1,Pot,0,This pot is empty.
-    2,Jug,0,This jug is empty.
-    3,Shears,0,For shearing sheep.
-    4,Bucket,0,It's a wooden bucket.
-    5,Bowl,0,Useful for mixing things.
-    6,Amulet of glory,1,A very powerful dragonstone amulet.
-    """)
+   # Data to save to the database
+   data = io.StringIO("""
+   ItemId,ItemName,MemberOnly,Description
+   1,Pot,0,This pot is empty.
+   2,Jug,0,This jug is empty.
+   3,Shears,0,For shearing sheep.
+   4,Bucket,0,It's a wooden bucket.
+   5,Bowl,0,Useful for mixing things.
+   6,Amulet of glory,1,A very powerful dragonstone amulet.
+   """)
 
-    df = pd.read_csv(filepath_or_buffer=data, index_col='ItemId')  # Create a DataFrame
+   df = pd.read_csv(filepath_or_buffer=data, index_col='ItemId')  # Create a DataFrame
 
-    # SQL statement to create the table Item in which to save the DataFrame df
-    create_table_item = """
-    -- The available items in General Stores
-    CREATE TABLE IF NOT EXISTS Item (
-        ItemId      INTEGER,
-        ItemName    TEXT    NOT NULL,
-        MemberOnly  INTEGER NOT NULL,
-        Description TEXT,
+   # SQL statement to create the table Item in which to save the DataFrame df
+   create_table_item = """
+   -- The available items in General Stores
+   CREATE TABLE IF NOT EXISTS Item (
+      ItemId      INTEGER,
+      ItemName    TEXT    NOT NULL,
+      MemberOnly  INTEGER NOT NULL,
+      Description TEXT,
 
-        CONSTRAINT ItemPk PRIMARY KEY (ItemId)
-    );
-    """
+      CONSTRAINT ItemPk PRIMARY KEY (ItemId)
+   );
+   """
 
-    db = pandemy.SQLiteDb(file='Runescape.db')  # Create the SQLite DatabaseManager instance
+   db = pandemy.SQLiteDb(file='Runescape.db')  # Create the SQLite DatabaseManager instance
 
-    with db.engine.begin() as conn:
-        db.execute(sql=create_table_item, conn=conn)
-        db.save_df(df=df, table='Item', conn=conn)
+   with db.engine.begin() as conn:
+      db.execute(sql=create_table_item, conn=conn)
+      db.save_df(df=df, table='Item', conn=conn)
 
 
 The database is managed through the DatabaseManager_ class which in this case is the SQLiteDb_ instance.
@@ -134,31 +153,31 @@ The DataFrame saved to the table *Item* of the database *Runescape.db* can easil
 
 .. code-block:: python
 
-    import pandas as pd
-    from pandas.testing import assert_frame_equal
-    import pandemy
+   import pandas as pd
+   from pandas.testing import assert_frame_equal
+   import pandemy
 
-    db = pandemy.SQLiteDb(file='Runescape.db', must_exist=True)
+   db = pandemy.SQLiteDb(file='Runescape.db', must_exist=True)
 
-    sql = """SELECT * FROM Item ORDER BY ItemId;"""  # Query to read back table Item into a DataFrame
+   sql = """SELECT * FROM Item ORDER BY ItemId;"""  # Query to read back table Item into a DataFrame
 
-    with db.engine.connect() as conn:
-        df_loaded = db.load_table(sql=sql, conn=conn, index_col='ItemId')
-    
-    assert_frame_equal(df, df_loaded, check_dtype=False)
-    print(df)
+   with db.engine.connect() as conn:
+      df_loaded = db.load_table(sql=sql, conn=conn, index_col='ItemId')
+   
+   assert_frame_equal(df, df_loaded, check_dtype=False)
+   print(df)
 
 
 .. code-block::
 
-                   ItemName  MemberOnly                          Description
-    ItemId
-    1                   Pot           0                   This pot is empty.
-    2                   Jug           0                   This jug is empty.
-    3                Shears           0                  For shearing sheep.
-    4                Bucket           0                It's a wooden bucket.
-    5                  Bowl           0            Useful for mixing things.
-    6       Amulet of glory           1  A very powerful dragonstone amulet.
+                  ItemName  MemberOnly                          Description
+   ItemId
+   1                   Pot           0                   This pot is empty.
+   2                   Jug           0                   This jug is empty.
+   3                Shears           0                  For shearing sheep.
+   4                Bucket           0                It's a wooden bucket.
+   5                  Bowl           0            Useful for mixing things.
+   6       Amulet of glory           1  A very powerful dragonstone amulet.
 
 
 If the ``must_exist`` parameter is set to ``True`` an exception will be raised if the database file is not found. 
@@ -219,22 +238,32 @@ Bug reports should be submitted at the `Github Issues`_ tab.
 .. _Github Issues: https://github.com/antonlydell/Pandemy/issues
 
 
+.. |conda-forge| image:: https://img.shields.io/conda/vn/conda-forge/pandemy?style=plastic
+   :alt: conda-forge - Version
+   :scale: 100%
+   :target: https://anaconda.org/conda-forge/pandemy
+
+.. |conda-forge-platform| image:: https://img.shields.io/conda/pn/conda-forge/pandemy?color=yellowgreen&style=plastic
+   :alt: conda-forge - Platform
+   :scale: 100%
+   :target: https://anaconda.org/conda-forge/pandemy
+
 .. |Docs| image:: https://readthedocs.org/projects/pip/badge/?version=latest&style=plastic  
-    :alt: Documentation status
-    :scale: 100%
-    :target: https://pandemy.readthedocs.io/en/latest/?badge=latest
+   :alt: Documentation status
+   :scale: 100%
+   :target: https://pandemy.readthedocs.io/en/latest/?badge=latest
 
 .. |LICENSE| image:: https://img.shields.io/pypi/l/Pandemy?style=plastic
-    :alt: PyPI - License
-    :scale: 100%
-    :target: https://github.com/antonlydell/Pandemy/blob/main/LICENSE
+   :alt: PyPI - License
+   :scale: 100%
+   :target: https://github.com/antonlydell/Pandemy/blob/main/LICENSE
 
 .. |PyPI| image:: https://img.shields.io/pypi/v/Pandemy?style=plastic
-    :alt: PyPI
-    :scale: 100%
-    :target: https://pypi.org/project/Pandemy/
+   :alt: PyPI
+   :scale: 100%
+   :target: https://pypi.org/project/Pandemy/
 
 .. |Python| image:: https://img.shields.io/pypi/pyversions/Pandemy?style=plastic
-    :alt: PyPI - Python Version
-    :scale: 100%
-    :target: https://pypi.org/project/Pandemy/
+   :alt: PyPI - Python Version
+   :scale: 100%
+   :target: https://pypi.org/project/Pandemy/
