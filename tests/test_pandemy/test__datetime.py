@@ -1,6 +1,6 @@
 r"""Tests for the _datetime module of Pandemy.
 
-The _datetime module handles timezone conversions.
+The _datetime module handles datetime operations and timezone conversions.
 """
 
 # =================================================
@@ -61,7 +61,7 @@ Id;Datetime1;Datetime2;Datetime3;Price;City;DatetimeAsString
 
 
 class TestDatetimeColumnsToTimezone:
-    r"""Test the function datetime_columns_to_timezone.
+    r"""Test the function `datetime_columns_to_timezone`.
 
     Fixtures
     --------
@@ -199,6 +199,113 @@ class TestDatetimeColumnsToTimezone:
         with pytest.raises(pandemy.InvalidInputError):
             pandemy._datetime.datetime_columns_to_timezone(df=df_datetime,
                                                            localize_tz=localize_tz, target_tz=target_tz)
+
+        # Clean up - None
+        # ===========================================================
+
+
+class TestConvertDatetimeColumns:
+    r"""Test the function `convert_datetime_columns`.
+
+    Fixtures
+    --------
+    df_datetime : pd.DataFrame
+       Input DataFrame with datetime columns.
+    """
+
+    def test_datetime_to_str(self, df_datetime):
+        r"""Convert datetime columns to string."""
+
+        # Setup
+        # ===========================================================
+        datetime_format = r'%Y-%m-%d'
+
+        df_exp_result = df_datetime.copy()
+        df_exp_result['Datetime1'] = df_exp_result['Datetime1'].dt.strftime(datetime_format).astype('string')
+        df_exp_result['Datetime2'] = df_exp_result['Datetime2'].dt.strftime(datetime_format).astype('string')
+        df_exp_result['Datetime3'] = df_exp_result['Datetime3'].dt.strftime(datetime_format).astype('string')
+
+        # Exercise
+        # ===========================================================
+        df_result = pandemy._datetime.convert_datetime_columns(df=df_datetime,
+                                                               dtype='str',
+                                                               datetime_format=datetime_format)
+
+        # Verify
+        # ===========================================================
+        assert_frame_equal(df_result, df_exp_result)
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_datetime_to_int(self, df_datetime):
+        r"""Convert datetime columns to integer.
+
+        The integer value represents the number of seconds since
+        the unix epoch of 1970-01-01 in UTC timezone.
+        """
+
+        # Setup
+        # ===========================================================
+        df_datetime = df_datetime.loc[:, ['Datetime1', 'Datetime2']]
+
+        df_exp_result = pd.DataFrame(index=df_datetime.index, columns=df_datetime.columns)
+
+        df_exp_result.loc[1, 'Datetime1'] = 1229040000   # 2008-12-12 00:00:00 UTC
+        df_exp_result.loc[2, 'Datetime1'] = 1244279168   # 2009-06-06 09:06:08 UTC
+        df_exp_result.loc[3, 'Datetime1'] = 1013711940   # 2002-02-14 18:39:00 UTC
+
+        df_exp_result.loc[1, 'Datetime2'] = 1355314332   # 2012-12-12 12:12:12 UTC
+        df_exp_result.loc[2, 'Datetime2'] = 240589860    # 1977-08-16 14:31:00 UTC
+        df_exp_result.loc[3, 'Datetime2'] = -3287378318  # 1865-10-29 15:21:22 UTC
+
+        df_exp_result = df_exp_result.astype('int64')
+
+        # Exercise
+        # ===========================================================
+        df_result = pandemy._datetime.convert_datetime_columns(df=df_datetime, dtype='int')
+
+        # Verify
+        # ===========================================================
+        assert_frame_equal(df_result, df_exp_result)
+
+        # Clean up - None
+        # ===========================================================
+
+    @pytest.mark.raises
+    def test_invalid_dtype(self, df_datetime):
+        r"""Supply an invalid value to the `dtype` parameter.
+
+        pandemy.InvalidInputError is expected to be raised.
+        """
+
+        # Setup - None
+        # ===========================================================
+
+        # Exercise & Verify
+        # ===========================================================
+        with pytest.raises(pandemy.InvalidInputError, match=r"{'str', 'int'}"):
+            pandemy._datetime.convert_datetime_columns(df=df_datetime, dtype='float')
+
+        # Clean up - None
+        # ===========================================================
+
+    @pytest.mark.raises
+    def test_invalid_datetime_format(self, df_datetime):
+        r"""Supply an invalid datetime format to the `datetime_format` parameter.
+
+        pandemy.InvalidInputError is expected to be raised.
+        """
+
+        # Setup - None
+        # ===========================================================
+
+        # Exercise & Verify
+        # ===========================================================
+        with pytest.raises(pandemy.InvalidInputError, match='datetime'):
+            pandemy._datetime.convert_datetime_columns(df=df_datetime,
+                                                       dtype='str',
+                                                       datetime_format=2)
 
         # Clean up - None
         # ===========================================================
