@@ -13,20 +13,21 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 import logging
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterator, List, Optional, Sequence, Union
+from typing import Any, Callable, Dict, Iterator, List, Optional, Sequence, Tuple, Union
 import urllib
 
 # Third Party
 import pandas as pd
 from sqlalchemy import create_engine
 from sqlalchemy.engine.base import Connection
-from sqlalchemy.engine import Engine, make_url, URL
+from sqlalchemy.engine import CursorResult, Engine, make_url, URL
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.sql import text
 from sqlalchemy.sql.elements import TextClause
 
 # Local
 import pandemy
+import pandemy._dataframe
 import pandemy._datetime
 
 # ===============================================================
@@ -79,9 +80,35 @@ class DatabaseManager(ABC):
     # Class variables
     # ---------------
 
-    # Statement for deleting all records in a table.
-    # Can be modified by subclasses of DatabaseManager if necessary.
-    _delete_from_table_statement: str = """DELETE FROM :table"""
+    # The template statements can be modified by subclasses of DatabaseManager if necessary.
+    _stmt_space = '    '  # Spacing to use in template statements.
+
+    # Template statement for deleting all records in a table.
+    _delete_from_table_stmt: str = """DELETE FROM :table"""
+
+    # Template statement to update a table.
+    _update_table_stmt: str = (
+        """UPDATE :table
+SET
+    :update_cols
+WHERE
+    :where_cols"""
+    )
+
+    # Template statement to insert new rows, that do not exist already, into a table.
+    _insert_into_where_not_exists_stmt: str = (
+        """INSERT INTO :table (:insert_cols)
+    SELECT
+        :select_values
+    WHERE
+        NOT EXISTS (
+            SELECT
+                1
+            FROM :table
+            WHERE
+                :where_cols
+        )"""
+    )
 
     @abstractmethod
     def __init__(self, container: Optional[pandemy.SQLContainer] = None,
@@ -150,6 +177,153 @@ class DatabaseManager(ABC):
             raise pandemy.InvalidTableNameError(f'Table name contains spaces ({len_table_splitted - 1})! '
                                                 f'The table name must be a single word.\ntable = {table}',
                                                 data=table)
+
+    def _prepare_input_data_for_modify_statements(
+            self,
+            df: pd.DataFrame,
+            update_cols: Optional[Union[str, Sequence[str]]],
+            update_index_cols: Union[bool, Sequence[str]],
+            where_cols: Sequence[str]) -> Tuple[pd.DataFrame, List[str], List[str]]:
+        r"""Prepare input data to be ready to use in an UPSERT or MERGE statement.
+
+        Parameters
+        ----------
+        df : pandas.DataFrame
+            The input DataFrame from which to select the columns to use in the statements.
+
+        update_cols : str or Sequence[str] or None
+            The columns to update and or insert data into.
+
+        update_index_cols : bool or Sequence[str]
+            If the index columns of `df` should be included in the columns to update.
+            ``True`` indicates that the index should be included. If the index is a :class:`pandas.MultiIndex`
+            a sequence of str that maps against the levels to include can be used to only include the desired levels.
+            ``False`` excludes the index column(s) from being updated.
+
+        where_cols : Sequence[str]
+            The columns to include in the WHERE clause.
+
+        Returns
+        -------
+        df_output : pandas.DataFrame
+            `df` with columns not affected by the columns used in the statement removed.
+
+        update_cols : list of str
+            The columns to update.
+
+        insert_cols : list of str
+            The columns to insert data into.
+        """
+
+        # Get the columns to update and convert to list
+        if update_cols == 'all':
+            update_cols = df.columns.tolist()
+        elif update_cols is None:
+            update_cols = []
+        else:
+            update_cols = list(update_cols)
+
+        # Add selected index columns to the columns to update
+        if update_index_cols:
+            update_cols.extend(
+                list(df.index.names) if update_index_cols is True else list(update_index_cols)
+            )
+
+        insert_cols = update_cols
+        update_cols = [col for col in update_cols if col not in where_cols]  # where_cols should not be updated
+
+        cols_in_stmts = list(set(update_cols + insert_cols + where_cols))  # The columns used in the statements
+        df_output = df.reset_index()[cols_in_stmts]  # Keep only the columns affected by the statements
+
+        return df_output, update_cols, insert_cols
+
+    def _create_update_statement(self,
+                                 table: str,
+                                 update_cols: Sequence[str],
+                                 where_cols: Sequence[str],
+                                 space_factor: int = 1) -> str:
+        r"""Create an UPDATE statement with placeholders parametrized.
+
+        Creates the statement from the template `self._update_table_stmt`.
+
+        Parameters
+        ----------
+        table : str
+            The name of the table to update.
+
+        update_cols : Sequence[str]
+            The columns to update.
+
+        where_cols : Sequence[str]
+            The columns to include in the WHERE clause.
+
+        space_factor : int, default 1
+            The factor to multiply the `self._stmt_space` with to determine
+            the level of indentation of the columns in the SET and WHERE clause.
+        """
+
+        update_stmt = self._update_table_stmt.replace(':table', table)
+
+        update_stmt = update_stmt.replace(
+            ':update_cols',
+            f',\n{self._stmt_space*space_factor}'.join(f'{col} = :{col}' for col in update_cols)
+        )
+
+        update_stmt = update_stmt.replace(
+            ':where_cols',
+            f' AND\n{self._stmt_space*space_factor}'.join(f'{col} = :{col}' for col in where_cols)
+        )
+
+        return update_stmt
+
+    def _create_insert_into_where_not_exists_statement(self,
+                                                       table: str,
+                                                       insert_cols: Sequence[str],
+                                                       where_cols: Sequence[str],
+                                                       select_values_space_factor: int = 2,
+                                                       where_cols_space_factor: int = 4) -> str:
+        r"""Create an "INSERT INTO WHERE NOT EXISTS" statement with placeholders parametrized.
+
+        Creates the statement from the template `self._insert_into_where_not_exists_stmt`.
+
+        Parameters
+        ----------
+        table : str
+            The name of the table to insert values into.
+
+        insert_cols : Sequence[str]
+            The columns to insert values into.
+
+        where_cols : Sequence[str]
+            The columns to include in the WHERE clause.
+
+        select_values_space_factor : int, default 2
+            The factor to multiply the `self._stmt_space` with to determine
+            the level of indentation of the columns in the SELECT clause.
+
+        where_cols_space_factor : int, default 4
+            The factor to multiply the `self._stmt_space` with to determine
+            the level of indentation of the columns in the WHERE clause.
+        """
+
+        insert_stmt = self._insert_into_where_not_exists_stmt.replace(':table', table)
+
+        insert_stmt = insert_stmt.replace(
+            ':insert_cols',
+            ', '.join(insert_cols)
+        )
+
+        insert_stmt = insert_stmt.replace(
+            ':select_values',
+            f',\n{self._stmt_space*select_values_space_factor}'.join(f':{col}' for col in insert_cols)
+        )
+
+        insert_stmt = insert_stmt.replace(
+            ':where_cols',
+            f' AND\n{self._stmt_space*where_cols_space_factor}'.join(f'{col} = :{col}' for col in where_cols)
+        )
+
+        return insert_stmt
 
     def manage_foreign_keys(self, conn: Connection, action: str) -> None:
         r"""Manage how the database handles foreign key constraints.
@@ -275,7 +449,7 @@ class DatabaseManager(ABC):
         self._is_valid_table_name(table=table)
 
         # SQL statement to delete all existing data from the table
-        sql = self._delete_from_table_statement.replace(':table', table)
+        sql = self._delete_from_table_stmt.replace(':table', table)
 
         try:
             conn.execute(sql)
@@ -602,6 +776,160 @@ class DatabaseManager(ABC):
         logger.info(f'Successfully loaded {nr_rows} rows and {nr_cols} columns.')
 
         return df
+
+    def upsert_table(
+            self,
+            df: pd.DataFrame,
+            table: str,
+            conn: Connection,
+            where_cols: Sequence[str],
+            update_cols: Optional[Union[str, Sequence[str]]] = 'all',
+            update_index_cols: Union[bool, Sequence[str]] = False,
+            update_only: bool = False,
+            nan_to_none: bool = True,
+            datetime_cols_dtype: Optional[str] = None,
+            datetime_format: str = r'%Y-%m-%d %H:%M:%S',
+            dry_run: bool = False) -> Union[Tuple[CursorResult, Optional[CursorResult]], Tuple[str, str]]:
+        r"""Update a table with data from a :class:`pandas.DataFrame` and insert new rows if any`.
+
+        This method combines an UPDATE and INSERT statement to update the rows of a `table`
+        from the :class:`pandas.DataFrame` and insert new rows found in `df` into `table`.
+        The INSERT statement can be omitted with the `update_only` parameter.
+
+        The colum names of the :class:`pandas.DataFrame` `df` and `table` must match.
+
+        Parameters
+        ----------
+        df : pandas.DataFrame
+            The DataFrame with data to update and insert.
+
+        table : str
+            The name of the table to upsert.
+
+        conn : sqlalchemy.engine.base.Connection
+            An open connection to the database.
+
+        where_cols : Sequence[str]
+            The columns from `df` to use as the WHERE clause to identify
+            the rows to update and insert.
+
+        update_cols : str or Sequence[str] or None, default 'all'
+            The columns from `table` to update with data from `df`.
+            The default string ``'all'`` will update all columns.
+            If ``None`` no columns will be selected for update. This is useful if only columns
+            of the index of `df` should be updated by specifying `update_index_cols`.
+
+        update_index_cols : bool or Sequence[str], default False
+            If the index columns of `df` should be included in the columns to update.
+            ``True`` indicates that the index should be included. If the index is a :class:`pandas.MultiIndex`
+            a sequence of str that maps against the levels to include can be used to only include the desired levels.
+            ``False`` excludes the index column(s) from being updated which is the default.
+
+        update_only : bool, default False
+            If ``True`` the `table` should only be updated and new rows not inserted.
+            If ``False`` (the default) perform an update and insert new rows.
+
+        nan_to_none: bool, default True
+            If columns with missing values (NaN values) that are of type :attr:`pandas.NA` :attr:`pandas.NaT`
+            or :attr:`numpy.nan` should be converted to standard Python ``None``. Some databases do not support
+            these types in parametrized SQL statements.
+
+        datetime_cols_dtype : {'str', 'int'} or None, default None
+            If the datetime columns of `df` should be converted to string or integer data type
+            before updating the table. SQLite cannot handle datetime objects as parameters
+            and should use this option. If ``None`` no conversion of datetime columns is performed,
+            which is the default. When using ``'int'`` the datetime columns are converted to the
+            number of seconds since the unix epoch of 1970-01-01 in UTC time zone.
+
+        datetime_format : str, default r'%Y-%m-%d %H:%M:%S'
+            The datetime format to use when converting datetime columns to string.
+
+        dry_run: bool, default False
+            Do not execute the upsert. Instead return the SQL statements that would have been executed on the database.
+            The return value is a tuple ('UPDATE statement', 'INSERT statement'). If `update_only` is ``True`` the
+            INSERT statement will be ``None``.
+
+        Returns
+        -------
+        Tuple[sqlalchemy.engine.CursorResult, Optional[sqlalchemy.engine.CursorResult]] or Tuple[str, Optional[str]]
+            Result objects from the executed statements or the SQL statements that would have been executed
+            if `dry_run` is ``True``.
+
+        Raises
+        ------
+        pandemy.InvalidInputError
+            Invalid values or types for input parameters.
+
+        pandemy.InvalidTableNameError
+            If the supplied table name is invalid.
+
+        pandemy.ExecuteStatementError
+            If an error occurs when executing the UPDATE and or INSERT statement.
+        """
+
+        self._is_valid_table_name(table=table)
+
+        df_upsert, update_cols, insert_cols = self._prepare_input_data_for_modify_statements(
+                                                    df=df,
+                                                    update_cols=update_cols,
+                                                    update_index_cols=update_index_cols,
+                                                    where_cols=where_cols
+                                                )
+
+        # Create the UPDATE statement
+        update_stmt = self._create_update_statement(
+                            table=table,
+                            update_cols=update_cols,
+                            where_cols=where_cols,
+                            space_factor=1
+                        )
+
+        # Create the INSERT statement
+        if not update_only:
+            insert_stmt = self._create_insert_into_where_not_exists_statement(
+                                table=table,
+                                insert_cols=insert_cols,
+                                where_cols=where_cols,
+                                select_values_space_factor=2,
+                                where_cols_space_factor=4
+                            )
+        else:
+            insert_stmt = None
+
+        if dry_run:  # Early exit to check the statements
+            return update_stmt, insert_stmt
+
+        # Convert datetime columns to string or int
+        if datetime_cols_dtype is not None:
+            df_upsert = pandemy._datetime.convert_datetime_columns(
+                df=df_upsert, dtype=datetime_cols_dtype, datetime_format=datetime_format
+            )
+
+        if nan_to_none and df_upsert.isna().sum().sum() > 0:  # If at least 1 missing value
+            df_upsert = pandemy._dataframe.convert_nan_to_none(df=df_upsert)
+
+        # Turn the DataFrame into a list of dict [{parameter: value}, {...}]
+        params = df_upsert.to_dict(orient='records')
+
+        # Perform the UPDATE and optionally INSERT
+        try:
+            result_update = conn.execute(text(update_stmt), params)
+            result_insert = conn.execute(text(insert_stmt), params) if not update_only else None
+        except Exception as e:
+            log_level = 40  # ERROR
+            raise pandemy.ExecuteStatementError(f'{type(e).__name__}: {e.args}', data=e.args) from None
+        else:
+            log_level = 10  # DEBUG
+        finally:
+            logger.log(log_level, f'UPDATE statement for table {table}:\n{update_stmt}\n')
+            logger.log(log_level, f'update_only={update_only}')
+            logger.log(log_level, f'INSERT statement for table {table}:\n{insert_stmt}')
+            logger.log(
+                log_level,
+                'params:\n{params_row}'.format(params_row="\n".join(str(row) for row in params))
+            )
+
+        return result_update, result_insert
 
 
 # ===============================================================

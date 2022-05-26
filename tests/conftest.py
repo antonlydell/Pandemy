@@ -5,9 +5,11 @@ r"""Fixtures for testing the Pandemy package."""
 # ===============================================================
 
 # Standard Library
+from datetime import datetime
 import io
 from pathlib import Path
 import shutil
+from typing import Tuple, Union
 
 # Third Party
 import pandas as pd
@@ -69,6 +71,20 @@ def sqlite_db(sqlite_db_file) -> pandemy.SQLiteDb:
     """
 
     return pandemy.SQLiteDb(file=sqlite_db_file, must_exist=True)
+
+@pytest.fixture()
+def sqlite_db_to_modify(tmp_path, sqlite_db_file) -> pandemy.SQLiteDb:
+    r"""An instance of the DatabaseManager `pandemy.SQLiteDb`.
+
+    The instance is connected to a copy of the test database Runescape.db
+    where the content can be modified during the tests without risk of
+    polluting the original database for other tests.
+    """
+
+    sqlite_db_file_to_modify = tmp_path / sqlite_db_file.name
+    shutil.copy2(sqlite_db_file, sqlite_db_file_to_modify)  # copy the file with meta data
+
+    return pandemy.SQLiteDb(file=sqlite_db_file_to_modify, must_exist=True)
 
 
 @pytest.fixture()
@@ -133,12 +149,12 @@ def df_customer() -> pd.DataFrame:
     data = io.StringIO(
         """
 CustomerId;CustomerName;BirthDate;Residence;IsAdventurer
-1;'Zezima';'1990-07-14';'Yanille';1
-2;'Dr Harlow';'1970-01-14';'Varrock';0
-3;'Baraek';'1968-12-13';'Varrock';0
-4;'Gypsy Aris';'1996-03-24';'Varrock';0
-5;'Not a Bot';'2006-05-31';'Catherby';1
-6;'Max Pure';'2007-08-20';'Port Sarim';1
+1;Zezima;1990-07-14;Yanille;1
+2;Dr Harlow;1970-01-14;Varrock;0
+3;Baraek;1968-12-13;Varrock;0
+4;Gypsy Aris;1996-03-24;Varrock;0
+5;Not a Bot;2006-05-31;Catherby;1
+6;Max Pure;2007-08-20;Port Sarim;1
         """
     )
 
@@ -151,6 +167,39 @@ CustomerId;CustomerName;BirthDate;Residence;IsAdventurer
 
     return pd.read_csv(filepath_or_buffer=data, sep=CSV_DELIM, index_col='CustomerId',
                        parse_dates=['BirthDate'], dtype=dtypes)
+
+
+@pytest.fixture()
+def df_customer_upsert(df_customer) -> Union[pd.DataFrame, Tuple[int, ...], Tuple[int, ...]]:
+    r"""Fixture `df_customer` with updated data and new rows added.
+
+    Used for testing methods that modify the content of a table.
+
+    Returns
+    -------
+    df_customer: pd.DataFrame
+        df_customer with updated data and new rows added.
+
+    rows_updated: Tuple[int, ...]
+        The CustomerId of the rows of `df_customer` that were updated.
+
+    rows_added: Tuple[int, ...]
+        The CustomerId of the rows of `df_customer` that were added.
+    """
+
+    df = df_customer.copy()
+
+    # Updated rows
+    df.loc[2, 'BirthDate'] = datetime(1972, 1, 14)
+    df.loc[3:4, 'Residence'] = ('Lumbridge', 'Taverley')
+    df.loc[3:4, 'BirthDate'] = (datetime(1962, 5, 13), datetime(1995, 3, 24))
+    df.loc[5, 'IsAdventurer'] = 0
+
+    # Added rows
+    df.loc[7, :] = ('Prince Ali', datetime(1969, 6, 20), 'Al Kharid', 0)
+    df.loc[8, :] = ('Mosol Rei', datetime(1983, 4, 30), 'Shilo Village', 0)
+
+    return df, (2, 3, 4, 5), (7, 8)
 
 
 @pytest.fixture()
