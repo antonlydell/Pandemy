@@ -5,18 +5,22 @@ r"""Fixtures for testing the Pandemy package."""
 # ===============================================================
 
 # Standard Library
+from contextlib import contextmanager
 from datetime import datetime
 import io
 from pathlib import Path
 import shutil
 from typing import Tuple, Union
+from unittest.mock import Mock
 
 # Third Party
 import pandas as pd
 import pytest
+from sqlalchemy.engine import Connection
 
 # Local
 import pandemy
+import pandemy.databasemanager
 
 # ===============================================================
 # Constants
@@ -31,6 +35,23 @@ STATIC_FILES: Path = Path(__file__).parent / 'static_files'
 # Path to the location of the test data for the SQLite database
 STATIC_FILES_SQLITE: Path = STATIC_FILES / 'SQLite'
 
+# ===============================================================
+# Mocks
+# ===============================================================
+
+mocked_connection: Mock = Mock(Connection)
+
+
+@contextmanager
+def mocked_engine_begin_connect_methods(self, *args, **kwargs) -> Mock:
+    r"""A mocked version of the `begin` and `connect` methods of `sqlalchemy.engine.Engine`."""
+
+    conn = mocked_connection(engine=self)
+
+    try:
+        yield conn
+    finally:
+        conn.close()
 
 # ===============================================================
 # Fixtures
@@ -114,6 +135,29 @@ def sqlite_db_empty(sqlite_db_file_empty) -> pandemy.SQLiteDb:
     """
 
     return pandemy.SQLiteDb(file=sqlite_db_file_empty, must_exist=True)
+
+
+@pytest.fixture()
+def oracle_db_mocked(monkeypatch) -> pandemy.OracleDb:
+    r"""An instance of the DatabaseManager `pandemy.OracleDb`.
+
+    The instance has Runescape inspired connection details that do not
+    point to a real server. It can be used for testing parts of methods
+    that do not perform the actual interaction with the database.
+
+    The database engine methods `begin` and `connect` have been replaced by a mocked versions.
+    """
+
+    monkeypatch.setattr(pandemy.databasemanager.Engine, 'begin', mocked_engine_begin_connect_methods)
+    monkeypatch.setattr(pandemy.databasemanager.Engine, 'connect', mocked_engine_begin_connect_methods)
+
+    return pandemy.OracleDb(
+        username='Fred_the_Farmer',
+        password='Penguins-sheep-are-not',
+        host='localhost',
+        port=1234,
+        sid='shears'
+    )
 
 
 # ===============================================================

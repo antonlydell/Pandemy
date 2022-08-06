@@ -2346,6 +2346,53 @@ WHERE
         # ===========================================================
 
 
+class TestMergeDfMethod:
+    r"""Test the `merge_df` method of the SQLite DatabaseManager `SQLiteDb`.
+
+    SQLite does not support the MERGE statement.
+
+    Fixtures
+    --------
+    sqlite_db_to_modify : pandemy.SQLiteDb
+        An instance of the test database where the table data can be modified in each test.
+
+    df_customer : pd.DataFrame
+        The Customer table of the test database.
+    """
+
+    @pytest.mark.raises
+    def test_merge_statement_not_supported(self, sqlite_db_to_modify, df_customer):
+        r"""Test that `SQLiteDb` does not support the `merge_df` method.
+
+        Because SQLite does not support the MERGE statement
+        pandemy.SQLStatementNotSupportedError is expected to be raised
+        when calling the `merge_df` method.
+
+        The class variable `_merge_df_stmt` is an empty string the `DatabaseManager`
+        does not support the `merge_df` method.
+        """
+
+        # Setup - None
+        # ===========================================================
+
+        # Exercise & Verify
+        # ===========================================================
+        with sqlite_db_to_modify.engine.begin() as conn:
+            with pytest.raises(pandemy.SQLStatementNotSupportedError, match='SQLiteDb'):
+                sqlite_db_to_modify.merge_df(
+                    df=df_customer,
+                    table='Customer',
+                    conn=conn,
+                    on_cols=['CustomerName'],
+                    nan_to_none=True,
+                    datetime_cols_dtype='str',
+                    datetime_format=r'%Y-%m-%d'
+                )
+
+        # Clean up - None
+        # ===========================================================
+
+
 class TestManageForeignKeysMethod:
     r"""Test the `manage_foreign_keys` method of the SQLite DatabaseManager `SQLiteDb`.
 

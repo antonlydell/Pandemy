@@ -27,10 +27,12 @@ from pandemy.exceptions import (
    DataTypeConversionError,
    DeleteFromTableError,
    ExecuteStatementError,
+   InvalidColumnNameError,
    InvalidTableNameError,
    LoadTableError,
    SaveDataFrameError,
    SetIndexError,
+   SQLStatementNotSupportedError,
    TableExistsError
 )
 
@@ -86,10 +88,12 @@ __all__ = [
    'DataTypeConversionError',
    'DeleteFromTableError',
    'ExecuteStatementError',
+   'InvalidColumnNameError',
    'InvalidTableNameError',
    'LoadTableError',
    'SaveDataFrameError',
    'SetIndexError',
+   'SQLStatementNotSupportedError',
    'TableExistsError',
 
    # sqlcontainer

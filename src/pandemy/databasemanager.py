@@ -110,6 +110,9 @@ WHERE
         )"""
     )
 
+    # Template of the MERGE statement. If empty string the database does not support the statement.
+    _merge_df_stmt: str = ''
+
     @abstractmethod
     def __init__(self, container: Optional[pandemy.SQLContainer] = None,
                  engine_config: Optional[dict] = None,
@@ -178,6 +181,23 @@ WHERE
                                                 f'The table name must be a single word.\ntable = {table}',
                                                 data=table)
 
+    def _supports_merge_statement(self) -> None:
+        r""""Check if the :class:`DatabaseManger` supports the MERGE statement.
+
+        If is does not support the MERGE statement :exc:`pandemy.SQLStatementNotSupportedError` is raised.
+
+        Raises
+        ------
+        pandemy.SQLStatementNotSupportedError
+            If the MERGE statement is not supported by the database SQL dialect.
+        """
+
+        if not self._merge_df_stmt:
+            raise pandemy.SQLStatementNotSupportedError(
+                f'{self.__class__.__name__} does not support the MERGE statement.'
+                f'Try the similar upsert_table method instead.'
+            )
+
     def _prepare_input_data_for_modify_statements(
             self,
             df: pd.DataFrame,
@@ -193,6 +213,7 @@ WHERE
 
         update_cols : str or Sequence[str] or None
             The columns to update and or insert data into.
+            The string 'all' includes all columns of `df`.
 
         update_index_cols : bool or Sequence[str]
             If the index columns of `df` should be included in the columns to update.
@@ -213,6 +234,12 @@ WHERE
 
         insert_cols : list of str
             The columns to insert data into.
+
+        Raises
+        ------
+        pandemy.InvalidColumnNameError
+            If a column name of `update_cols`, `update_index_cols` or `where_cols` are not
+            among the columns of the input DataFrame `df`.
         """
 
         # Get the columns to update and convert to list
@@ -233,7 +260,17 @@ WHERE
         update_cols = [col for col in update_cols if col not in where_cols]  # where_cols should not be updated
 
         cols_in_stmts = list(set(update_cols + insert_cols + where_cols))  # The columns used in the statements
-        df_output = df.reset_index()[cols_in_stmts]  # Keep only the columns affected by the statements
+
+        df_output = df.reset_index()
+
+        # Check for column names that are not part of the DataFrame
+        if len((invalid_cols := [col for col in cols_in_stmts if col not in df_output.columns])) > 0:
+            raise pandemy.InvalidColumnNameError(
+                f'Invalid column names: {invalid_cols}.\n'
+                f'Columns and index of DataFrame: {df_output.columns.tolist()}',
+                data=invalid_cols) from None
+
+        df_output = df_output[cols_in_stmts]  # Keep only the columns affected by the statements
 
         return df_output, update_cols, insert_cols
 
@@ -324,6 +361,102 @@ WHERE
         )
 
         return insert_stmt
+
+    def _create_merge_statement(self,
+                                table: str,
+                                insert_cols: Sequence[str],
+                                on_cols: Sequence[str],
+                                update_cols: Sequence[str],
+                                target_prefix: str = 't',
+                                source_prefix: str = 's',
+                                omit_update_where_clause: bool = True,
+                                when_not_matched_by_source_delete: bool = False) -> str:
+        r"""Create a MERGE statement with placeholders parametrized.
+
+        Creates the statement from the template `self._merge_df_stmt`.
+
+        Parameters
+        ----------
+        table : str
+            The name of the table to merge values into.
+
+        insert_cols : Sequence[str]
+            The columns to insert values into.
+
+        on_cols : Sequence[str]
+            The columns to include in the ON clause.
+
+        update_cols : Sequence[str]
+            The columns to update.
+
+        target_prefix : str, default 't'
+            The prefix to use for columns of the target table in the database.
+
+        source_prefix : str, default 's'
+            The prefix to use for columns of the source table (the DataFrame)
+            to merge into the target table.
+
+        omit_update_where_clause : bool, default True
+            If the WHERE clause of the UPDATE clause should be omitted.
+
+        when_not_matched_by_source_delete : bool, default False
+            If the THE WHEN NOT MATCHED BY SOURCE DELETE clause should be included.
+            This clause is only supported by Microsoft SQL Server.
+        """
+
+        t = target_prefix
+        s = source_prefix
+        stmt_space = self._stmt_space
+
+        # Table name
+        merge_stmt = self._merge_df_stmt.replace(':table', table)
+
+        # Prefixes
+        merge_stmt = merge_stmt.replace(':target', t)
+        merge_stmt = merge_stmt.replace(':source', s)
+
+        # USING SELECT values
+        merge_stmt = merge_stmt.replace(
+            ':select_values',
+            f',\n{stmt_space*2}'.join(f':{col} AS {col}' for col in insert_cols)
+        )
+
+        # ON Clause
+        merge_stmt = merge_stmt.replace(
+            ':on',
+            f' AND\n{stmt_space}'.join(f'{t}.{col} = {s}.{col}' for col in on_cols)
+        )
+
+        # WHEN MATCHED THEN UPDATE
+        merge_stmt = merge_stmt.replace(
+            ':update_cols',
+            f',\n{stmt_space*2}'.join(f't.{col} = s.{col}' for col in update_cols)
+        )
+
+        # WHEN MATCHED THEN UPDATE WHERE
+        if omit_update_where_clause:
+            merge_stmt = merge_stmt.replace(f'{stmt_space}WHERE\n{stmt_space*2}:update_where_cols\n', '')
+        else:
+            merge_stmt = merge_stmt.replace(
+                ':update_where_cols',
+                f' OR\n{stmt_space*2}'.join(f't.{col} <> s.{col}' for col in update_cols)
+            )
+
+        # WHEN NOT MATCHED THEN INSERT INTO
+        merge_stmt = merge_stmt.replace(
+            ':insert_cols',
+            f',\n{stmt_space*2}'.join(f'{t}.{col}' for col in insert_cols)
+        )
+
+        # WHEN NOT MATCHED THEN INSERT VALUES
+        merge_stmt = merge_stmt.replace(
+            ':insert_values',
+            f',\n{stmt_space*2}'.join(f'{s}.{col}' for col in insert_cols)
+        )
+
+        # Optionally use WHEN NOT MATCHED BY SOURCE DELETE (Only Microsoft SQL Server)
+
+        return merge_stmt
 
     def manage_foreign_keys(self, conn: Connection, action: str) -> None:
         r"""Manage how the database handles foreign key constraints.
@@ -798,6 +931,8 @@ WHERE
 
         The colum names of the :class:`pandas.DataFrame` `df` and `table` must match.
 
+        .. versionadded:: 1.2.0
+
         Parameters
         ----------
         df : pandas.DataFrame
@@ -931,6 +1066,175 @@ WHERE
 
         return result_update, result_insert
 
+    def merge_df(
+            self,
+            df: pd.DataFrame,
+            table: str,
+            conn: Connection,
+            on_cols: Sequence[str],
+            merge_cols: Optional[Union[str, Sequence[str]]] = 'all',
+            merge_index_cols: Union[bool, Sequence[str]] = False,
+            omit_update_where_clause: bool = True,
+            nan_to_none: bool = True,
+            datetime_cols_dtype: Optional[str] = None,
+            datetime_format: str = r'%Y-%m-%d %H:%M:%S',
+            dry_run: bool = False) -> Union[CursorResult, str]:
+        r"""Merge data from a :class:`pandas.DataFrame` into a table.`.
+
+        This method performs a combined UPDATE and INSERT statement on a `table` using the
+        MERGE statement. The method is similar to :meth:`~DatabaseManager.upsert_table()`
+        but it only executes one statement instead of two.
+
+        Databases implemented in Pandemy that support the MERGE statement:
+            - Oracle
+
+        The column names of `df` and `table` must match.
+
+        .. versionadded:: 1.2.0
+
+        Parameters
+        ----------
+        df : pandas.DataFrame
+            The DataFrame with data to merge into `table`.
+
+        table : str
+            The name of the table to merge data into.
+
+        conn : sqlalchemy.engine.base.Connection
+            An open connection to the database.
+
+        on_cols : Sequence[str] or None
+            The columns from `df` to use in the ON clause to identify how to merge rows into `table`.
+
+        merge_cols : str or Sequence[str] or None, default 'all'
+            The columns of `table` to merge (update or insert) with data from `df`.
+            The default string ``'all'`` will update all columns.
+            If ``None`` no columns will be selected for merge. This is useful if only columns
+            of the index of `df` should be updated by specifying `merge_index_cols`.
+
+        merge_index_cols : bool or Sequence[str], default False
+            If the index columns of `df` should be included in the columns to merge.
+            ``True`` indicates that the index should be included. If the index is a :class:`pandas.MultiIndex`
+            a sequence of str that maps against the levels to include can be used to only include the desired levels.
+            ``False`` excludes the index column(s) from being updated which is the default.
+
+        omit_update_where_clause: bool, default True
+            If the WHERE clause of the UPDATE clause should be omitted from the MERGE statement.
+            The WHERE clause is implemented as a OR conditions where the target and source columns to update
+            are not equal.
+
+            Databases in Pandemy that support this option are: Oracle
+
+           Example of setting `omit_update_where_clause` to True
+
+            [...]
+            WHEN MATCHED THEN
+                UPDATE
+                SET
+                    t.IsAdventurer = s.IsAdventurer,
+                    t.CustomerId = s.CustomerId,
+                    t.CustomerName = s.CustomerName
+                WHERE
+                    t.IsAdventurer <> s.IsAdventurer OR
+                    t.CustomerId <> s.CustomerId OR
+                    t.CustomerName <> s.CustomerName
+            [...]
+
+        nan_to_none: bool, default True
+            If columns with missing values (NaN values) that are of type :attr:`pandas.NA` :attr:`pandas.NaT`
+            or :attr:`numpy.nan` should be converted to standard Python ``None``. Some databases do not support
+            these types in parametrized SQL statements.
+
+        datetime_cols_dtype : {'str', 'int'} or None, default None
+            If the datetime columns of `df` should be converted to string or integer data types
+            before updating the table. If ``None`` no conversion of datetime columns is performed,
+            which is the default. When using ``'int'`` the datetime columns are converted to the
+            number of seconds since the unix epoch of 1970-01-01 in UTC time zone.
+
+        datetime_format : str, default r'%Y-%m-%d %H:%M:%S'
+            The datetime format to use when converting datetime columns to string.
+
+        dry_run: bool, default False
+            Do not execute the merge. Instead return the SQL statement
+            that would have been executed on the database as a string.
+
+        Returns
+        -------
+        sqlalchemy.engine.CursorResult or str
+            A result object from the executed statement or the SQL statement
+            that would have been executed if `dry_run` is ``True``.
+
+        Raises
+        ------
+        pandemy.InvalidInputError
+            Invalid values or types for input parameters.
+
+        pandemy.InvalidColumnNameError
+            If a column name of `merge_cols`, `merge_index_cols` or `on_cols` are not
+            among the columns or index of the input DataFrame `df`.
+
+        pandemy.InvalidTableNameError
+            If the supplied table name is invalid.
+
+        pandemy.ExecuteStatementError
+            If an error occurs when executing the MERGE statement.
+
+        See Also
+        --------
+        DatabaseManager.upsert_table : Update a table with a :class:`pandas.DataFrame` and optionally insert new rows.
+        """
+
+        self._is_valid_table_name(table=table)
+        self._supports_merge_statement()
+
+        df_merge, update_cols, insert_cols = self._prepare_input_data_for_modify_statements(
+                                                    df=df,
+                                                    update_cols=merge_cols,
+                                                    update_index_cols=merge_index_cols,
+                                                    where_cols=on_cols
+                                                )
+
+        # Create the MERGE statement
+        merge_stmt = self._create_merge_statement(
+                            table=table,
+                            insert_cols=insert_cols,
+                            on_cols=on_cols,
+                            update_cols=update_cols,
+                            omit_update_where_clause=omit_update_where_clause
+                        )
+
+        if dry_run:  # Early exit to check the statement
+            return merge_stmt
+
+        # Convert datetime columns to string or int
+        if datetime_cols_dtype is not None:
+            df_merge = pandemy._datetime.convert_datetime_columns(
+                df=df_merge, dtype=datetime_cols_dtype, datetime_format=datetime_format
+            )
+
+        # Convert missing values
+        if nan_to_none and df_merge.isna().any().any():  # If at least 1 missing value
+            df_merge = pandemy._dataframe.convert_nan_to_none(df=df_merge)
+
+        # Turn the DataFrame into a list of dict [{parameter: value}, {...}]
+        params = df_merge.to_dict(orient='records')
+
+        # Perform the MERGE
+        try:
+            result_merge = conn.execute(text(merge_stmt), params)
+        except Exception as e:
+            log_level = 40  # ERROR
+            raise pandemy.ExecuteStatementError(f'{type(e).__name__}: {e.args}', data=e.args) from None
+        else:
+            log_level = 10  # DEBUG
+        finally:
+            logger.log(log_level, f'MERGE statement for table {table}:\n{merge_stmt}\n')
+            logger.log(
+                log_level,
+                'params:\n{params_row}'.format(params_row="\n".join(str(row) for row in params))
+            )
+
+        return result_merge
 
 # ===============================================================
 # SQLite
@@ -1303,6 +1607,39 @@ class OracleDb(DatabaseManager):
         engine=Engine(oracle+cx_oracle://Fred_the_Farmer:***@my_dsn_name)
     )
     """
+
+    # Class variables
+    # ---------------
+
+    # MERGE DataFrame statement
+    _merge_df_stmt: str = (
+        """MERGE INTO :table :target
+
+USING (
+    SELECT
+        :select_values
+    FROM DUAL
+) :source
+
+ON (
+    :on
+)
+
+WHEN MATCHED THEN
+    UPDATE
+    SET
+        :update_cols
+    WHERE
+        :update_where_cols
+
+WHEN NOT MATCHED THEN
+    INSERT (
+        :insert_cols
+    )
+    VALUES (
+        :insert_values
+    )"""
+    )
 
     def __init__(self,
                  username: str,
