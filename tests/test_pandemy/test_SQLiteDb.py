@@ -2108,7 +2108,12 @@ WHERE
         )
 
         insert_stmt_exp = (
-            """INSERT INTO Customer (CustomerName, BirthDate, Residence, IsAdventurer)
+            """INSERT INTO Customer (
+    CustomerName,
+    BirthDate,
+    Residence,
+    IsAdventurer
+)
     SELECT
         :CustomerName,
         :BirthDate,
@@ -2205,7 +2210,10 @@ WHERE
         )
 
         insert_stmt_exp = (
-            """INSERT INTO Customer (BirthDate, CustomerId)
+            """INSERT INTO Customer (
+    BirthDate,
+    CustomerId
+)
     SELECT
         :BirthDate,
         :CustomerId

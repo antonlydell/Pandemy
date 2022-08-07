@@ -97,7 +97,9 @@ WHERE
 
     # Template statement to insert new rows, that do not exist already, into a table.
     _insert_into_where_not_exists_stmt: str = (
-        """INSERT INTO :table (:insert_cols)
+        """INSERT INTO :table (
+    :insert_cols
+)
     SELECT
         :select_values
     WHERE
@@ -344,20 +346,21 @@ WHERE
         """
 
         insert_stmt = self._insert_into_where_not_exists_stmt.replace(':table', table)
+        stmt_space = self._stmt_space
 
         insert_stmt = insert_stmt.replace(
             ':insert_cols',
-            ', '.join(insert_cols)
+            f',\n{stmt_space}'.join(insert_cols)
         )
 
         insert_stmt = insert_stmt.replace(
             ':select_values',
-            f',\n{self._stmt_space*select_values_space_factor}'.join(f':{col}' for col in insert_cols)
+            f',\n{stmt_space*select_values_space_factor}'.join(f':{col}' for col in insert_cols)
         )
 
         insert_stmt = insert_stmt.replace(
             ':where_cols',
-            f' AND\n{self._stmt_space*where_cols_space_factor}'.join(f'{col} = :{col}' for col in where_cols)
+            f' AND\n{stmt_space*where_cols_space_factor}'.join(f'{col} = :{col}' for col in where_cols)
         )
 
         return insert_stmt
@@ -929,7 +932,7 @@ WHERE
         from the :class:`pandas.DataFrame` and insert new rows found in `df` into `table`.
         The INSERT statement can be omitted with the `update_only` parameter.
 
-        The colum names of the :class:`pandas.DataFrame` `df` and `table` must match.
+        The column names of the `df` and `table` must match.
 
         .. versionadded:: 1.2.0
 
@@ -970,7 +973,7 @@ WHERE
             these types in parametrized SQL statements.
 
         datetime_cols_dtype : {'str', 'int'} or None, default None
-            If the datetime columns of `df` should be converted to string or integer data type
+            If the datetime columns of `df` should be converted to string or integer data types
             before updating the table. SQLite cannot handle datetime objects as parameters
             and should use this option. If ``None`` no conversion of datetime columns is performed,
             which is the default. When using ``'int'`` the datetime columns are converted to the
@@ -1000,6 +1003,10 @@ WHERE
 
         pandemy.ExecuteStatementError
             If an error occurs when executing the UPDATE and or INSERT statement.
+
+        See Also
+        --------
+        DatabaseManager.merge_table : Merge data from a :class:`pandas.DataFrame` into a table.
         """
 
         self._is_valid_table_name(table=table)
@@ -1040,7 +1047,8 @@ WHERE
                 df=df_upsert, dtype=datetime_cols_dtype, datetime_format=datetime_format
             )
 
-        if nan_to_none and df_upsert.isna().sum().sum() > 0:  # If at least 1 missing value
+        # Convert missing values
+        if nan_to_none and df_upsert.isna().any().any():  # If at least 1 missing value
             df_upsert = pandemy._dataframe.convert_nan_to_none(df=df_upsert)
 
         # Turn the DataFrame into a list of dict [{parameter: value}, {...}]
@@ -1079,7 +1087,7 @@ WHERE
             datetime_cols_dtype: Optional[str] = None,
             datetime_format: str = r'%Y-%m-%d %H:%M:%S',
             dry_run: bool = False) -> Union[CursorResult, str]:
-        r"""Merge data from a :class:`pandas.DataFrame` into a table.`.
+        r"""Merge data from a :class:`pandas.DataFrame` into a table.
 
         This method performs a combined UPDATE and INSERT statement on a `table` using the
         MERGE statement. The method is similar to :meth:`~DatabaseManager.upsert_table()`
