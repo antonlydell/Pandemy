@@ -1619,6 +1619,24 @@ class OracleDb(DatabaseManager):
     # Class variables
     # ---------------
 
+    # Template statement to insert new rows, that do not exist already, into a table.
+    _insert_into_where_not_exists_stmt: str = (
+        """INSERT INTO :table (
+    :insert_cols
+)
+    SELECT
+        :select_values
+    FROM DUAL
+    WHERE
+        NOT EXISTS (
+            SELECT
+                1
+            FROM :table
+            WHERE
+                :where_cols
+        )"""
+    )
+
     # MERGE DataFrame statement
     _merge_df_stmt: str = (
         """MERGE INTO :table :target

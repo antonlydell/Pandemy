@@ -758,6 +758,142 @@ class TestStrAndReprMethods:
         # ===========================================================
 
 
+class TestUpsertTableMethod:
+    r"""Test the `upsert_table` method of the Oracle DatabaseManager `OracleDb`.
+
+    Fixtures
+    --------
+    oracle_db_mocked : pandemy.OracleDb
+        An instance of a Oracle DatabaseManager with a mocked versions of the
+        `begin` and `connect` methods of the database engine.
+
+    df_customer : pd.DataFrame
+        The Customer table of the test database.
+    """
+
+    def test_upsert_all_cols_1_where_col_dry_run(self, oracle_db_mocked, df_customer):
+        r"""Test the generated UPDATE and INSERT statements when using the `dry_run` parameter."""
+
+        # Setup
+        # ===========================================================
+        update_stmt_exp = (
+            """UPDATE Customer
+SET
+    BirthDate = :BirthDate,
+    Residence = :Residence,
+    IsAdventurer = :IsAdventurer
+WHERE
+    CustomerName = :CustomerName"""
+        )
+
+        insert_stmt_exp = (
+            """INSERT INTO Customer (
+    CustomerName,
+    BirthDate,
+    Residence,
+    IsAdventurer
+)
+    SELECT
+        :CustomerName,
+        :BirthDate,
+        :Residence,
+        :IsAdventurer
+    FROM DUAL
+    WHERE
+        NOT EXISTS (
+            SELECT
+                1
+            FROM Customer
+            WHERE
+                CustomerName = :CustomerName
+        )"""
+        )
+
+        # Exercise
+        # ===========================================================
+        with oracle_db_mocked.engine.begin() as conn:
+            update_stmt, insert_stmt = oracle_db_mocked.upsert_table(
+                df=df_customer,
+                table='Customer',
+                conn=conn,
+                where_cols=['CustomerName'],
+                update_cols='all',
+                update_only=False,
+                datetime_cols_dtype='str',
+                datetime_format=r'%Y-%m-%d',
+                dry_run=True
+            )
+
+        # Verify
+        # ===========================================================
+        assert update_stmt == update_stmt_exp
+        assert insert_stmt == insert_stmt_exp
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_upsert_2_cols_include_index_3_where_cols_dry_run(self, oracle_db_mocked, df_customer):
+        r"""Test the generated UPDATE and INSERT statements when using the `dry_run` parameter."""
+
+        # Setup
+        # ===========================================================
+        update_stmt_exp = (
+            """UPDATE Customer
+SET
+    BirthDate = :BirthDate,
+    CustomerId = :CustomerId
+WHERE
+    CustomerName = :CustomerName AND
+    Residence = :Residence AND
+    IsAdventurer = :IsAdventurer"""
+        )
+
+        insert_stmt_exp = (
+            """INSERT INTO Customer (
+    BirthDate,
+    CustomerId
+)
+    SELECT
+        :BirthDate,
+        :CustomerId
+    FROM DUAL
+    WHERE
+        NOT EXISTS (
+            SELECT
+                1
+            FROM Customer
+            WHERE
+                CustomerName = :CustomerName AND
+                Residence = :Residence AND
+                IsAdventurer = :IsAdventurer
+        )"""
+        )
+
+        # Exercise
+        # ===========================================================
+        with oracle_db_mocked.engine.begin() as conn:
+            update_stmt, insert_stmt = oracle_db_mocked.upsert_table(
+                df=df_customer,
+                table='Customer',
+                conn=conn,
+                where_cols=['CustomerName', 'Residence', 'IsAdventurer'],
+                update_cols=['BirthDate'],
+                update_index_cols=True,
+                update_only=False,
+                datetime_cols_dtype='str',
+                datetime_format=r'%Y-%m-%d',
+                dry_run=True
+            )
+
+        # Verify
+        # ===========================================================
+        assert update_stmt == update_stmt_exp
+        assert insert_stmt == insert_stmt_exp
+
+        # Clean up - None
+        # ===========================================================
+
+
 class TestMergeDfMethod:
     r"""Test the `merge_df` method of the Oracle DatabaseManager `OracleDb`.
 
