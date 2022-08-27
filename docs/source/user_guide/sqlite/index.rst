@@ -12,4 +12,5 @@ This section describes the SQLite DatabaseManager :class:`SQLiteDb <pandemy.SQLi
    execute
    save_df
    load_table
+   upsert_table
    sqlcontainer
