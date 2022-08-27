@@ -926,13 +926,13 @@ WHERE
             datetime_cols_dtype: Optional[str] = None,
             datetime_format: str = r'%Y-%m-%d %H:%M:%S',
             dry_run: bool = False) -> Union[Tuple[CursorResult, Optional[CursorResult]], Tuple[str, str]]:
-        r"""Update a table with data from a :class:`pandas.DataFrame` and insert new rows if any`.
+        r"""Update a table with data from a :class:`pandas.DataFrame` and insert new rows if any.
 
-        This method combines an UPDATE and INSERT statement to update the rows of a `table`
-        from the :class:`pandas.DataFrame` and insert new rows found in `df` into `table`.
+        This method executes an UPDATE statement followed by an INSERT statement (UPSERT)
+        to update the rows of a table with a :class:`pandas.DataFrame` and insert new rows.
         The INSERT statement can be omitted with the `update_only` parameter.
 
-        The column names of the `df` and `table` must match.
+        The column names of `df` and `table` must match.
 
         .. versionadded:: 1.2.0
 
@@ -974,7 +974,7 @@ WHERE
 
         datetime_cols_dtype : {'str', 'int'} or None, default None
             If the datetime columns of `df` should be converted to string or integer data types
-            before updating the table. SQLite cannot handle datetime objects as parameters
+            before upserting the table. SQLite cannot handle datetime objects as parameters
             and should use this option. If ``None`` no conversion of datetime columns is performed,
             which is the default. When using ``'int'`` the datetime columns are converted to the
             number of seconds since the unix epoch of 1970-01-01 in UTC time zone.
@@ -995,18 +995,75 @@ WHERE
 
         Raises
         ------
+        pandemy.ExecuteStatementError
+            If an error occurs when executing the UPDATE and or INSERT statement.
+
+        pandemy.InvalidColumnNameError
+            If a column name of `update_cols` or `update_index_cols` are not
+            among the columns or index of the input DataFrame `df`.
+
         pandemy.InvalidInputError
             Invalid values or types for input parameters.
 
         pandemy.InvalidTableNameError
             If the supplied table name is invalid.
 
-        pandemy.ExecuteStatementError
-            If an error occurs when executing the UPDATE and or INSERT statement.
-
         See Also
         --------
-        DatabaseManager.merge_table : Merge data from a :class:`pandas.DataFrame` into a table.
+        :meth:`~DatabaseManager.merge_df()` : Merge data from a :class:`pandas.DataFrame` into a table.
+
+        Examples
+        --------
+        Create a simple table called *Customer* and insert some data from a :class:`pandas.DataFrame` (``df``).
+        Change the first row and add a new row to ``df``. Finally upsert the table with ``df``.
+
+        >>> import pandas as pd
+        >>> import pandemy
+        >>> df = pd.DataFrame(data={
+        ...         'CustomerId': [1, 2],
+        ...         'CustomerName': ['Zezima',  'Dr Harlow']
+        ...     }
+        ... )
+        >>> df = df.set_index('CustomerId')
+        >>> df  # doctest: +NORMALIZE_WHITESPACE, +ELLIPSIS
+                   CustomerName
+        CustomerId
+        1                Zezima
+        2             Dr Harlow
+        >>> db = pandemy.SQLiteDb()  # Create an in memory database
+        >>> with db.engine.begin() as conn:
+        ...     _ = db.execute(
+        ...         sql=(
+        ...             'CREATE TABLE Customer('
+        ...             'CustomerId INTEGER PRIMARY KEY, '
+        ...             'CustomerName TEXT NOT NULL)'
+        ...         ),
+        ...         conn=conn
+        ...     )
+        ...     db.save_df(df=df, table='Customer', conn=conn)
+        >>> df.loc[1, 'CustomerName'] = 'Baraek'  # Change data
+        >>> df.loc[3, 'CustomerName'] = 'Mosol Rei'  # Add new data
+        >>> df  # doctest: +NORMALIZE_WHITESPACE
+                   CustomerName
+        CustomerId
+        1                Baraek
+        2             Dr Harlow
+        3             Mosol Rei
+        >>> with db.engine.begin() as conn:
+        ...     _, _ = db.upsert_table(
+        ...         df=df, table='Customer', conn=conn,
+        ...         where_cols=['CustomerId'], update_index_cols=True
+        ...     )
+        ...     df_upserted = db.load_table(
+        ...         sql='SELECT * FROM Customer ORDER BY CustomerId ASC',
+        ...         conn=conn, index_col='CustomerId'
+        ...     )
+        >>> df_upserted  # doctest: +NORMALIZE_WHITESPACE
+                   CustomerName
+        CustomerId
+        1                Baraek
+        2             Dr Harlow
+        3             Mosol Rei
         """
 
         self._is_valid_table_name(table=table)
@@ -1089,12 +1146,13 @@ WHERE
             dry_run: bool = False) -> Union[CursorResult, str]:
         r"""Merge data from a :class:`pandas.DataFrame` into a table.
 
-        This method performs a combined UPDATE and INSERT statement on a `table` using the
+        This method performs a combined UPDATE and INSERT statement on a table using the
         MERGE statement. The method is similar to :meth:`~DatabaseManager.upsert_table()`
         but it only executes one statement instead of two.
 
         Databases implemented in Pandemy that support the MERGE statement:
-            - Oracle
+
+        - Oracle
 
         The column names of `df` and `table` must match.
 
@@ -1126,27 +1184,29 @@ WHERE
             a sequence of str that maps against the levels to include can be used to only include the desired levels.
             ``False`` excludes the index column(s) from being updated which is the default.
 
-        omit_update_where_clause: bool, default True
+        omit_update_where_clause : bool, default True
             If the WHERE clause of the UPDATE clause should be omitted from the MERGE statement.
-            The WHERE clause is implemented as a OR conditions where the target and source columns to update
+            The WHERE clause is implemented as OR conditions where the target and source columns to update
             are not equal.
 
             Databases in Pandemy that support this option are: Oracle
 
-           Example of setting `omit_update_where_clause` to True
+            Example of the SQL generated when ``omit_update_where_clause=True``:
 
-            [...]
-            WHEN MATCHED THEN
-                UPDATE
-                SET
-                    t.IsAdventurer = s.IsAdventurer,
-                    t.CustomerId = s.CustomerId,
-                    t.CustomerName = s.CustomerName
-                WHERE
-                    t.IsAdventurer <> s.IsAdventurer OR
-                    t.CustomerId <> s.CustomerId OR
-                    t.CustomerName <> s.CustomerName
-            [...]
+            .. code-block::
+
+               [...]
+               WHEN MATCHED THEN
+                   UPDATE
+                   SET
+                       t.IsAdventurer = s.IsAdventurer,
+                       t.CustomerId = s.CustomerId,
+                       t.CustomerName = s.CustomerName
+                    WHERE
+                       t.IsAdventurer <> s.IsAdventurer OR
+                       t.CustomerId <> s.CustomerId OR
+                       t.CustomerName <> s.CustomerName
+               [...]
 
         nan_to_none: bool, default True
             If columns with missing values (NaN values) that are of type :attr:`pandas.NA` :attr:`pandas.NaT`
@@ -1174,22 +1234,25 @@ WHERE
 
         Raises
         ------
-        pandemy.InvalidInputError
-            Invalid values or types for input parameters.
+        pandemy.ExecuteStatementError
+            If an error occurs when executing the MERGE statement.
 
         pandemy.InvalidColumnNameError
             If a column name of `merge_cols`, `merge_index_cols` or `on_cols` are not
             among the columns or index of the input DataFrame `df`.
 
+        pandemy.InvalidInputError
+            Invalid values or types for input parameters.
+
         pandemy.InvalidTableNameError
             If the supplied table name is invalid.
 
-        pandemy.ExecuteStatementError
-            If an error occurs when executing the MERGE statement.
+        pandemy.SQLStatementNotSupportedError
+            If the database dialect does not support the MERGE statement.
 
         See Also
         --------
-        DatabaseManager.upsert_table : Update a table with a :class:`pandas.DataFrame` and optionally insert new rows.
+        * :meth:`~DatabaseManager.upsert_table()` : Update a table with a :class:`pandas.DataFrame` and optionally insert new rows.
         """
 
         self._is_valid_table_name(table=table)
