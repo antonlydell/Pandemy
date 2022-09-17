@@ -905,12 +905,31 @@ class TestMergeDfMethod:
 
     df_customer : pd.DataFrame
         The Customer table of the test database.
+        The table has 6 rows.
     """
 
-    def test_merge_all_cols_1_on_col(self, oracle_db_mocked, df_customer):
+    @pytest.mark.parametrize(
+        'chunksize, nr_chunks_exp',
+        (
+            pytest.param(None, 1, id='chunksize=None'),
+            pytest.param(2, 3, id='chunksize=2'),
+            pytest.param(4, 2, id='chunksize=4'),
+            pytest.param(10, 1, id='chunksize=10'),
+        )
+    )
+    def test_merge_all_cols_1_on_col(self, chunksize, nr_chunks_exp, oracle_db_mocked, df_customer):
         r"""Merge data from all columns of a DataFrame into a table using 1 column in the ON clause.
 
         Verifying that the SQL statement is executed once.
+
+        Parameters
+        ----------
+        chunksize : int or None
+            Divide the DataFrame into chunks and perform the merge in chunks of `chunksize` rows.
+            If None all rows of the DataFrame are processed in one chunk, which is the default.
+
+        nr_chunks_exp : int
+            The number of chunks needed to process all rows of the DataFrame given `chunksize`.
         """
 
         # Setup - None
@@ -924,11 +943,13 @@ class TestMergeDfMethod:
                 table='Customer',
                 conn=conn,
                 on_cols=['CustomerName'],
+                chunksize=chunksize
             )
 
         # Verify
         # ===========================================================
-        conn.execute.assert_called_once_with(ANY, ANY)
+        conn.execute.assert_called()
+        assert conn.execute.call_count == nr_chunks_exp
 
         # Clean up - None
         # ===========================================================
@@ -1490,6 +1511,47 @@ WHEN NOT MATCHED THEN
                     conn=conn,
                     on_cols=['CustomerName'],
                 )
+
+        # Clean up - None
+        # ===========================================================
+
+    @pytest.mark.raises
+    @pytest.mark.parametrize(
+        'chunksize',
+        (
+            pytest.param('2', id='chunksize=str'),
+            pytest.param([3], id='chunksize=[3]'),
+            pytest.param(-3, id='chunksize=-3')
+        )
+    )
+    def test_invalid_chunksize(self, chunksize, oracle_db_mocked, df_customer):
+        r"""Supply invalid values to the `chunksize` parameter.
+
+        Parameters
+        ----------
+        chunksize : int or None, default None
+            Divide `df` into chunks and perform the merge in chunks of `chunksize` rows.
+            If None all rows of `df` are processed in one chunk, which is the default.
+        """
+
+        # Setup - None
+        # ===========================================================
+
+        # Exercise & Verify
+        # ===========================================================
+        with oracle_db_mocked.engine.begin() as conn:
+            with pytest.raises(pandemy.InvalidInputError) as exc_info:
+                oracle_db_mocked.merge_df(
+                    df=df_customer,
+                    table='Customer',
+                    conn=conn,
+                    on_cols=['CustomerName'],
+                    chunksize=chunksize
+                )
+
+        # Verify
+        # ===========================================================
+        assert exc_info.value.data == chunksize
 
         # Clean up - None
         # ===========================================================

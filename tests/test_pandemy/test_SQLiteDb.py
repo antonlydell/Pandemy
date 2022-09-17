@@ -2033,6 +2033,49 @@ WHERE
         # Clean up - None
         # ===========================================================
 
+    @pytest.mark.raises
+    @pytest.mark.parametrize(
+        'chunksize',
+        (
+            pytest.param('2', id='chunksize=str'),
+            pytest.param([3], id='chunksize=[3]'),
+            pytest.param(-3, id='chunksize=-3')
+        )
+    )
+    def test_invalid_chunksize(self, chunksize, sqlite_db_to_modify, df_customer):
+        r"""Supply invalid values to the `chunksize` parameter.
+
+        Parameters
+        ----------
+        chunksize : int or None, default None
+            Divide `df` into chunks and perform the upsert in chunks of `chunksize` rows.
+            If None all rows of `df` are processed in one chunk, which is the default.
+        """
+
+        # Setup - None
+        # ===========================================================
+
+        # Exercise & Verify
+        # ===========================================================
+        with sqlite_db_to_modify.engine.begin() as conn:
+            with pytest.raises(pandemy.InvalidInputError) as exc_info:
+                sqlite_db_to_modify.upsert_table(
+                    df=df_customer,
+                    table='Customer',
+                    conn=conn,
+                    where_cols=['CustomerName'],
+                    update_only=True,
+                    chunksize=chunksize,
+                    datetime_cols_dtype='str'
+                )
+
+        # Verify
+        # ===========================================================
+        assert exc_info.value.data == chunksize
+
+        # Clean up - None
+        # ===========================================================
+
 
 class TestUpsertTableMethodUpdateAndInsert:
     r"""Test the `upsert_table` method of the SQLite DatabaseManager `SQLiteDb`.
@@ -2053,7 +2096,16 @@ class TestUpsertTableMethodUpdateAndInsert:
     caplog : pytest.LogCaptureFixture
         Built-in fixture to control logging and access log entries.
     """
-    def test_upsert_all_cols_1_where_col(self, sqlite_db_to_modify, df_customer_upsert):
+
+    @pytest.mark.parametrize(
+        'chunksize',
+        (
+            pytest.param(None, id='chunksize=None'),
+            pytest.param(2, id='chunksize=2'),
+            pytest.param(10, id='chunksize=10'),
+        )
+    )
+    def test_upsert_all_cols_1_where_col(self, chunksize, sqlite_db_to_modify, df_customer_upsert):
         r"""Update a table with data from all columns of a DataFrame and insert new rows.
 
         We supply one column to use in the WHERE clause to determine
@@ -2062,6 +2114,12 @@ class TestUpsertTableMethodUpdateAndInsert:
 
         The input DataFrame contains 2 new rows that do not exist in the database table
         Customer. These rows should be added.
+
+        Parameters
+        ----------
+        chunksize : int or None
+            Divide the DataFrame into chunks and perform the upsert in chunks of `chunksize` rows.
+            If None all rows of the DataFrame are processed in one chunk, which is the default.
         """
 
         # Setup
@@ -2078,6 +2136,7 @@ class TestUpsertTableMethodUpdateAndInsert:
                 conn=conn,
                 where_cols=['CustomerName'],
                 update_only=False,
+                chunksize=chunksize,
                 datetime_cols_dtype='str',
                 datetime_format=r'%Y-%m-%d'
             )

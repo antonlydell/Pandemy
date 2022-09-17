@@ -183,6 +183,41 @@ WHERE
                                                 f'The table name must be a single word.\ntable = {table}',
                                                 data=table)
 
+    @staticmethod
+    def _validate_chunksize(chunksize: Optional[int]) -> None:
+        r"""Validate that the `chunksize` parameter is an integer > 0 or None.
+
+        The `chunksize` parameter is used by the methods:
+
+        - load_table
+        - merge_df
+        - save_df
+        - upsert_table
+
+        Parameters
+        ----------
+        chunksize : int or None
+            The number of rows from a DataFrame to process in each chunk.
+
+        Raises
+        ------
+        pandemy.InvalidInputError
+            If `chunksize` is not an integer > 0 or None.
+        """
+
+        if chunksize is None:
+            return
+
+        if not isinstance(chunksize, int):
+            raise pandemy.InvalidInputError(
+                f'chunksize must be of type int, got {type(chunksize)}', data=chunksize
+            )
+
+        if chunksize <= 0:
+            raise pandemy.InvalidInputError(
+                f'chunksize ({chunksize}) be an integer > 0', data=chunksize
+            )
+
     def _supports_merge_statement(self) -> None:
         r""""Check if the :class:`DatabaseManger` supports the MERGE statement.
 
@@ -1039,6 +1074,7 @@ WHERE
             update_cols: Optional[Union[str, Sequence[str]]] = 'all',
             update_index_cols: Union[bool, Sequence[str]] = False,
             update_only: bool = False,
+            chunksize: Optional[int] = None,
             nan_to_none: bool = True,
             datetime_cols_dtype: Optional[str] = None,
             datetime_format: str = r'%Y-%m-%d %H:%M:%S',
@@ -1084,7 +1120,12 @@ WHERE
             If ``True`` the `table` should only be updated and new rows not inserted.
             If ``False`` (the default) perform an update and insert new rows.
 
-        nan_to_none: bool, default True
+        chunksize : int or None, default None
+            Divide `df` into chunks and perform the upsert in chunks of `chunksize` rows.
+            If None all rows of `df` are processed in one chunk, which is the default.
+            If `df` has many rows dividing it into chunks may increase performance.
+
+        nan_to_none : bool, default True
             If columns with missing values (NaN values) that are of type :attr:`pandas.NA` :attr:`pandas.NaT`
             or :attr:`numpy.nan` should be converted to standard Python ``None``. Some databases do not support
             these types in parametrized SQL statements.
@@ -1099,7 +1140,7 @@ WHERE
         datetime_format : str, default r'%Y-%m-%d %H:%M:%S'
             The datetime format to use when converting datetime columns to string.
 
-        dry_run: bool, default False
+        dry_run : bool, default False
             Do not execute the upsert. Instead return the SQL statements that would have been executed on the database.
             The return value is a tuple ('UPDATE statement', 'INSERT statement'). If `update_only` is ``True`` the
             INSERT statement will be ``None``.
@@ -1184,6 +1225,7 @@ WHERE
         """
 
         self._is_valid_table_name(table=table)
+        self._validate_chunksize(chunksize=chunksize)
 
         df_upsert, update_cols, insert_cols = self._prepare_input_data_for_modify_statements(
                                                     df=df,
@@ -1225,26 +1267,28 @@ WHERE
         if nan_to_none and df_upsert.isna().any().any():  # If at least 1 missing value
             df_upsert = pandemy._dataframe.convert_nan_to_none(df=df_upsert)
 
-        # Turn the DataFrame into a list of dict [{parameter: value}, {...}]
-        params = df_upsert.to_dict(orient='records')
+        # Turn the DataFrame into an iterator yielding a list of dicts [{parameter: value}, {...}]
+        params_iter = pandemy._dataframe.df_to_parameters_in_chunks(df=df_upsert, chunksize=chunksize)
 
         # Perform the UPDATE and optionally INSERT
-        try:
-            result_update = conn.execute(text(update_stmt), params)
-            result_insert = conn.execute(text(insert_stmt), params) if not update_only else None
-        except Exception as e:
-            log_level = 40  # ERROR
-            raise pandemy.ExecuteStatementError(f'{type(e).__name__}: {e.args}', data=e.args) from None
-        else:
-            log_level = 10  # DEBUG
-        finally:
-            logger.log(log_level, f'UPDATE statement for table {table}:\n{update_stmt}\n')
-            logger.log(log_level, f'update_only={update_only}')
-            logger.log(log_level, f'INSERT statement for table {table}:\n{insert_stmt}')
-            logger.log(
-                log_level,
-                'params:\n{params_row}'.format(params_row="\n".join(str(row) for row in params))
-            )
+        for chunk, params in enumerate(params_iter, start=1):
+            logger.debug(f'UPSERT {len(params)} rows, chunk {chunk}')
+            try:
+                result_update = conn.execute(text(update_stmt), params)
+                result_insert = conn.execute(text(insert_stmt), params) if not update_only else None
+            except Exception as e:
+                log_level = 40  # ERROR
+                raise pandemy.ExecuteStatementError(f'{type(e).__name__}: {e.args}', data=e.args) from None
+            else:
+                log_level = 10  # DEBUG
+            finally:
+                logger.log(log_level, f'UPDATE statement for table {table}:\n{update_stmt}\n')
+                logger.log(log_level, f'update_only={update_only}')
+                logger.log(log_level, f'INSERT statement for table {table}:\n{insert_stmt}')
+                logger.log(
+                    log_level,
+                    'params:\n{params_row}'.format(params_row="\n".join(str(row) for row in params))
+                )
 
         return result_update, result_insert
 
@@ -1257,6 +1301,7 @@ WHERE
             merge_cols: Optional[Union[str, Sequence[str]]] = 'all',
             merge_index_cols: Union[bool, Sequence[str]] = False,
             omit_update_where_clause: bool = True,
+            chunksize: Optional[int] = None,
             nan_to_none: bool = True,
             datetime_cols_dtype: Optional[str] = None,
             datetime_format: str = r'%Y-%m-%d %H:%M:%S',
@@ -1325,7 +1370,12 @@ WHERE
                        t.CustomerName <> s.CustomerName
                [...]
 
-        nan_to_none: bool, default True
+        chunksize : int or None, default None
+            Divide `df` into chunks and perform the merge in chunks of `chunksize` rows.
+            If None all rows of `df` are processed in one chunk, which is the default.
+            If `df` has many rows dividing it into chunks may increase performance.
+
+        nan_to_none : bool, default True
             If columns with missing values (NaN values) that are of type :attr:`pandas.NA` :attr:`pandas.NaT`
             or :attr:`numpy.nan` should be converted to standard Python ``None``. Some databases do not support
             these types in parametrized SQL statements.
@@ -1339,7 +1389,7 @@ WHERE
         datetime_format : str, default r'%Y-%m-%d %H:%M:%S'
             The datetime format to use when converting datetime columns to string.
 
-        dry_run: bool, default False
+        dry_run : bool, default False
             Do not execute the merge. Instead return the SQL statement
             that would have been executed on the database as a string.
 
@@ -1438,8 +1488,9 @@ WHERE
             )
         """
 
-        self._is_valid_table_name(table=table)
         self._supports_merge_statement()
+        self._is_valid_table_name(table=table)
+        self._validate_chunksize(chunksize=chunksize)
 
         df_merge, update_cols, insert_cols = self._prepare_input_data_for_modify_statements(
                                                     df=df,
@@ -1470,23 +1521,25 @@ WHERE
         if nan_to_none and df_merge.isna().any().any():  # If at least 1 missing value
             df_merge = pandemy._dataframe.convert_nan_to_none(df=df_merge)
 
-        # Turn the DataFrame into a list of dict [{parameter: value}, {...}]
-        params = df_merge.to_dict(orient='records')
+        # Turn the DataFrame into an iterator yielding a list of dicts [{parameter: value}, {...}]
+        params_iter = pandemy._dataframe.df_to_parameters_in_chunks(df=df_merge, chunksize=chunksize)
 
         # Perform the MERGE
-        try:
-            result_merge = conn.execute(text(merge_stmt), params)
-        except Exception as e:
-            log_level = 40  # ERROR
-            raise pandemy.ExecuteStatementError(f'{type(e).__name__}: {e.args}', data=e.args) from None
-        else:
-            log_level = 10  # DEBUG
-        finally:
-            logger.log(log_level, f'MERGE statement for table {table}:\n{merge_stmt}\n')
-            logger.log(
-                log_level,
-                'params:\n{params_row}'.format(params_row="\n".join(str(row) for row in params))
-            )
+        for chunk, params in enumerate(params_iter, start=1):
+            logger.debug(f'MERGE {len(params)} rows, chunk {chunk}')
+            try:
+                result_merge = conn.execute(text(merge_stmt), params)
+            except Exception as e:
+                log_level = 40  # ERROR
+                raise pandemy.ExecuteStatementError(f'{type(e).__name__}: {e.args}', data=e.args) from None
+            else:
+                log_level = 10  # DEBUG
+            finally:
+                logger.log(log_level, f'MERGE statement for table {table}:\n{merge_stmt}\n')
+                logger.log(
+                    log_level,
+                    'params:\n{params_row}'.format(params_row="\n".join(str(row) for row in params))
+                )
 
         return result_merge
 
