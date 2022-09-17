@@ -106,7 +106,7 @@ INSERT statement derived from the structure of the :class:`pandas.DataFrame`. Le
          table='Customer',
          conn=conn,
          where_cols=['CustomerName'],
-         update_index_cols=False,
+         upsert_index_cols=False,
          update_only=False,
          datetime_cols_dtype='str',
          datetime_format=r'%Y-%m-%d'
@@ -164,7 +164,7 @@ only updated existing rows and not inserted any new rows.
 .. note::
 
    The Primary key column *CustomerId* is not included in database statements sent to the database in the example above.
-   This is due to the parameter ``update_index_cols=False``, which is also the default behavior.
+   This is due to the parameter ``upsert_index_cols=False``, which is also the default behavior.
    The values of *CustomerId* in ``df`` of the two new rows (9 and 10) differ from the ones inserted into the database
    (7 and 8). The *CustomerId* column is defined as an INTEGER data type in the database and if it is not supplied
    in the INSERT statement SQLite will autoincrement the value by one from the previous row.
@@ -228,8 +228,8 @@ The next example illustrates using the ``dry_run`` parameter with the *Customer*
          table='Customer',
          conn=conn,
          where_cols=['CustomerName', 'BirthDate'],
-         update_cols=['Residence', 'CustomerName'],
-         update_index_cols=True,
+         upsert_cols=['Residence', 'CustomerName'],
+         upsert_index_cols=True,
          update_only=False,
          dry_run=True
       )
@@ -288,8 +288,8 @@ The next example illustrates using the ``dry_run`` parameter with the *Customer*
 
 
 Here we use the columns *CustomerName* and *BirthDate* in the WHERE clause and specify that the index column (*CustomerId*) 
-should also be updated. If the index is a :class:`pandas.MultiIndex` all levels are included if ``update_index_cols=True``.
-A list of level names can be used to only select desired levels of the index to the upsert. By specifying the ``update_cols``
+should also be updated. If the index is a :class:`pandas.MultiIndex` all levels are included if ``upsert_index_cols=True``.
+A list of level names can be used to only select desired levels of the index to the upsert. By specifying the ``upsert_cols``
 parameter a subset of the columns of ``df`` can be selected for the upsert, in this case the columns *Residence* and *CustomerName*.
 Since *CustomerName* is also supplied to the ``where_cols`` parameter it is excluded from the columns to update,
 because that would otherwise result in an update to the same value.

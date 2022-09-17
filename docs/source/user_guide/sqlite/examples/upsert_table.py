@@ -104,7 +104,7 @@ with db.engine.begin() as conn:
         table='Customer',
         conn=conn,
         where_cols=['CustomerName'],
-        update_index_cols=False,
+        upsert_index_cols=False,
         update_only=False,
         datetime_cols_dtype='str',
         datetime_format=r'%Y-%m-%d'

@@ -1071,8 +1071,8 @@ WHERE
             table: str,
             conn: Connection,
             where_cols: Sequence[str],
-            update_cols: Optional[Union[str, Sequence[str]]] = 'all',
-            update_index_cols: Union[bool, Sequence[str]] = False,
+            upsert_cols: Optional[Union[str, Sequence[str]]] = 'all',
+            upsert_index_cols: Union[bool, Sequence[str]] = False,
             update_only: bool = False,
             chunksize: Optional[int] = None,
             nan_to_none: bool = True,
@@ -1104,17 +1104,17 @@ WHERE
             The columns from `df` to use as the WHERE clause to identify
             the rows to update and insert.
 
-        update_cols : str or Sequence[str] or None, default 'all'
-            The columns from `table` to update with data from `df`.
-            The default string ``'all'`` will update all columns.
-            If ``None`` no columns will be selected for update. This is useful if only columns
-            of the index of `df` should be updated by specifying `update_index_cols`.
+        upsert_cols : str or Sequence[str] or None, default 'all'
+            The columns from `table` to upsert with data from `df`.
+            The default string ``'all'`` will upsert all columns.
+            If ``None`` no columns will be selected for upsert. This is useful if only columns
+            of the index of `df` should be upserted by specifying `upsert_index_cols`.
 
-        update_index_cols : bool or Sequence[str], default False
-            If the index columns of `df` should be included in the columns to update.
+        upsert_index_cols : bool or Sequence[str], default False
+            If the index columns of `df` should be included in the columns to upsert.
             ``True`` indicates that the index should be included. If the index is a :class:`pandas.MultiIndex`
-            a sequence of str that maps against the levels to include can be used to only include the desired levels.
-            ``False`` excludes the index column(s) from being updated which is the default.
+            a sequence of strings that maps against the levels to include can be used to only include the desired levels.
+            ``False`` excludes the index column(s) from being upserted which is the default.
 
         update_only : bool, default False
             If ``True`` the `table` should only be updated and new rows not inserted.
@@ -1157,8 +1157,8 @@ WHERE
             If an error occurs when executing the UPDATE and or INSERT statement.
 
         pandemy.InvalidColumnNameError
-            If a column name of `update_cols` or `update_index_cols` are not
-            among the columns or index of the input DataFrame `df`.
+            If a column name of `upsert_cols` or `upsert_index_cols` are not
+            among the columns or index of `df`.
 
         pandemy.InvalidInputError
             Invalid values or types for input parameters.
@@ -1210,7 +1210,7 @@ WHERE
         >>> with db.engine.begin() as conn:
         ...     _, _ = db.upsert_table(
         ...         df=df, table='Customer', conn=conn,
-        ...         where_cols=['CustomerId'], update_index_cols=True
+        ...         where_cols=['CustomerId'], upsert_index_cols=True
         ...     )
         ...     df_upserted = db.load_table(
         ...         sql='SELECT * FROM Customer ORDER BY CustomerId ASC',
@@ -1229,8 +1229,8 @@ WHERE
 
         df_upsert, update_cols, insert_cols = self._prepare_input_data_for_modify_statements(
                                                     df=df,
-                                                    update_cols=update_cols,
-                                                    update_index_cols=update_index_cols,
+                                                    update_cols=upsert_cols,
+                                                    update_index_cols=upsert_index_cols,
                                                     where_cols=where_cols
                                                 )
 
@@ -1343,7 +1343,7 @@ WHERE
         merge_index_cols : bool or Sequence[str], default False
             If the index columns of `df` should be included in the columns to merge.
             ``True`` indicates that the index should be included. If the index is a :class:`pandas.MultiIndex`
-            a sequence of str that maps against the levels to include can be used to only include the desired levels.
+            a sequence of strings that maps against the levels to include can be used to only include the desired levels.
             ``False`` excludes the index column(s) from being updated which is the default.
 
         omit_update_where_clause : bool, default True

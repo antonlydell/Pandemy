@@ -98,8 +98,8 @@ with db.engine.begin() as conn:
         table='Customer',
         conn=conn,
         where_cols=['CustomerName', 'BirthDate'],
-        update_cols=['Residence', 'CustomerName'],
-        update_index_cols=True,
+        upsert_cols=['Residence', 'CustomerName'],
+        upsert_index_cols=True,
         update_only=False,
         dry_run=True
     )
