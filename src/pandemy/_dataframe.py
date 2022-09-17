@@ -6,6 +6,7 @@ r"""Internal helper module that contains functions to handle operations on and t
 
 # Standard Library
 import logging
+from typing import Any, Dict, Iterator, List, Optional
 
 # Third Party
 import pandas as pd
@@ -52,3 +53,40 @@ def convert_nan_to_none(df: pd.DataFrame) -> pd.DataFrame:
         .astype({col: object for col in cols_with_nan})
         .mask(mask, None)
     )
+
+
+def df_to_parameters_in_chunks(
+    df: pd.DataFrame,
+    chunksize: Optional[int] = None
+) -> Iterator[List[Dict[str, Any]]]:
+    r"""Convert a DataFrame into an iterator yielding a list of dicts, where each dict is a row of `df`.
+
+    The keys in each dict are the column names of `df` and the values are the values of the row for each column.
+    E.g. [{column1: value12, column2: value12, ...}, {column1: value21, column2: value22, ...}, {...}]
+
+    The list of dicts can be used as input to parametrized SQL statements where the column names
+    match the parameter names of the statement.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        The DataFrame to split into chunks.
+
+    chunksize: int or None, default None
+        The number of rows from `df` to return in each chunk.
+        If None all rows are returned in one chunk which is the default.
+
+    Returns
+    -------
+    Iterator[List[Dict[str, Any]]
+        An iterator yielding a list of `chunksize` dicts.
+    """
+
+    end = df.shape[0]  # The number of rows in df
+    if chunksize is None:
+        chunksize = end
+
+    start = 0
+    while start < end:
+        yield df.iloc[start:start + chunksize, :].to_dict(orient='records')
+        start += chunksize
