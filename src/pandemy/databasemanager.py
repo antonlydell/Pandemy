@@ -483,6 +483,54 @@ WHERE
 
         pandemy.ExecuteStatementError
             If changing the handling of foreign key constraint fails.
+
+        See Also
+        --------
+        * :meth:`~DatabaseManager.execute` : Execute a SQL statement.
+
+        Examples
+        --------
+        Enable and trigger a foreign key constraint using a SQLite in-memory database.
+
+        >>> import pandemy
+        >>> db = pandemy.SQLiteDb()  # Create an in-memory database
+        >>> with db.engine.begin() as conn:
+        ...     db.execute(
+        ...         sql="CREATE TABLE Owner(OwnerId INTEGER PRIMARY KEY, OwnerName TEXT)",
+        ...         conn=conn
+        ...     )
+        ...     db.execute(
+        ...         sql=(
+        ...             "CREATE TABLE Store("
+        ...             "StoreId INTEGER PRIMARY KEY, "
+        ...             "StoreName TEXT, "
+        ...             "OwnerId INTEGER REFERENCES Owner(OwnerId)"
+        ...             ")"
+        ...         ),
+        ...         conn=conn
+        ...     )
+        ...     db.execute(
+        ...         sql="INSERT INTO Owner(OwnerId, OwnerName) VALUES(1, 'Shop keeper')",
+        ...         conn=conn
+        ...     )
+        ...     db.execute(
+        ...         sql=(
+        ...             "INSERT INTO Store(StoreId, StoreName, OwnerId) "
+        ...             "VALUES(1, 'Lumbridge General Supplies', 2)"
+        ...         ),
+        ...         conn=conn  # OwnerId = 2 is not a valid FOREIGN KEY reference
+        ...     )
+        ...     db.manage_foreign_keys(conn=conn, action='ON')
+        ...     db.execute(
+        ...         sql=(
+        ...             "INSERT INTO Store(StoreId, StoreName, OwnerId) "
+        ...             "VALUES(1, 'Falador General Store', 3)"
+        ...         ),
+        ...         conn=conn  # OwnerId = 3 is not a valid FOREIGN KEY reference
+        ...     )  # doctest: +IGNORE_EXCEPTION_DETAIL, +ELLIPSIS
+        Traceback (most recent call last):
+        ...
+        pandemy.exceptions.ExecuteStatementError: IntegrityError: ('(sqlite3.IntegrityError) FOREIGN KEY constraint failed',)
         """
 
     def execute(self, sql: Union[str, TextClause], conn: Connection, params: Union[dict, List[dict], None] = None):
@@ -536,10 +584,10 @@ WHERE
 
            import pandemy
 
-           db = SQLiteDb(file='mydb.db')
+           db = SQLiteDb(file='Runescape.db')
 
            with db.engine.connect() as conn:
-               result = db.execute('SELECT * FROM MyTable;', conn=conn)
+               result = db.execute('SELECT * FROM StoreSupply', conn=conn)
 
                 for row in result:
                     print(row)  # process the result
@@ -580,6 +628,51 @@ WHERE
 
         pandemy.DeleteFromTableError
             If data cannot be deleted from the table.
+
+        See Also
+        --------
+        * :meth:`~DatabaseManager.load_table` : Load a SQL table into a :class:`pandas.DataFrame`.
+
+        * :meth:`~DatabaseManager.save_df` : Save a :class:`pandas.DataFrame` to a table in the database.
+
+        Examples
+        --------
+        Delete all records from a table in a SQLite in-memory database.
+
+        >>> import pandas as pd
+        >>> import pandemy
+        >>> df = pd.DataFrame(data=[
+        ...         [1, 'Lumbridge General Supplies', 'Lumbridge', 1],
+        ...         [2, 'Varrock General Store', 'Varrock', 2],
+        ...         [3, 'Falador General Store', 'Falador', 3]
+        ...     ],
+        ...     columns=['StoreId', 'StoreName', 'Location', 'OwnerId']
+        ... )
+        >>> df = df.set_index('StoreId')
+        >>> df  # doctest: +NORMALIZE_WHITESPACE
+                                  StoreName   Location  OwnerId
+        StoreId
+        1        Lumbridge General Supplies  Lumbridge        1
+        2             Varrock General Store    Varrock        2
+        3             Falador General Store    Falador        3
+        >>> db = pandemy.SQLiteDb()  # Create an in-memory database
+        >>> with db.engine.begin() as conn:
+        ...     db.save_df(df=df, table='Store', conn=conn)
+        ...     df_loaded = db.load_table(sql='Store', conn=conn, index_col='StoreId')
+        >>> df_loaded  # doctest: +NORMALIZE_WHITESPACE
+                                  StoreName   Location  OwnerId
+        StoreId
+        1        Lumbridge General Supplies  Lumbridge        1
+        2             Varrock General Store    Varrock        2
+        3             Falador General Store    Falador        3
+        >>> with db.engine.begin() as conn:
+        ...     db.delete_all_records_from_table(table='Store', conn=conn)
+        ...     df_loaded = db.load_table(sql='Store', conn=conn, index_col='StoreId')
+        >>> assert df_loaded.empty
+        >>> df_loaded  # doctest: +NORMALIZE_WHITESPACE
+        Empty DataFrame
+        Columns: [StoreName, Location, OwnerId]
+        Index: []
         """
 
         self._is_valid_table_name(table=table)
@@ -690,6 +783,30 @@ WHERE
         * `pandas SQL insertion method`_ : Details about using the `method` parameter.
 
         .. _pandas SQL insertion method: https://pandas.pydata.org/pandas-docs/stable/user_guide/io.html#io-sql-method
+
+        Examples
+        --------
+        Save a :class:`pandas.DataFrame` to a SQLite in-memory database.
+
+        >>> import pandas as pd
+        >>> import pandemy
+        >>> df = pd.DataFrame(data=[
+        ...         [1, 'Lumbridge General Supplies', 'Lumbridge', 1],
+        ...         [2, 'Varrock General Store', 'Varrock', 2],
+        ...         [3, 'Falador General Store', 'Falador', 3]
+        ...     ],
+        ...     columns=['StoreId', 'StoreName', 'Location', 'OwnerId']
+        ... )
+        >>> df = df.set_index('StoreId')
+        >>> df  # doctest: +NORMALIZE_WHITESPACE
+                                  StoreName   Location  OwnerId
+        StoreId
+        1        Lumbridge General Supplies  Lumbridge        1
+        2             Varrock General Store    Varrock        2
+        3             Falador General Store    Falador        3
+        >>> db = pandemy.SQLiteDb()  # Create an in-memory database
+        >>> with db.engine.begin() as conn:
+        ...     db.save_df(df=df, table='Store', conn=conn)
         """
 
         # ==========================================
@@ -845,10 +962,10 @@ WHERE
 
            import pandemy
 
-           db = pandemy.SQLiteDb(file='mydb.db')
+           db = pandemy.SQLiteDb(file='Runescape.db')
 
            with db.engine.connect() as conn:
-               df_gen = db.load_table(sql='MyTableName', conn=conn, chunksize=3)
+               df_gen = db.load_table(sql='ItemTradedInStore', conn=conn, chunksize=3)
 
                for df in df_gen:
                    print(df)  # Process your DataFrames
@@ -1253,6 +1370,72 @@ WHERE
         See Also
         --------
         * :meth:`~DatabaseManager.upsert_table()` : Update a table with a :class:`pandas.DataFrame` and optionally insert new rows.
+
+        Examples
+        --------
+        Create a MERGE statement from an empty :class:`pandas.DataFrame` that represents a table in a database by
+        using the parameter ``dry_run=True``. The :meth:`begin() <sqlalchemy.engine.Engine.begin>` method of the
+        :class:`DatabaseManager.engine <sqlalchemy.engine.Engine>` is mocked to avoid having to connect to a real database.
+
+        >>> import pandas as pd
+        >>> import pandemy
+        >>> from unittest.mock import MagicMock
+        >>> df = pd.DataFrame(columns=['ItemId', 'ItemName', 'MemberOnly', 'IsAdventurer'])
+        >>> df = df.set_index('ItemId')
+        >>> df  # doctest: +NORMALIZE_WHITESPACE, +ELLIPSIS
+        Empty DataFrame
+        Columns: [ItemName, MemberOnly, IsAdventurer]
+        Index: []
+        >>> db = pandemy.OracleDb(
+        ...     username='Fred_the_Farmer',
+        ...     password='Penguins-sheep-are-not',
+        ...     host='fred.farmer.rs',
+        ...     port=1234,
+        ...     service_name='woollysheep'
+        ... )
+        >>> db.engine.begin = MagicMock()  # Mock the begin method
+        >>> with db.engine.begin() as conn:
+        ...     merge_stmt = db.merge_df(
+        ...         df=df,
+        ...         table='Item',
+        ...         conn=conn,
+        ...         on_cols=['ItemName'],
+        ...         merge_cols='all',
+        ...         merge_index_cols=False,
+        ...         dry_run=True
+        ...     )
+        >>> print(merge_stmt)  # doctest: +NORMALIZE_WHITESPACE
+        MERGE INTO Item t
+        <BLANKLINE>
+        USING (
+            SELECT
+                :ItemName AS ItemName,
+                :MemberOnly AS MemberOnly,
+                :IsAdventurer AS IsAdventurer
+            FROM DUAL
+        ) s
+        <BLANKLINE>
+        ON (
+            t.ItemName = s.ItemName
+        )
+        <BLANKLINE>
+        WHEN MATCHED THEN
+            UPDATE
+            SET
+                t.MemberOnly = s.MemberOnly,
+                t.IsAdventurer = s.IsAdventurer
+        <BLANKLINE>
+        WHEN NOT MATCHED THEN
+            INSERT (
+                t.ItemName,
+                t.MemberOnly,
+                t.IsAdventurer
+            )
+            VALUES (
+                s.ItemName,
+                s.MemberOnly,
+                s.IsAdventurer
+            )
         """
 
         self._is_valid_table_name(table=table)
@@ -1498,6 +1681,55 @@ class SQLiteDb(DatabaseManager):
 
         pandemy.ExecuteStatementError
             If the enabling/disabling of the foreign key constraints fails.
+
+        See Also
+        --------
+        * :meth:`~DatabaseManager.execute` : Execute a SQL statement.
+
+        Examples
+        --------
+        Enable and trigger a foreign key constraint using an in-memory database.
+
+        >>> import pandemy
+        >>> db = pandemy.SQLiteDb()  # Create an in-memory database
+        >>> with db.engine.begin() as conn:
+        ...     db.manage_foreign_keys(conn=conn, action='ON')
+        ...     db.execute(
+        ...         sql="CREATE TABLE Owner(OwnerId INTEGER PRIMARY KEY, OwnerName TEXT)",
+        ...         conn=conn
+        ...     )
+        ...     db.execute(
+        ...         sql=(
+        ...             "CREATE TABLE Store("
+        ...             "StoreId INTEGER PRIMARY KEY, "
+        ...             "StoreName TEXT, "
+        ...             "OwnerId INTEGER REFERENCES Owner(OwnerId)"
+        ...             ")"
+        ...         ),
+        ...         conn=conn
+        ...     )
+        ...     db.execute(
+        ...         sql="INSERT INTO Owner(OwnerId, OwnerName) VALUES(1, 'Shop keeper')",
+        ...         conn=conn
+        ...     )
+        ...     db.execute(
+        ...         sql=(
+        ...             "INSERT INTO Store(StoreId, StoreName, OwnerId) "
+        ...             "VALUES(1, 'Lumbridge General Supplies', 2)"
+        ...         ),
+        ...         conn=conn  # OwnerId = 2 is not a valid FOREIGN KEY reference
+        ...     )
+        ...     db.manage_foreign_keys(conn=conn, action='ON')
+        ...     db.execute(
+        ...         sql=(
+        ...             "INSERT INTO Store(StoreId, StoreName, OwnerId) "
+        ...             "VALUES(1, 'Falador General Store', 3)"
+        ...         ),
+        ...         conn=conn  # OwnerId = 3 is not a valid FOREIGN KEY reference
+        ...     )  # doctest: +IGNORE_EXCEPTION_DETAIL, +ELLIPSIS
+        Traceback (most recent call last):
+        ...
+        pandemy.exceptions.ExecuteStatementError: IntegrityError: ('(sqlite3.IntegrityError) FOREIGN KEY constraint failed',)
         """
 
         actions = {'ON', 'OFF'}
@@ -1618,11 +1850,11 @@ class OracleDb(DatabaseManager):
     Create an instance of :class:`OracleDb` and connect using a service:
 
     >>> db = pandemy.OracleDb(
-    ... username='Fred_the_Farmer',
-    ... password='Penguins-sheep-are-not',
-    ... host='fred.farmer.rs',
-    ... port=1234,
-    ... service_name='woollysheep'
+    ...     username='Fred_the_Farmer',
+    ...     password='Penguins-sheep-are-not',
+    ...     host='fred.farmer.rs',
+    ...     port=1234,
+    ...     service_name='woollysheep'
     ... )
     >>> str(db)
     'OracleDb(oracle+cx_oracle://Fred_the_Farmer:***@fred.farmer.rs:1234?service_name=woollysheep)'
@@ -1646,22 +1878,22 @@ class OracleDb(DatabaseManager):
 
     >>> import cx_Oracle
     >>> connect_args = {
-    ... 'encoding': 'UTF-8',
-    ... 'nencoding': 'UTF-8',
-    ... 'mode': cx_Oracle.SYSDBA,
-    ... 'events': True
+    ...     'encoding': 'UTF-8',
+    ...     'nencoding': 'UTF-8',
+    ...     'mode': cx_Oracle.SYSDBA,
+    ...     'events': True
     ... }
     >>> engine_config = {
-    ... 'coerce_to_unicode': False,
-    ... 'arraysize': 40,
-    ... 'auto_convert_lobs': False
+    ...     'coerce_to_unicode': False,
+    ...     'arraysize': 40,
+    ...     'auto_convert_lobs': False
     ... }
     >>> db = pandemy.OracleDb(
-    ... username='Fred_the_Farmer',
-    ... password='Penguins-sheep-are-not',
-    ... host='my_dsn_name',
-    ... connect_args=connect_args,
-    ... engine_config=engine_config
+    ...     username='Fred_the_Farmer',
+    ...     password='Penguins-sheep-are-not',
+    ...     host='my_dsn_name',
+    ...     connect_args=connect_args,
+    ...     engine_config=engine_config
     ... )
     >>> db
     OracleDb(
