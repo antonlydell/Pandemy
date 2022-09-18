@@ -5,7 +5,6 @@ r"""Tests for the Oracle DatabaseManager `OracleDb`."""
 # =================================================
 
 # Standard Library
-from unittest.mock import ANY
 
 # Third Party
 import cx_Oracle
@@ -893,6 +892,37 @@ WHERE
         # Clean up - None
         # ===========================================================
 
+    def test_empty_dataframe(self, oracle_db_mocked, df_customer):
+        r"""Supply an empty DataFrame.
+
+        No statements should be executed on the database and the return values
+        `result_update` and `result_insert` should be None.
+        """
+
+        # Setup
+        # ===========================================================
+        df_empty = df_customer.iloc[:0]
+
+        # Exercise
+        # ===========================================================
+        with oracle_db_mocked.engine.begin() as conn:
+            result_update, result_insert = oracle_db_mocked.upsert_table(
+                df=df_empty,
+                table='Customer',
+                conn=conn,
+                where_cols=['CustomerName'],
+                update_only=False
+            )
+
+        # Verify
+        # ===========================================================
+        assert conn.execute.called is False
+        assert result_update is None
+        assert result_insert is None
+
+        # Clean up - None
+        # ===========================================================
+
 
 class TestMergeDfMethod:
     r"""Test the `merge_df` method of the Oracle DatabaseManager `OracleDb`.
@@ -1017,6 +1047,35 @@ WHEN NOT MATCHED THEN
         # Verify
         # ===========================================================
         assert merge_stmt == merge_stmt_exp
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_empty_dataframe(self, oracle_db_mocked, df_customer):
+        r"""Supply an empty DataFrame.
+
+        No statement should be executed on the database and the return value
+        `result_merge` should be None.
+        """
+
+        # Setup
+        # ===========================================================
+        df_empty = df_customer.iloc[:0]
+
+        # Exercise
+        # ===========================================================
+        with oracle_db_mocked.engine.begin() as conn:
+            result_merge = oracle_db_mocked.merge_df(
+                df=df_empty,
+                table='Customer',
+                conn=conn,
+                on_cols=['CustomerName']
+            )
+
+        # Verify
+        # ===========================================================
+        assert conn.execute.called is False
+        assert result_merge is None
 
         # Clean up - None
         # ===========================================================

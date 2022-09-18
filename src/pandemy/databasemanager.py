@@ -1078,7 +1078,8 @@ WHERE
             nan_to_none: bool = True,
             datetime_cols_dtype: Optional[str] = None,
             datetime_format: str = r'%Y-%m-%d %H:%M:%S',
-            dry_run: bool = False) -> Union[Tuple[CursorResult, Optional[CursorResult]], Tuple[str, str]]:
+            dry_run: bool = False
+    ) -> Union[Tuple[CursorResult, Optional[CursorResult]], Tuple[str, Optional[str]], Tuple[None, None]]:
         r"""Update a table with data from a :class:`pandas.DataFrame` and insert new rows if any.
 
         This method executes an UPDATE statement followed by an INSERT statement (UPSERT)
@@ -1147,9 +1148,9 @@ WHERE
 
         Returns
         -------
-        Tuple[sqlalchemy.engine.CursorResult, Optional[sqlalchemy.engine.CursorResult]] or Tuple[str, Optional[str]]
+        Tuple[sqlalchemy.engine.CursorResult, Optional[sqlalchemy.engine.CursorResult]] or Tuple[str, Optional[str]] or Tuple[None, None]
             Result objects from the executed statements or the SQL statements that would have been executed
-            if `dry_run` is ``True``.
+            if `dry_run` is ``True``. The result objects will be ``None`` if `df` is empty.
 
         Raises
         ------
@@ -1281,6 +1282,7 @@ WHERE
         params_iter = pandemy._dataframe.df_to_parameters_in_chunks(df=df_upsert, chunksize=chunksize)
 
         # Perform the UPDATE and optionally INSERT
+        result_update, result_insert = None, None  # In case of df_upsert being empty
         for chunk, params in enumerate(params_iter, start=1):
             logger.debug(f'UPSERT {len(params)} rows, chunk {chunk}')
             try:
@@ -1315,7 +1317,7 @@ WHERE
             nan_to_none: bool = True,
             datetime_cols_dtype: Optional[str] = None,
             datetime_format: str = r'%Y-%m-%d %H:%M:%S',
-            dry_run: bool = False) -> Union[CursorResult, str]:
+            dry_run: bool = False) -> Union[CursorResult, str, None]:
         r"""Merge data from a :class:`pandas.DataFrame` into a table.
 
         This method executes a combined UPDATE and INSERT statement on a table using the
@@ -1406,9 +1408,10 @@ WHERE
 
         Returns
         -------
-        sqlalchemy.engine.CursorResult or str
+        sqlalchemy.engine.CursorResult or str or None
             A result object from the executed statement or the SQL statement
             that would have been executed if `dry_run` is ``True``.
+            The result object will be ``None`` if `df` is empty.
 
         Raises
         ------
@@ -1536,6 +1539,7 @@ WHERE
         params_iter = pandemy._dataframe.df_to_parameters_in_chunks(df=df_merge, chunksize=chunksize)
 
         # Perform the MERGE
+        result_merge = None  # In case of df_merge being empty
         for chunk, params in enumerate(params_iter, start=1):
             logger.debug(f'MERGE {len(params)} rows, chunk {chunk}')
             try:

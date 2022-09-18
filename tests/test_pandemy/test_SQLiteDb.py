@@ -2312,6 +2312,38 @@ WHERE
         # Clean up - None
         # ===========================================================
 
+    def test_empty_dataframe(self, sqlite_db_to_modify, df_customer):
+        r"""Supply an empty DataFrame.
+
+        No statements should be executed on the database and the return values
+        `result_update` and `result_insert` should be None.
+        """
+
+        # Setup
+        # ===========================================================
+        df_empty = df_customer.iloc[:0]
+
+        # Exercise
+        # ===========================================================
+        with sqlite_db_to_modify.engine.begin() as conn:
+            result_update, result_insert = sqlite_db_to_modify.upsert_table(
+                df=df_empty,
+                table='Customer',
+                conn=conn,
+                where_cols=['CustomerName'],
+                update_only=False,
+                datetime_cols_dtype='str',
+                datetime_format=r'%Y-%m-%d'
+            )
+
+        # Verify
+        # ===========================================================
+        assert result_update is None
+        assert result_insert is None
+
+        # Clean up - None
+        # ===========================================================
+
     def test_return_types(self, sqlite_db_to_modify, df_customer):
         r"""Check the return types when using UPDATE followed by INSERT."""
 
