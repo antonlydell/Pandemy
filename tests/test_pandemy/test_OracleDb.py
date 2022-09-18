@@ -755,3 +755,862 @@ class TestStrAndReprMethods:
 
         # Clean up - None
         # ===========================================================
+
+
+class TestUpsertTableMethod:
+    r"""Test the `upsert_table` method of the Oracle DatabaseManager `OracleDb`.
+
+    Fixtures
+    --------
+    oracle_db_mocked : pandemy.OracleDb
+        An instance of a Oracle DatabaseManager with a mocked versions of the
+        `begin` and `connect` methods of the database engine.
+
+    df_customer : pd.DataFrame
+        The Customer table of the test database.
+    """
+
+    def test_upsert_all_cols_1_where_col_dry_run(self, oracle_db_mocked, df_customer):
+        r"""Test the generated UPDATE and INSERT statements when using the `dry_run` parameter."""
+
+        # Setup
+        # ===========================================================
+        update_stmt_exp = (
+            """UPDATE Customer
+SET
+    BirthDate = :BirthDate,
+    Residence = :Residence,
+    IsAdventurer = :IsAdventurer
+WHERE
+    CustomerName = :CustomerName"""
+        )
+
+        insert_stmt_exp = (
+            """INSERT INTO Customer (
+    CustomerName,
+    BirthDate,
+    Residence,
+    IsAdventurer
+)
+    SELECT
+        :CustomerName,
+        :BirthDate,
+        :Residence,
+        :IsAdventurer
+    FROM DUAL
+    WHERE
+        NOT EXISTS (
+            SELECT
+                1
+            FROM Customer
+            WHERE
+                CustomerName = :CustomerName
+        )"""
+        )
+
+        # Exercise
+        # ===========================================================
+        with oracle_db_mocked.engine.begin() as conn:
+            update_stmt, insert_stmt = oracle_db_mocked.upsert_table(
+                df=df_customer,
+                table='Customer',
+                conn=conn,
+                where_cols=['CustomerName'],
+                upsert_cols='all',
+                update_only=False,
+                datetime_cols_dtype='str',
+                datetime_format=r'%Y-%m-%d',
+                dry_run=True
+            )
+
+        # Verify
+        # ===========================================================
+        assert update_stmt == update_stmt_exp
+        assert insert_stmt == insert_stmt_exp
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_upsert_2_cols_include_index_3_where_cols_dry_run(self, oracle_db_mocked, df_customer):
+        r"""Test the generated UPDATE and INSERT statements when using the `dry_run` parameter."""
+
+        # Setup
+        # ===========================================================
+        update_stmt_exp = (
+            """UPDATE Customer
+SET
+    BirthDate = :BirthDate,
+    CustomerId = :CustomerId
+WHERE
+    CustomerName = :CustomerName AND
+    Residence = :Residence AND
+    IsAdventurer = :IsAdventurer"""
+        )
+
+        insert_stmt_exp = (
+            """INSERT INTO Customer (
+    BirthDate,
+    CustomerId
+)
+    SELECT
+        :BirthDate,
+        :CustomerId
+    FROM DUAL
+    WHERE
+        NOT EXISTS (
+            SELECT
+                1
+            FROM Customer
+            WHERE
+                CustomerName = :CustomerName AND
+                Residence = :Residence AND
+                IsAdventurer = :IsAdventurer
+        )"""
+        )
+
+        # Exercise
+        # ===========================================================
+        with oracle_db_mocked.engine.begin() as conn:
+            update_stmt, insert_stmt = oracle_db_mocked.upsert_table(
+                df=df_customer,
+                table='Customer',
+                conn=conn,
+                where_cols=['CustomerName', 'Residence', 'IsAdventurer'],
+                upsert_cols=['BirthDate'],
+                upsert_index_cols=True,
+                update_only=False,
+                datetime_cols_dtype='str',
+                datetime_format=r'%Y-%m-%d',
+                dry_run=True
+            )
+
+        # Verify
+        # ===========================================================
+        assert update_stmt == update_stmt_exp
+        assert insert_stmt == insert_stmt_exp
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_empty_dataframe(self, oracle_db_mocked, df_customer):
+        r"""Supply an empty DataFrame.
+
+        No statements should be executed on the database and the return values
+        `result_update` and `result_insert` should be None.
+        """
+
+        # Setup
+        # ===========================================================
+        df_empty = df_customer.iloc[:0]
+
+        # Exercise
+        # ===========================================================
+        with oracle_db_mocked.engine.begin() as conn:
+            result_update, result_insert = oracle_db_mocked.upsert_table(
+                df=df_empty,
+                table='Customer',
+                conn=conn,
+                where_cols=['CustomerName'],
+                update_only=False
+            )
+
+        # Verify
+        # ===========================================================
+        assert conn.execute.called is False
+        assert result_update is None
+        assert result_insert is None
+
+        # Clean up - None
+        # ===========================================================
+
+
+class TestMergeDfMethod:
+    r"""Test the `merge_df` method of the Oracle DatabaseManager `OracleDb`.
+
+    Fixtures
+    --------
+    oracle_db_mocked : pandemy.OracleDb
+        An instance of a Oracle DatabaseManager with a mocked versions of the
+        `begin` and `connect` methods of the database engine.
+
+    df_customer : pd.DataFrame
+        The Customer table of the test database.
+        The table has 6 rows.
+    """
+
+    @pytest.mark.parametrize(
+        'chunksize, nr_chunks_exp',
+        (
+            pytest.param(None, 1, id='chunksize=None'),
+            pytest.param(2, 3, id='chunksize=2'),
+            pytest.param(4, 2, id='chunksize=4'),
+            pytest.param(10, 1, id='chunksize=10'),
+        )
+    )
+    def test_merge_all_cols_1_on_col(self, chunksize, nr_chunks_exp, oracle_db_mocked, df_customer):
+        r"""Merge data from all columns of a DataFrame into a table using 1 column in the ON clause.
+
+        Verifying that the SQL statement is executed once.
+
+        Parameters
+        ----------
+        chunksize : int or None
+            Divide the DataFrame into chunks and perform the merge in chunks of `chunksize` rows.
+            If None all rows of the DataFrame are processed in one chunk, which is the default.
+
+        nr_chunks_exp : int
+            The number of chunks needed to process all rows of the DataFrame given `chunksize`.
+        """
+
+        # Setup - None
+        # ===========================================================
+
+        # Exercise
+        # ===========================================================
+        with oracle_db_mocked.engine.begin() as conn:
+            oracle_db_mocked.merge_df(
+                df=df_customer,
+                table='Customer',
+                conn=conn,
+                on_cols=['CustomerName'],
+                chunksize=chunksize
+            )
+
+        # Verify
+        # ===========================================================
+        conn.execute.assert_called()
+        assert conn.execute.call_count == nr_chunks_exp
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_merge_all_cols_1_on_col_dry_run(self, oracle_db_mocked, df_customer):
+        r"""Test the generated MERGE statement when using the `dry_run` parameter.
+
+        The default is to merge all columns of the DataFrame.
+        We supply one column to use in the ON clause to determine
+        how to merge the rows. Columns in the ON clause should not appear
+        among the columns to update.
+        """
+
+        # Setup
+        # ===========================================================
+        merge_stmt_exp = (
+            """MERGE INTO Customer t
+
+USING (
+    SELECT
+        :CustomerName AS CustomerName,
+        :BirthDate AS BirthDate,
+        :Residence AS Residence,
+        :IsAdventurer AS IsAdventurer
+    FROM DUAL
+) s
+
+ON (
+    t.CustomerName = s.CustomerName
+)
+
+WHEN MATCHED THEN
+    UPDATE
+    SET
+        t.BirthDate = s.BirthDate,
+        t.Residence = s.Residence,
+        t.IsAdventurer = s.IsAdventurer
+
+WHEN NOT MATCHED THEN
+    INSERT (
+        t.CustomerName,
+        t.BirthDate,
+        t.Residence,
+        t.IsAdventurer
+    )
+    VALUES (
+        s.CustomerName,
+        s.BirthDate,
+        s.Residence,
+        s.IsAdventurer
+    )"""
+        )
+
+        # Exercise
+        # ===========================================================
+        with oracle_db_mocked.engine.begin() as conn:
+            merge_stmt = oracle_db_mocked.merge_df(
+                df=df_customer,
+                table='Customer',
+                conn=conn,
+                on_cols=['CustomerName'],
+                dry_run=True
+            )
+
+        # Verify
+        # ===========================================================
+        assert merge_stmt == merge_stmt_exp
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_empty_dataframe(self, oracle_db_mocked, df_customer):
+        r"""Supply an empty DataFrame.
+
+        No statement should be executed on the database and the return value
+        `result_merge` should be None.
+        """
+
+        # Setup
+        # ===========================================================
+        df_empty = df_customer.iloc[:0]
+
+        # Exercise
+        # ===========================================================
+        with oracle_db_mocked.engine.begin() as conn:
+            result_merge = oracle_db_mocked.merge_df(
+                df=df_empty,
+                table='Customer',
+                conn=conn,
+                on_cols=['CustomerName']
+            )
+
+        # Verify
+        # ===========================================================
+        assert conn.execute.called is False
+        assert result_merge is None
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_merge_all_cols_include_update_where_clause_dry_run(self, oracle_db_mocked, df_customer):
+        r"""Test merging all columns and include the WHERE clause of the UPDATE clause."""
+
+        # Setup
+        # ===========================================================
+        merge_stmt_exp = (
+            """MERGE INTO Customer t
+
+USING (
+    SELECT
+        :CustomerName AS CustomerName,
+        :BirthDate AS BirthDate,
+        :Residence AS Residence,
+        :IsAdventurer AS IsAdventurer
+    FROM DUAL
+) s
+
+ON (
+    t.CustomerName = s.CustomerName
+)
+
+WHEN MATCHED THEN
+    UPDATE
+    SET
+        t.BirthDate = s.BirthDate,
+        t.Residence = s.Residence,
+        t.IsAdventurer = s.IsAdventurer
+    WHERE
+        t.BirthDate <> s.BirthDate OR
+        t.Residence <> s.Residence OR
+        t.IsAdventurer <> s.IsAdventurer
+
+WHEN NOT MATCHED THEN
+    INSERT (
+        t.CustomerName,
+        t.BirthDate,
+        t.Residence,
+        t.IsAdventurer
+    )
+    VALUES (
+        s.CustomerName,
+        s.BirthDate,
+        s.Residence,
+        s.IsAdventurer
+    )"""
+        )
+
+        # Exercise
+        # ===========================================================
+        with oracle_db_mocked.engine.begin() as conn:
+            merge_stmt = oracle_db_mocked.merge_df(
+                df=df_customer,
+                table='Customer',
+                conn=conn,
+                on_cols=['CustomerName'],
+                omit_update_where_clause=False,
+                dry_run=True
+            )
+
+        # Verify
+        # ===========================================================
+        assert merge_stmt == merge_stmt_exp
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_merge_1_col_using_2_on_cols_dry_run(self, oracle_db_mocked, df_customer):
+        r"""Merge a single column into a table and use 2 columns of the DataFrame in the ON clause."""
+
+        # Setup
+        # ===========================================================
+        merge_stmt_exp = (
+            """MERGE INTO Customer t
+
+USING (
+    SELECT
+        :BirthDate AS BirthDate
+    FROM DUAL
+) s
+
+ON (
+    t.CustomerName = s.CustomerName AND
+    t.Residence = s.Residence
+)
+
+WHEN MATCHED THEN
+    UPDATE
+    SET
+        t.BirthDate = s.BirthDate
+    WHERE
+        t.BirthDate <> s.BirthDate
+
+WHEN NOT MATCHED THEN
+    INSERT (
+        t.BirthDate
+    )
+    VALUES (
+        s.BirthDate
+    )"""
+        )
+
+        # Exercise
+        # ===========================================================
+        with oracle_db_mocked.engine.begin() as conn:
+            merge_stmt = oracle_db_mocked.merge_df(
+                df=df_customer,
+                table='Customer',
+                conn=conn,
+                on_cols=['CustomerName', 'Residence'],
+                merge_cols=['BirthDate'],
+                omit_update_where_clause=False,
+                dry_run=True
+            )
+
+        # Verify
+        # ===========================================================
+        assert merge_stmt == merge_stmt_exp
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_merge_2_cols_and_include_index_dry_run(self, oracle_db_mocked, df_customer):
+        r"""Merge 2 columns of the DataFrame and include the index column into the columns to merge.
+
+        Column BirthDate and index column CustomerId are selected for the merge.
+        Using 3 columns in the ON clause.
+        """
+
+        # Setup
+        # ===========================================================
+        merge_stmt_exp = (
+            """MERGE INTO Customer t
+
+USING (
+    SELECT
+        :BirthDate AS BirthDate,
+        :CustomerId AS CustomerId
+    FROM DUAL
+) s
+
+ON (
+    t.CustomerName = s.CustomerName AND
+    t.Residence = s.Residence AND
+    t.IsAdventurer = s.IsAdventurer
+)
+
+WHEN MATCHED THEN
+    UPDATE
+    SET
+        t.BirthDate = s.BirthDate,
+        t.CustomerId = s.CustomerId
+    WHERE
+        t.BirthDate <> s.BirthDate OR
+        t.CustomerId <> s.CustomerId
+
+WHEN NOT MATCHED THEN
+    INSERT (
+        t.BirthDate,
+        t.CustomerId
+    )
+    VALUES (
+        s.BirthDate,
+        s.CustomerId
+    )"""
+        )
+
+        # Exercise
+        # ===========================================================
+        with oracle_db_mocked.engine.begin() as conn:
+            merge_stmt = oracle_db_mocked.merge_df(
+                df=df_customer,
+                table='Customer',
+                conn=conn,
+                on_cols=['CustomerName', 'Residence', 'IsAdventurer'],
+                merge_cols=['BirthDate'],
+                merge_index_cols=True,
+                omit_update_where_clause=False,
+                dry_run=True
+            )
+
+        # Verify
+        # ===========================================================
+        assert merge_stmt == merge_stmt_exp
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_merge_all_levels_of_multiindex_dry_run(self, oracle_db_mocked, df_customer):
+        r"""Merge all levels of the MultiIndex and no regular columns of the DataFrame."""
+
+        # Setup
+        # ===========================================================
+        merge_stmt_exp = (
+            """MERGE INTO Customer t
+
+USING (
+    SELECT
+        :CustomerId AS CustomerId,
+        :CustomerName AS CustomerName
+    FROM DUAL
+) s
+
+ON (
+    t.BirthDate = s.BirthDate
+)
+
+WHEN MATCHED THEN
+    UPDATE
+    SET
+        t.CustomerId = s.CustomerId,
+        t.CustomerName = s.CustomerName
+
+WHEN NOT MATCHED THEN
+    INSERT (
+        t.CustomerId,
+        t.CustomerName
+    )
+    VALUES (
+        s.CustomerId,
+        s.CustomerName
+    )"""
+        )
+
+        # Modify and update the index to a MultiIndex
+        df_customer = df_customer.set_index('CustomerName', append=True)
+
+        # Exercise
+        # ===========================================================
+        with oracle_db_mocked.engine.begin() as conn:
+            merge_stmt = oracle_db_mocked.merge_df(
+                df=df_customer,
+                table='Customer',
+                conn=conn,
+                on_cols=['BirthDate'],
+                merge_cols=None,
+                merge_index_cols=True,
+                dry_run=True
+            )
+
+        # Verify
+        # ===========================================================
+        assert merge_stmt == merge_stmt_exp
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_merge_1_col_and_all_levels_of_multiindex_dry_run(self, oracle_db_mocked, df_customer):
+        r"""Merge 1 column of the DataFrame and all levels of the MultiIndex."""
+
+        # Setup
+        # ===========================================================
+        merge_stmt_exp = (
+            """MERGE INTO Customer t
+
+USING (
+    SELECT
+        :IsAdventurer AS IsAdventurer,
+        :CustomerId AS CustomerId,
+        :CustomerName AS CustomerName
+    FROM DUAL
+) s
+
+ON (
+    t.BirthDate = s.BirthDate AND
+    t.Residence = s.Residence
+)
+
+WHEN MATCHED THEN
+    UPDATE
+    SET
+        t.IsAdventurer = s.IsAdventurer,
+        t.CustomerId = s.CustomerId,
+        t.CustomerName = s.CustomerName
+    WHERE
+        t.IsAdventurer <> s.IsAdventurer OR
+        t.CustomerId <> s.CustomerId OR
+        t.CustomerName <> s.CustomerName
+
+WHEN NOT MATCHED THEN
+    INSERT (
+        t.IsAdventurer,
+        t.CustomerId,
+        t.CustomerName
+    )
+    VALUES (
+        s.IsAdventurer,
+        s.CustomerId,
+        s.CustomerName
+    )"""
+        )
+
+        # Set MultiIndex to the DataFrame
+        df_customer = df_customer.set_index('CustomerName', append=True)
+
+        # Exercise
+        # ===========================================================
+        with oracle_db_mocked.engine.begin() as conn:
+            merge_stmt = oracle_db_mocked.merge_df(
+                df=df_customer,
+                table='Customer',
+                conn=conn,
+                on_cols=['BirthDate', 'Residence'],
+                merge_cols=['IsAdventurer'],
+                merge_index_cols=True,
+                omit_update_where_clause=False,
+                dry_run=True
+            )
+
+        # Verify
+        # ===========================================================
+        assert merge_stmt == merge_stmt_exp
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_merge_2_cols_and_include_1_level_of_multiindex_dry_run(self, oracle_db_mocked, df_customer):
+        r"""Merge 2 columns of the DataFrame and include 1 column of the MultiIndex to merge."""
+
+        # Setup
+        # ===========================================================
+        merge_stmt_exp = (
+            """MERGE INTO Customer t
+
+USING (
+    SELECT
+        :IsAdventurer AS IsAdventurer,
+        :Residence AS Residence,
+        :CustomerName AS CustomerName
+    FROM DUAL
+) s
+
+ON (
+    t.BirthDate = s.BirthDate
+)
+
+WHEN MATCHED THEN
+    UPDATE
+    SET
+        t.IsAdventurer = s.IsAdventurer,
+        t.Residence = s.Residence,
+        t.CustomerName = s.CustomerName
+
+WHEN NOT MATCHED THEN
+    INSERT (
+        t.IsAdventurer,
+        t.Residence,
+        t.CustomerName
+    )
+    VALUES (
+        s.IsAdventurer,
+        s.Residence,
+        s.CustomerName
+    )"""
+        )
+
+        # Set MultiIndex
+        df_customer = df_customer.set_index('CustomerName', append=True)
+
+        # Exercise
+        # ===========================================================
+        with oracle_db_mocked.engine.begin() as conn:
+            merge_stmt = oracle_db_mocked.merge_df(
+                df=df_customer,
+                table='Customer',
+                conn=conn,
+                on_cols=['BirthDate'],
+                merge_cols=('IsAdventurer', 'Residence'),
+                merge_index_cols=('CustomerName',),
+                dry_run=True
+            )
+
+        # Verify
+        # ===========================================================
+        assert merge_stmt == merge_stmt_exp
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_logging_output_debug(self, oracle_db_mocked, df_customer, caplog):
+        r"""Test the logging output when no errors occur.
+
+        If no errors occur the executed MERGE statement is logged with log level DEBUG (10).
+        """
+
+        # Setup - None
+        # ===========================================================
+
+        # Exercise
+        # ===========================================================
+        with oracle_db_mocked.engine.begin() as conn:
+            oracle_db_mocked.merge_df(
+                df=df_customer,
+                table='Customer',
+                conn=conn,
+                on_cols=['CustomerName'],
+                nan_to_none=True,
+            )
+
+        # Verify
+        # ===========================================================
+        for record in caplog.records:
+            assert record.levelno == 10
+            assert record.levelname == 'DEBUG'
+
+        # Clean up - None
+        # ===========================================================
+
+    @pytest.mark.raises
+    def test_update_col_names_not_in_col_names_of_dataframe(self, oracle_db_mocked, df_customer):
+        r"""Supply a column name to `merge_cols` that is not a valid column of the input DataFrame.
+
+        pandemy.InvalidInputError is expected to be raised.
+        """
+
+        # Setup - None
+        # ===========================================================
+
+        # Exercise
+        # ===========================================================
+        with oracle_db_mocked.engine.begin() as conn:
+            with pytest.raises(pandemy.InvalidColumnNameError) as exc_info:
+                oracle_db_mocked.merge_df(
+                    df=df_customer,
+                    table='Customer',
+                    conn=conn,
+                    on_cols=['CustomerName'],
+                    merge_cols=['Hometown', 'Residence']
+                )
+
+        # Verify
+        # ===========================================================
+        assert len(exc_info.value.data) == 1
+        assert 'Hometown' in exc_info.value.data  # Hometown is the invalid column
+
+        # Clean up - None
+        # ===========================================================
+
+    @pytest.mark.raises
+    def test_input_col_names_not_in_col_names_of_dataframe(self, oracle_db_mocked, df_customer):
+        r"""Supply column names to `on_cols`, `merge_cols`, `merge_index_cols` that are invalid.
+
+        pandemy.InvalidColumnNameError is expected to be raised.
+        """
+
+        # Setup - None
+        # ===========================================================
+
+        # Exercise
+        # ===========================================================
+        with oracle_db_mocked.engine.begin() as conn:
+            with pytest.raises(pandemy.InvalidColumnNameError) as exc_info:
+                oracle_db_mocked.merge_df(
+                    df=df_customer,
+                    table='Customer',
+                    conn=conn,
+                    on_cols=['CustomerNames'],
+                    merge_cols=['Hometown', 'Residences'],
+                    merge_index_cols=['CustomerI', 'CustomerNo']
+                )
+
+        # Verify
+        # ===========================================================
+        assert len(exc_info.value.data) == 5
+
+        for col in ['CustomerNames', 'Hometown', 'Residences', 'CustomerI', 'CustomerNo']:  # Invalid columns
+            assert col in exc_info.value.data
+
+        # Clean up - None
+        # ===========================================================
+
+    @pytest.mark.raises
+    def test_invalid_table_name(self, oracle_db_mocked, df_customer):
+        r"""Supply an invalid table name.
+
+        pandemy.InvalidTableNameError is expected to be raised.
+        """
+
+        # Setup - None
+        # ===========================================================
+
+        # Exercise & Verify
+        # ===========================================================
+        with oracle_db_mocked.engine.begin() as conn:
+            with pytest.raises(pandemy.InvalidTableNameError):
+                oracle_db_mocked.merge_df(
+                    df=df_customer,
+                    table='Customer Table',
+                    conn=conn,
+                    on_cols=['CustomerName'],
+                )
+
+        # Clean up - None
+        # ===========================================================
+
+    @pytest.mark.raises
+    @pytest.mark.parametrize(
+        'chunksize',
+        (
+            pytest.param('2', id='chunksize=str'),
+            pytest.param([3], id='chunksize=[3]'),
+            pytest.param(-3, id='chunksize=-3')
+        )
+    )
+    def test_invalid_chunksize(self, chunksize, oracle_db_mocked, df_customer):
+        r"""Supply invalid values to the `chunksize` parameter.
+
+        Parameters
+        ----------
+        chunksize : int or None, default None
+            Divide `df` into chunks and perform the merge in chunks of `chunksize` rows.
+            If None all rows of `df` are processed in one chunk, which is the default.
+        """
+
+        # Setup - None
+        # ===========================================================
+
+        # Exercise & Verify
+        # ===========================================================
+        with oracle_db_mocked.engine.begin() as conn:
+            with pytest.raises(pandemy.InvalidInputError) as exc_info:
+                oracle_db_mocked.merge_df(
+                    df=df_customer,
+                    table='Customer',
+                    conn=conn,
+                    on_cols=['CustomerName'],
+                    chunksize=chunksize
+                )
+
+        # Verify
+        # ===========================================================
+        assert exc_info.value.data == chunksize
+
+        # Clean up - None
+        # ===========================================================

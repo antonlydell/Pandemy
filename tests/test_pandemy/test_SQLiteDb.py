@@ -1,7 +1,4 @@
-"""Tests for the SQLite DatabaseManager `SQLiteDb`.
-
-Tests all methods of the DatabaseManager because it is easy to test with SQLite.
-"""
+r"""Tests for the SQLite DatabaseManager `SQLiteDb`."""
 
 # =================================================
 # Imports
@@ -1521,6 +1518,975 @@ class TestLoadTableMethod:
             assert exc_info.type is pandemy.SetIndexError
             assert str(index_col) in exc_info.value.args[0]
             assert index_col == exc_info.value.data
+
+        # Clean up - None
+        # ===========================================================
+
+
+class TestUpsertTableMethodUpdateOnly:
+    r"""Test the `upsert_table` method of the SQLite DatabaseManager `SQLiteDb`.
+
+    The test cases of this class uses an UPDATE statement only and no INSERT.
+
+    Fixtures
+    --------
+    sqlite_db_to_modify : pandemy.SQLiteDb
+        An instance of the test database where the table data can be modified in each test.
+
+    df_customer : pd.DataFrame
+        The Customer table of the test database.
+
+    df_customer_upsert : pd.DataFrame
+        The Customer table of the test database with updated data and rows added.
+
+    caplog : pytest.LogCaptureFixture
+        Built-in fixture to control logging and access log entries.
+    """
+
+    def test_update_all_cols_1_where_col(self, sqlite_db_to_modify, df_customer_upsert):
+        r"""Update a table with data from all columns of a DataFrame.
+
+        The default is to update the table with all columns.
+        We supply one column to use in the WHERE clause to determine
+        how to update the rows. Columns in the WHERE clause should not appear
+        among the columns to update. No insert is performed.
+
+        The input DataFrame contains 2 new rows that do not exist in the database table
+        Customer. These rows should be ignored.
+        """
+
+        # Setup
+        # ===========================================================
+        load_table_query = 'SELECT * FROM Customer ORDER BY CustomerId'
+        df_input, _, rows_added = df_customer_upsert
+
+        # Exercise
+        # ===========================================================
+        with sqlite_db_to_modify.engine.begin() as conn:
+            sqlite_db_to_modify.upsert_table(
+                df=df_input,
+                table='Customer',
+                conn=conn,
+                where_cols=['CustomerName'],
+                update_only=True,
+                datetime_cols_dtype='str',
+                datetime_format=r'%Y-%m-%d'
+            )
+
+        # Verify
+        # ===========================================================
+        with sqlite_db_to_modify.engine.connect() as conn:
+            df_updated = pd.read_sql(sql=load_table_query, con=conn, index_col='CustomerId', parse_dates=['BirthDate'])
+
+        df_input = df_input.loc[df_input.index.difference(rows_added), :]  # Remove added rows
+
+        assert_frame_equal(df_updated, df_input, check_dtype=False)
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_update_all_cols_1_where_col_dry_run(self, sqlite_db_to_modify, df_customer):
+        r"""Test the generated UPDATE statement when using the `dry_run` parameter."""
+
+        # Setup
+        # ===========================================================
+        update_stmt_exp = (
+            """UPDATE Customer
+SET
+    BirthDate = :BirthDate,
+    Residence = :Residence,
+    IsAdventurer = :IsAdventurer
+WHERE
+    CustomerName = :CustomerName"""
+        )
+
+        # Exercise
+        # ===========================================================
+        with sqlite_db_to_modify.engine.begin() as conn:
+            update_stmt, _ = sqlite_db_to_modify.upsert_table(
+                df=df_customer,
+                table='Customer',
+                conn=conn,
+                where_cols=['CustomerName'],
+                upsert_cols='all',
+                update_only=True,
+                datetime_cols_dtype='str',
+                dry_run=True
+            )
+
+        # Verify
+        # ===========================================================
+        assert update_stmt == update_stmt_exp
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_update_1_col_using_2_where_cols(self, sqlite_db_to_modify, df_customer_upsert, df_customer):
+        r"""Update a single column of a table and use 2 columns of the DataFrame in the WHERE clause.
+
+        The rows that do not match equality of the `where_cols` CustomerName and Residence will not be
+        updated. Only the BirthDate column is selected for update.
+        """
+
+        # Setup
+        # ===========================================================
+        load_table_query = 'SELECT * FROM Customer ORDER BY CustomerId'
+
+        df_input, _, rows_added = df_customer_upsert
+        df_exp = df_input.copy()  # The expected result
+
+        # The rows that should not be updated
+        df_exp.loc[3:4, 'BirthDate'] = df_customer.loc[3:4, 'BirthDate']
+        df_exp.loc[3:4, 'Residence'] = df_customer.loc[3:4, 'Residence']
+        df_exp.loc[5, 'IsAdventurer'] = df_customer.loc[5, 'IsAdventurer']
+        df_exp = df_exp.loc[df_exp.index.difference(rows_added), :]  # Remove added rows
+
+        # Exercise
+        # ===========================================================
+        with sqlite_db_to_modify.engine.begin() as conn:
+            sqlite_db_to_modify.upsert_table(
+                df=df_input,
+                table='Customer',
+                conn=conn,
+                where_cols=['CustomerName', 'Residence'],
+                upsert_cols=['BirthDate'],
+                update_only=True,
+                datetime_cols_dtype='str',
+                datetime_format=r'%Y-%m-%d'
+            )
+
+        # Verify
+        # ===========================================================
+        with sqlite_db_to_modify.engine.connect() as conn:
+            df_updated = pd.read_sql(sql=load_table_query, con=conn, index_col='CustomerId', parse_dates=['BirthDate'])
+
+        assert_frame_equal(df_updated, df_exp, check_dtype=False)
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_update_1_col_using_2_where_cols_dry_run(self, sqlite_db_to_modify, df_customer):
+        r"""Test the generated UPDATE statement when using the `dry_run` parameter."""
+
+        # Setup
+        # ===========================================================
+        update_stmt_exp = """UPDATE Customer
+SET
+    BirthDate = :BirthDate
+WHERE
+    CustomerName = :CustomerName AND
+    Residence = :Residence"""
+
+        # Exercise
+        # ===========================================================
+        with sqlite_db_to_modify.engine.begin() as conn:
+            update_stmt, _ = sqlite_db_to_modify.upsert_table(
+                df=df_customer,
+                table='Customer',
+                conn=conn,
+                where_cols=['CustomerName', 'Residence'],
+                upsert_cols=['BirthDate'],
+                update_only=True,
+                datetime_cols_dtype='str',
+                datetime_format=r'%Y-%m-%d',
+                dry_run=True
+            )
+
+        # Verify
+        # ===========================================================
+        assert update_stmt == update_stmt_exp
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_update_2_cols_and_include_index(self, sqlite_db_to_modify, df_customer):
+        r"""Update 2 columns of a table and include the index column to the columns to update.
+
+        Column BirthDate and index column CustomerId are selected for update.
+        Using 3 where_cols. No insert is performed.
+        """
+
+        # Setup
+        # ===========================================================
+        load_table_query = 'SELECT * FROM Customer ORDER BY CustomerId'
+
+        # Modify the index CustomerId
+        df_customer = df_customer.reset_index()
+        df_customer.loc[0, 'CustomerId'] = 0
+        df_customer = df_customer.set_index('CustomerId')
+
+        # Exercise
+        # ===========================================================
+        with sqlite_db_to_modify.engine.begin() as conn:
+            sqlite_db_to_modify.upsert_table(
+                df=df_customer,
+                table='Customer',
+                conn=conn,
+                where_cols=['CustomerName', 'Residence', 'IsAdventurer'],
+                upsert_cols=['BirthDate'],
+                upsert_index_cols=True,
+                update_only=True,
+                datetime_cols_dtype='str',
+                datetime_format=r'%Y-%m-%d'
+            )
+
+        # Verify
+        # ===========================================================
+        with sqlite_db_to_modify.engine.connect() as conn:
+            df_updated = pd.read_sql(sql=load_table_query, con=conn, index_col='CustomerId', parse_dates=['BirthDate'])
+
+        assert_frame_equal(df_updated, df_customer, check_dtype=False)
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_update_all_levels_of_multiindex(self, sqlite_db_to_modify, df_customer):
+        r"""Update all columns of the MultiIndex and no regular columns of the DataFrame."""
+
+        # Setup
+        # ===========================================================
+        load_table_query = 'SELECT * FROM Customer ORDER BY CustomerId'
+
+        # Modify and update the index to a MultiIndex
+        df_customer = df_customer.reset_index()
+        df_customer.loc[0, 'CustomerId'] = 0
+        df_customer.loc[1, 'CustomerName'] = 'Captain Lawgof'
+        df_customer = df_customer.set_index(['CustomerId', 'CustomerName'])
+
+        # Exercise
+        # ===========================================================
+        with sqlite_db_to_modify.engine.begin() as conn:
+            sqlite_db_to_modify.upsert_table(
+                df=df_customer,
+                table='Customer',
+                conn=conn,
+                where_cols=['BirthDate'],
+                upsert_cols=None,
+                upsert_index_cols=True,
+                update_only=True,
+                datetime_cols_dtype='str',
+                datetime_format=r'%Y-%m-%d'
+            )
+
+        # Verify
+        # ===========================================================
+        with sqlite_db_to_modify.engine.connect() as conn:
+            df_updated = pd.read_sql(
+                sql=load_table_query,
+                con=conn,
+                index_col=['CustomerId', 'CustomerName'],
+                parse_dates=['BirthDate']
+            )
+
+        assert_frame_equal(df_updated, df_customer, check_dtype=False, check_index_type=False)
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_update_1_col_and_all_levels_of_multiindex(self, sqlite_db_to_modify, df_customer):
+        r"""Update 1 column and all columns of the MultiIndex of the DataFrame."""
+
+        # Setup
+        # ===========================================================
+        load_table_query = 'SELECT * FROM Customer ORDER BY CustomerId'
+
+        # Modify and update the index to a MultiIndex
+        df_customer = df_customer.reset_index()
+        df_customer.loc[0, 'CustomerId'] = 0
+        df_customer.loc[1, 'CustomerName'] = 'Captain Lawgof'
+        df_customer.loc[1, 'IsAdventurer'] = 1
+        df_customer = df_customer.set_index(['CustomerId', 'CustomerName'])
+
+        # Exercise
+        # ===========================================================
+        with sqlite_db_to_modify.engine.begin() as conn:
+            sqlite_db_to_modify.upsert_table(
+                df=df_customer,
+                table='Customer',
+                conn=conn,
+                where_cols=['BirthDate', 'Residence'],
+                upsert_cols=['IsAdventurer'],
+                upsert_index_cols=True,
+                update_only=True,
+                datetime_cols_dtype='str',
+                datetime_format=r'%Y-%m-%d'
+            )
+
+        # Verify
+        # ===========================================================
+        with sqlite_db_to_modify.engine.connect() as conn:
+            df_updated = pd.read_sql(
+                sql=load_table_query,
+                con=conn,
+                index_col=['CustomerId', 'CustomerName'],
+                parse_dates=['BirthDate']
+            )
+
+        assert_frame_equal(df_updated, df_customer, check_dtype=False, check_index_type=False)
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_update_2_cols_and_include_1_level_of_multiindex(self, sqlite_db_to_modify, df_customer):
+        r"""Update 2 columns and include 1 column of the MultiIndex to update."""
+
+        # Setup
+        # ===========================================================
+        load_table_query = 'SELECT * FROM Customer ORDER BY CustomerId'
+
+        # Modify data and make MultiIndex
+        df_customer = df_customer.reset_index()
+        df_customer.loc[1, 'CustomerName'] = 'Martin the Master Gardener'
+        df_customer.loc[1, 'Residence'] = 'Draynor Village'
+        df_customer.loc[1, 'IsAdventurer'] = 0
+        df_customer = df_customer.set_index(['CustomerId', 'CustomerName'])
+
+        # Exercise
+        # ===========================================================
+        with sqlite_db_to_modify.engine.begin() as conn:
+            sqlite_db_to_modify.upsert_table(
+                df=df_customer,
+                table='Customer',
+                conn=conn,
+                where_cols=['BirthDate'],
+                upsert_cols=['IsAdventurer', 'Residence'],
+                upsert_index_cols=['CustomerName'],
+                update_only=True,
+                datetime_cols_dtype='str',
+                datetime_format=r'%Y-%m-%d'
+            )
+
+        # Verify
+        # ===========================================================
+        with sqlite_db_to_modify.engine.connect() as conn:
+            df_updated = pd.read_sql(
+                sql=load_table_query,
+                con=conn,
+                index_col=['CustomerId', 'CustomerName'],
+                parse_dates=['BirthDate']
+            )
+
+        assert_frame_equal(df_updated, df_customer, check_dtype=False, check_index_type=False)
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_return_types(self, sqlite_db_to_modify, df_customer):
+        r"""Check the return types when using the option to `update_only`."""
+
+        # Setup - None
+        # ===========================================================
+
+        # Exercise
+        # ===========================================================
+        with sqlite_db_to_modify.engine.begin() as conn:
+            result_update, result_insert = sqlite_db_to_modify.upsert_table(
+                df=df_customer,
+                table='Customer',
+                conn=conn,
+                where_cols=['CustomerName'],
+                update_only=True,
+                datetime_cols_dtype='str',
+                datetime_format=r'%Y-%m-%d'
+            )
+
+        # Verify
+        # ===========================================================
+        assert isinstance(result_update, sqlalchemy.engine.CursorResult)
+        assert result_insert is None
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_pandas_numpy_nan_types(self, sqlite_db_to_modify, df_customer):
+        r"""Test that pandas.NA, pandas.NaT and numpy.nan can be correctly converted to None.
+
+        SQLite cannot handle pandas.NA, pandas.NaT or numpy.nan (NaN values) in an update statement.
+        These values must be converted to None first. The conversion from NaN values
+        to None is controlled by the `nan_to_none` option.
+        """
+
+        # Setup
+        # ===========================================================
+        load_table_query = 'SELECT * FROM Customer ORDER BY CustomerId'
+
+        # If a where_col has a NaN that row cannot be updated. Need to save the original value.
+        original_customer_name = df_customer.loc[2, 'CustomerName']
+        df_customer.loc[2, 'CustomerName'] = np.nan
+        df_customer.loc[3, 'Residence'] = pd.NA
+        df_customer.loc[3, 'BirthDate'] = pd.NaT
+
+        # Exercise
+        # ===========================================================
+        with sqlite_db_to_modify.engine.begin() as conn:
+            sqlite_db_to_modify.upsert_table(
+                df=df_customer,
+                table='Customer',
+                conn=conn,
+                where_cols=['CustomerName'],
+                update_only=True,
+                nan_to_none=True,
+                datetime_cols_dtype='str',
+                datetime_format=r'%Y-%m-%d'
+            )
+
+        # Verify
+        # ===========================================================
+        with sqlite_db_to_modify.engine.connect() as conn:
+            df_updated = pd.read_sql(
+                sql=load_table_query,
+                con=conn,
+                index_col='CustomerId',
+                parse_dates=['BirthDate']
+            )
+
+        df_customer.loc[2, 'CustomerName'] = original_customer_name  # Restore original value
+        assert_frame_equal(df_updated, df_customer, check_dtype=False, check_index_type=False)
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_logging_output_debug(self, sqlite_db_to_modify, df_customer, caplog):
+        r"""Test the logging output when no errors occur.
+
+        If no errors occur the UPDATE and INSERT statements are logged with
+        log level DEBUG (10).
+        """
+
+        # Setup - None
+        # ===========================================================
+
+        # Exercise
+        # ===========================================================
+        with sqlite_db_to_modify.engine.begin() as conn:
+            sqlite_db_to_modify.upsert_table(
+                df=df_customer,
+                table='Customer',
+                conn=conn,
+                where_cols=['CustomerName'],
+                update_only=True,
+                nan_to_none=True,
+                datetime_cols_dtype='str',
+                datetime_format=r'%Y-%m-%d'
+            )
+
+        # Verify
+        # ===========================================================
+        for record in caplog.records:
+            assert record.levelno == 10
+            assert record.levelname == 'DEBUG'
+
+        # Clean up - None
+        # ===========================================================
+
+    @pytest.mark.raises
+    def test_invalid_datetime_format(self, sqlite_db_to_modify, df_customer):
+        r"""Supply an invalid datetime format to the `datetime_format` parameter.
+
+        pandemy.InvalidInputError is expected to be raised.
+        """
+
+        # Setup - None
+        # ===========================================================
+
+        # Exercise & Verify
+        # ===========================================================
+        with sqlite_db_to_modify.engine.begin() as conn:
+            with pytest.raises(pandemy.InvalidInputError):
+                sqlite_db_to_modify.upsert_table(
+                    df=df_customer,
+                    table='Customer',
+                    conn=conn,
+                    where_cols=['CustomerName'],
+                    update_only=True,
+                    nan_to_none=True,
+                    datetime_cols_dtype='str',
+                    datetime_format=2
+                )
+
+        # Clean up - None
+        # ===========================================================
+
+    @pytest.mark.raises
+    def test_invalid_table_name(self, sqlite_db_to_modify, df_customer):
+        r"""Supply an invalid table name.
+
+        pandemy.InvalidTableNameError is expected to be raised.
+        """
+
+        # Setup - None
+        # ===========================================================
+
+        # Exercise & Verify
+        # ===========================================================
+        with sqlite_db_to_modify.engine.begin() as conn:
+            with pytest.raises(pandemy.InvalidTableNameError):
+                sqlite_db_to_modify.upsert_table(
+                    df=df_customer,
+                    table='Customer Table',
+                    conn=conn,
+                    where_cols=['CustomerName'],
+                    update_only=True,
+                    datetime_cols_dtype='str',
+                )
+
+        # Clean up - None
+        # ===========================================================
+
+    @pytest.mark.raises
+    @pytest.mark.parametrize(
+        'chunksize',
+        (
+            pytest.param('2', id='chunksize=str'),
+            pytest.param([3], id='chunksize=[3]'),
+            pytest.param(-3, id='chunksize=-3')
+        )
+    )
+    def test_invalid_chunksize(self, chunksize, sqlite_db_to_modify, df_customer):
+        r"""Supply invalid values to the `chunksize` parameter.
+
+        Parameters
+        ----------
+        chunksize : int or None, default None
+            Divide `df` into chunks and perform the upsert in chunks of `chunksize` rows.
+            If None all rows of `df` are processed in one chunk, which is the default.
+        """
+
+        # Setup - None
+        # ===========================================================
+
+        # Exercise & Verify
+        # ===========================================================
+        with sqlite_db_to_modify.engine.begin() as conn:
+            with pytest.raises(pandemy.InvalidInputError) as exc_info:
+                sqlite_db_to_modify.upsert_table(
+                    df=df_customer,
+                    table='Customer',
+                    conn=conn,
+                    where_cols=['CustomerName'],
+                    update_only=True,
+                    chunksize=chunksize,
+                    datetime_cols_dtype='str'
+                )
+
+        # Verify
+        # ===========================================================
+        assert exc_info.value.data == chunksize
+
+        # Clean up - None
+        # ===========================================================
+
+
+class TestUpsertTableMethodUpdateAndInsert:
+    r"""Test the `upsert_table` method of the SQLite DatabaseManager `SQLiteDb`.
+
+    The test cases of this class uses an UPDATE statement followed by an INSERT.
+
+    Fixtures
+    --------
+    sqlite_db_to_modify : pandemy.SQLiteDb
+        An instance of the test database where the table data can be modified in each test.
+
+    df_customer : pd.DataFrame
+        The Customer table of the test database.
+
+    df_customer_upsert : pd.DataFrame
+        The Customer table of the test database with updated data and rows added.
+
+    caplog : pytest.LogCaptureFixture
+        Built-in fixture to control logging and access log entries.
+    """
+
+    @pytest.mark.parametrize(
+        'chunksize',
+        (
+            pytest.param(None, id='chunksize=None'),
+            pytest.param(2, id='chunksize=2'),
+            pytest.param(10, id='chunksize=10'),
+        )
+    )
+    def test_upsert_all_cols_1_where_col(self, chunksize, sqlite_db_to_modify, df_customer_upsert):
+        r"""Update a table with data from all columns of a DataFrame and insert new rows.
+
+        We supply one column to use in the WHERE clause to determine
+        how to update the rows. Columns in the WHERE clause should not appear
+        among the columns to update. An INSERT statement is performed after the update.
+
+        The input DataFrame contains 2 new rows that do not exist in the database table
+        Customer. These rows should be added.
+
+        Parameters
+        ----------
+        chunksize : int or None
+            Divide the DataFrame into chunks and perform the upsert in chunks of `chunksize` rows.
+            If None all rows of the DataFrame are processed in one chunk, which is the default.
+        """
+
+        # Setup
+        # ===========================================================
+        load_table_query = 'SELECT * FROM Customer ORDER BY CustomerId'
+        df_input, _, _ = df_customer_upsert
+
+        # Exercise
+        # ===========================================================
+        with sqlite_db_to_modify.engine.begin() as conn:
+            sqlite_db_to_modify.upsert_table(
+                df=df_input,
+                table='Customer',
+                conn=conn,
+                where_cols=['CustomerName'],
+                update_only=False,
+                chunksize=chunksize,
+                datetime_cols_dtype='str',
+                datetime_format=r'%Y-%m-%d'
+            )
+
+        # Verify
+        # ===========================================================
+        with sqlite_db_to_modify.engine.connect() as conn:
+            df_updated = pd.read_sql(sql=load_table_query, con=conn, index_col='CustomerId', parse_dates=['BirthDate'])
+
+        assert_frame_equal(df_updated, df_input, check_dtype=False)
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_upsert_all_cols_1_where_col_dry_run(self, sqlite_db_to_modify, df_customer):
+        r"""Test the generated UPDATE and INSERT statement when using the `dry_run` parameter."""
+
+        # Setup
+        # ===========================================================
+        update_stmt_exp = (
+            """UPDATE Customer
+SET
+    BirthDate = :BirthDate,
+    Residence = :Residence,
+    IsAdventurer = :IsAdventurer
+WHERE
+    CustomerName = :CustomerName"""
+        )
+
+        insert_stmt_exp = (
+            """INSERT INTO Customer (
+    CustomerName,
+    BirthDate,
+    Residence,
+    IsAdventurer
+)
+    SELECT
+        :CustomerName,
+        :BirthDate,
+        :Residence,
+        :IsAdventurer
+    WHERE
+        NOT EXISTS (
+            SELECT
+                1
+            FROM Customer
+            WHERE
+                CustomerName = :CustomerName
+        )"""
+        )
+
+        # Exercise
+        # ===========================================================
+        with sqlite_db_to_modify.engine.begin() as conn:
+            update_stmt, insert_stmt = sqlite_db_to_modify.upsert_table(
+                df=df_customer,
+                table='Customer',
+                conn=conn,
+                where_cols=['CustomerName'],
+                upsert_cols='all',
+                update_only=False,
+                datetime_cols_dtype='str',
+                datetime_format=r'%Y-%m-%d',
+                dry_run=True
+            )
+
+        # Verify
+        # ===========================================================
+        assert update_stmt == update_stmt_exp
+        assert insert_stmt == insert_stmt_exp
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_upsert_2_cols_include_index_3_where_cols(self, sqlite_db_to_modify, df_customer):
+        r"""Upsert 2 columns of a table and include the index column to the columns to update.
+
+        Column BirthDate and index column CustomerId are selected for update and insert.
+        Using 3 where_cols. There are no new rows in the DataFrame. No rows will be inserted.
+        """
+
+        # Setup
+        # ===========================================================
+        load_table_query = 'SELECT * FROM Customer ORDER BY CustomerId'
+
+        # Modify the index CustomerId
+        df_customer = df_customer.reset_index()
+        df_customer.loc[0, 'CustomerId'] = 0
+        df_customer = df_customer.set_index('CustomerId')
+
+        # Exercise
+        # ===========================================================
+        with sqlite_db_to_modify.engine.begin() as conn:
+            sqlite_db_to_modify.upsert_table(
+                df=df_customer,
+                table='Customer',
+                conn=conn,
+                where_cols=['CustomerName', 'Residence', 'IsAdventurer'],
+                upsert_cols=['BirthDate'],
+                upsert_index_cols=True,
+                update_only=False,
+                datetime_cols_dtype='str',
+                datetime_format=r'%Y-%m-%d'
+            )
+
+        # Verify
+        # ===========================================================
+        with sqlite_db_to_modify.engine.connect() as conn:
+            df_updated = pd.read_sql(sql=load_table_query, con=conn, index_col='CustomerId', parse_dates=['BirthDate'])
+
+        assert_frame_equal(df_updated, df_customer, check_dtype=False)
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_upsert_2_cols_include_index_3_where_cols_dry_run(self, sqlite_db_to_modify, df_customer):
+        r"""Test the generated UPDATE and INSERT statement when using the `dry_run` parameter."""
+
+        # Setup
+        # ===========================================================
+        update_stmt_exp = (
+            """UPDATE Customer
+SET
+    BirthDate = :BirthDate,
+    CustomerId = :CustomerId
+WHERE
+    CustomerName = :CustomerName AND
+    Residence = :Residence AND
+    IsAdventurer = :IsAdventurer"""
+        )
+
+        insert_stmt_exp = (
+            """INSERT INTO Customer (
+    BirthDate,
+    CustomerId
+)
+    SELECT
+        :BirthDate,
+        :CustomerId
+    WHERE
+        NOT EXISTS (
+            SELECT
+                1
+            FROM Customer
+            WHERE
+                CustomerName = :CustomerName AND
+                Residence = :Residence AND
+                IsAdventurer = :IsAdventurer
+        )"""
+        )
+
+        # Exercise
+        # ===========================================================
+        with sqlite_db_to_modify.engine.begin() as conn:
+            update_stmt, insert_stmt = sqlite_db_to_modify.upsert_table(
+                df=df_customer,
+                table='Customer',
+                conn=conn,
+                where_cols=['CustomerName', 'Residence', 'IsAdventurer'],
+                upsert_cols=['BirthDate'],
+                upsert_index_cols=True,
+                update_only=False,
+                datetime_cols_dtype='str',
+                datetime_format=r'%Y-%m-%d',
+                dry_run=True
+            )
+
+        # Verify
+        # ===========================================================
+        assert update_stmt == update_stmt_exp
+        assert insert_stmt == insert_stmt_exp
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_empty_dataframe(self, sqlite_db_to_modify, df_customer):
+        r"""Supply an empty DataFrame.
+
+        No statements should be executed on the database and the return values
+        `result_update` and `result_insert` should be None.
+        """
+
+        # Setup
+        # ===========================================================
+        df_empty = df_customer.iloc[:0]
+
+        # Exercise
+        # ===========================================================
+        with sqlite_db_to_modify.engine.begin() as conn:
+            result_update, result_insert = sqlite_db_to_modify.upsert_table(
+                df=df_empty,
+                table='Customer',
+                conn=conn,
+                where_cols=['CustomerName'],
+                update_only=False,
+                datetime_cols_dtype='str',
+                datetime_format=r'%Y-%m-%d'
+            )
+
+        # Verify
+        # ===========================================================
+        assert result_update is None
+        assert result_insert is None
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_return_types(self, sqlite_db_to_modify, df_customer):
+        r"""Check the return types when using UPDATE followed by INSERT."""
+
+        # Setup - None
+        # ===========================================================
+
+        # Exercise
+        # ===========================================================
+        with sqlite_db_to_modify.engine.begin() as conn:
+            result_update, result_insert = sqlite_db_to_modify.upsert_table(
+                df=df_customer,
+                table='Customer',
+                conn=conn,
+                where_cols=['CustomerName'],
+                update_only=False,
+                datetime_cols_dtype='str',
+                datetime_format=r'%Y-%m-%d'
+            )
+
+        # Verify
+        # ===========================================================
+        assert isinstance(result_update, sqlalchemy.engine.CursorResult)
+        assert isinstance(result_insert, sqlalchemy.engine.CursorResult)
+
+        # Clean up - None
+        # ===========================================================
+
+    @pytest.mark.raises
+    def test_upsert_triggers_not_null_constraint(self, sqlite_db_to_modify, df_customer_upsert):
+        r"""Update and insert into 3 columns and use 1 where column.
+
+        The column IsAdventurer is not added to be updated and inserted and will therefore
+        trigger the NOT NULL constraint on insert.
+
+        pandemy.ExecuteStatementError is expected to be raised.
+        """
+
+        # Setup
+        # ===========================================================
+        df_upsert, _, _ = df_customer_upsert
+
+        # Exercise & Verify
+        # ===========================================================
+        with sqlite_db_to_modify.engine.begin() as conn:
+            with pytest.raises(pandemy.ExecuteStatementError, match='NOT NULL'):
+                sqlite_db_to_modify.upsert_table(
+                    df=df_upsert,
+                    table='Customer',
+                    conn=conn,
+                    where_cols=['CustomerName'],
+                    upsert_cols=['CustomerName', 'BirthDate', 'Residence'],
+                    update_only=False,
+                    datetime_cols_dtype='str',
+                    datetime_format=r'%Y-%m-%d'
+                )
+
+        # Clean up - None
+        # ===========================================================
+
+    @pytest.mark.raises
+    def test_logging_output_error(self, sqlite_db_to_modify, df_customer_upsert, caplog):
+        r"""Test the logging output when an error occurs while executing the statements.
+
+        If errors occur the UPDATE and INSERT statements are logged with
+        log level ERROR (40).
+
+        The column IsAdventurer is not added to be updated and inserted and will therefore
+        trigger the NOT NULL constraint on insert.
+
+        pandemy.ExecuteStatementError is expected to be raised.
+        """
+
+        # Setup
+        # ===========================================================
+        df_upsert, _, _ = df_customer_upsert
+
+        # Exercise
+        # ===========================================================
+        with sqlite_db_to_modify.engine.begin() as conn:
+            with pytest.raises(pandemy.ExecuteStatementError):
+                sqlite_db_to_modify.upsert_table(
+                    df=df_upsert,
+                    table='Customer',
+                    conn=conn,
+                    where_cols=['CustomerName'],
+                    upsert_cols=['CustomerName', 'BirthDate', 'Residence'],
+                    update_only=False,
+                    datetime_cols_dtype='str',
+                    datetime_format=r'%Y-%m-%d'
+                )
+
+        # Verify
+        # ===========================================================
+        for record in caplog.records:
+            assert record.levelno == 40
+            assert record.levelname == 'ERROR'
+
+        # Clean up - None
+        # ===========================================================
+
+
+class TestMergeDfMethod:
+    r"""Test the `merge_df` method of the SQLite DatabaseManager `SQLiteDb`.
+
+    SQLite does not support the MERGE statement.
+
+    Fixtures
+    --------
+    sqlite_db_to_modify : pandemy.SQLiteDb
+        An instance of the test database where the table data can be modified in each test.
+
+    df_customer : pd.DataFrame
+        The Customer table of the test database.
+    """
+
+    @pytest.mark.raises
+    def test_merge_statement_not_supported(self, sqlite_db_to_modify, df_customer):
+        r"""Test that `SQLiteDb` does not support the `merge_df` method.
+
+        Because SQLite does not support the MERGE statement
+        pandemy.SQLStatementNotSupportedError is expected to be raised
+        when calling the `merge_df` method.
+
+        The class variable `_merge_df_stmt` is an empty string the `DatabaseManager`
+        does not support the `merge_df` method.
+        """
+
+        # Setup - None
+        # ===========================================================
+
+        # Exercise & Verify
+        # ===========================================================
+        with sqlite_db_to_modify.engine.begin() as conn:
+            with pytest.raises(pandemy.SQLStatementNotSupportedError, match='SQLiteDb'):
+                sqlite_db_to_modify.merge_df(
+                    df=df_customer,
+                    table='Customer',
+                    conn=conn,
+                    on_cols=['CustomerName'],
+                    nan_to_none=True,
+                    datetime_cols_dtype='str',
+                    datetime_format=r'%Y-%m-%d'
+                )
 
         # Clean up - None
         # ===========================================================

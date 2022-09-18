@@ -74,6 +74,13 @@ class ExecuteStatementError(DatabaseManagerError):
     """
 
 
+class InvalidColumnNameError(DatabaseManagerError):
+    r"""Errors when supplying an invalid column name to a database operation.
+
+    .. versionadded:: 1.2.0
+    """
+
+
 class InvalidTableNameError(DatabaseManagerError):
     r"""Errors when supplying an invalid table name to a database operation."""
 
@@ -89,6 +96,13 @@ class SaveDataFrameError(DatabaseManagerError):
 class SetIndexError(DatabaseManagerError):
     r"""Errors when setting an index of a :class:`pandas.DataFrame`
     after loading a table from the database.
+    """
+
+
+class SQLStatementNotSupportedError(DatabaseManagerError):
+    r"""Errors when executing a method that triggers a SQL statement not supported by the database dialect.
+
+    .. versionadded:: 1.2.0
     """
 
 

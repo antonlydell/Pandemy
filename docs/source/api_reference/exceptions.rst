@@ -21,6 +21,8 @@ Exceptions
 
 .. autoexception:: pandemy.ExecuteStatementError
 
+.. autoexception:: pandemy.InvalidColumnNameError
+
 .. autoexception:: pandemy.InvalidTableNameError
 
 .. autoexception:: pandemy.LoadTableError
@@ -28,5 +30,7 @@ Exceptions
 .. autoexception:: pandemy.SaveDataFrameError
 
 .. autoexception:: pandemy.SetIndexError
+
+.. autoexception:: pandemy.SQLStatementNotSupportedError
 
 .. autoexception:: pandemy.TableExistsError

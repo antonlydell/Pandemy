@@ -11,14 +11,12 @@ the Oracle database driver package cx_Oracle_ needs to be installed. Please refe
 :doc:`Installation <../../getting_started/installation>` section for how to install Pandemy and cx_Oracle.
 
 
-Initialization
---------------
+.. toctree::
+   :maxdepth: 3
+   :caption: Table of contents
 
-The initialization of :class:`OracleDb <pandemy.OracleDb>` is described further in the
-:ref:`API reference of OracleDb <api_reference/databasemanager:OracleDb>`. Additional information about connecting
-to an Oracle database with SQLAlchemy can be found in the `cx_Oracle part of the SQLAlchemy documentation`_.
+   initialization
+   merge_df
 
 
 .. _cx_Oracle: https://oracle.github.io/python-cx_Oracle/
-.. _cx_Oracle part of the SQLAlchemy documentation: https://docs.sqlalchemy.org/en/14/dialects/oracle.html#module-sqlalchemy.dialects.oracle.cx_oracle
-.. _optional dependency identifier: https://setuptools.pypa.io/en/latest/userguide/dependency_management.html#optional-dependencies
