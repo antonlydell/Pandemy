@@ -1092,7 +1092,7 @@ WHERE
         Parameters
         ----------
         df : pandas.DataFrame
-            The DataFrame with data to update and insert.
+            The DataFrame with data to upsert.
 
         table : str
             The name of the table to upsert.
@@ -1101,8 +1101,7 @@ WHERE
             An open connection to the database.
 
         where_cols : Sequence[str]
-            The columns from `df` to use as the WHERE clause to identify
-            the rows to update and insert.
+            The columns from `df` to use in the WHERE clause to identify the rows to upsert.
 
         upsert_cols : str or Sequence[str] or None, default 'all'
             The columns from `table` to upsert with data from `df`.
@@ -1138,7 +1137,8 @@ WHERE
             number of seconds since the unix epoch of 1970-01-01 in UTC time zone.
 
         datetime_format : str, default r'%Y-%m-%d %H:%M:%S'
-            The datetime format to use when converting datetime columns to string.
+            The datetime (:meth:`strftime <datetime.datetime.strftime>`) format
+            to use when converting datetime columns to strings.
 
         dry_run : bool, default False
             Do not execute the upsert. Instead return the SQL statements that would have been executed on the database.
@@ -1168,7 +1168,13 @@ WHERE
 
         See Also
         --------
+        :meth:`~DatabaseManager.execute()` : Execute a SQL statement.
+
+        :meth:`~DatabaseManager.load_table()` : Load a table into a :class:`pandas.DataFrame`.
+
         :meth:`~DatabaseManager.merge_df()` : Merge data from a :class:`pandas.DataFrame` into a table.
+
+        :meth:`~DatabaseManager.save_df()` : Save a :class:`pandas.DataFrame` to a table in the database.
 
         Examples
         --------
@@ -1188,7 +1194,7 @@ WHERE
         CustomerId
         1                Zezima
         2             Dr Harlow
-        >>> db = pandemy.SQLiteDb()  # Create an in memory database
+        >>> db = pandemy.SQLiteDb()  # Create an in-memory database
         >>> with db.engine.begin() as conn:
         ...     _ = db.execute(
         ...         sql=(
@@ -1209,12 +1215,16 @@ WHERE
         3             Mosol Rei
         >>> with db.engine.begin() as conn:
         ...     _, _ = db.upsert_table(
-        ...         df=df, table='Customer', conn=conn,
-        ...         where_cols=['CustomerId'], upsert_index_cols=True
+        ...         df=df,
+        ...         table='Customer',
+        ...         conn=conn,
+        ...         where_cols=['CustomerId'],
+        ...         upsert_index_cols=True
         ...     )
         ...     df_upserted = db.load_table(
         ...         sql='SELECT * FROM Customer ORDER BY CustomerId ASC',
-        ...         conn=conn, index_col='CustomerId'
+        ...         conn=conn,
+        ...         index_col='CustomerId'
         ...     )
         >>> df_upserted  # doctest: +NORMALIZE_WHITESPACE
                    CustomerName
@@ -1308,7 +1318,7 @@ WHERE
             dry_run: bool = False) -> Union[CursorResult, str]:
         r"""Merge data from a :class:`pandas.DataFrame` into a table.
 
-        This method performs a combined UPDATE and INSERT statement on a table using the
+        This method executes a combined UPDATE and INSERT statement on a table using the
         MERGE statement. The method is similar to :meth:`~DatabaseManager.upsert_table()`
         but it only executes one statement instead of two.
 
@@ -1387,7 +1397,8 @@ WHERE
             number of seconds since the unix epoch of 1970-01-01 in UTC time zone.
 
         datetime_format : str, default r'%Y-%m-%d %H:%M:%S'
-            The datetime format to use when converting datetime columns to string.
+            The datetime (:meth:`strftime <datetime.datetime.strftime>`) format
+            to use when converting datetime columns to strings.
 
         dry_run : bool, default False
             Do not execute the merge. Instead return the SQL statement
