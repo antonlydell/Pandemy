@@ -779,19 +779,27 @@ class TestSaveDfMethod:
         # Clean up - None
         # ===========================================================
 
-    def test_save_to_existing_non_empty_table_if_exists_replace(self, sqlite_db_empty, df_customer):
-        r"""Save a DataFrame to an exisitng non empty table.
+    def test_save_to_existing_non_empty_table_if_exists_replace(
+        self, sqlite_db_empty, df_customer, df_customer_upsert
+    ):
+        r"""Save a DataFrame to an existing non-empty table using ``if_exists='replace'``.
 
-        The existing rows in the table are deleted before writing the DataFrame.
+        The existing rows of the table are expected to be deleted before saving the DataFrame.
+        Since the table should not be dropped the create table statement of the Customer table
+        should not change after executing `save_df`.
         """
 
         # Setup
         # ===========================================================
-        query = """SELECT * FROM Customer;"""
+        df_original, _, _ = df_customer_upsert
+        get_customer_data: str = """SELECT * FROM Customer ORDER BY CustomerId ASC"""
+        get_customer_table_def: str = """SELECT sql FROM sqlite_master WHERE name = 'Customer'"""
 
         with sqlite_db_empty.engine.begin() as conn:
+            customer_table_def_before: str = conn.execute(get_customer_table_def).scalar_one()
+
             # Write data to the empty table
-            df_customer.to_sql(name='Customer', con=conn, if_exists='append')
+            df_original.to_sql(name='Customer', con=conn, if_exists='append')
 
             # Exercise
             # ===========================================================
@@ -799,13 +807,50 @@ class TestSaveDfMethod:
 
             # Verify
             # ===========================================================
-            df_result = pd.read_sql(sql=query, con=conn, index_col='CustomerId', parse_dates=['BirthDate'])
+            customer_table_def_after: str = conn.execute(get_customer_table_def).scalar_one()
+            df_result = pd.read_sql(sql=get_customer_data, con=conn, index_col='CustomerId', parse_dates=['BirthDate'])
 
+            assert customer_table_def_before == customer_table_def_after
+            assert_frame_equal(df_result, df_customer, check_dtype=False, check_index_type=False)
+
+    def test_save_to_existing_non_empty_table_if_exists_drop_replace(
+        self, sqlite_db_empty, df_customer, df_customer_upsert
+    ):
+        r"""Save a DataFrame to an existing non-empty table using ``if_exists='drop-replace'``.
+
+        The existing table is expected to be dropped and recreated before saving the DataFrame.
+        This is the default behavior of ``if_exists='replace'`` in the `pandas.DataFrame.to_sql()`
+        method. Because the Customer table is dropped the recreated create table statement will not
+        be the same as the original. Information about constraints e.g. PRIMARY KEY will be lost.
+        """
+
+        # Setup
+        # ===========================================================
+        df_original, _, _ = df_customer_upsert
+        get_customer_data: str = """SELECT * FROM Customer ORDER BY CustomerId ASC"""
+        get_customer_table_def: str = """SELECT sql FROM sqlite_master WHERE name = 'Customer'"""
+
+        with sqlite_db_empty.engine.begin() as conn:
+            customer_table_def_before: str = conn.execute(get_customer_table_def).scalar_one()
+
+            # Write data to the empty table
+            df_original.to_sql(name='Customer', con=conn, if_exists='append')
+
+            # Exercise
+            # ===========================================================
+            sqlite_db_empty.save_df(df=df_customer, table='Customer', conn=conn, if_exists='drop-replace')
+
+            # Verify
+            # ===========================================================
+            customer_table_def_after: str = conn.execute(get_customer_table_def).scalar_one()
+            df_result = pd.read_sql(sql=get_customer_data, con=conn, index_col='CustomerId', parse_dates=['BirthDate'])
+
+            assert customer_table_def_before != customer_table_def_after
             assert_frame_equal(df_result, df_customer, check_dtype=False, check_index_type=False)
 
     @pytest.mark.raises
     def test_save_to_existing_table_if_exists_fail(self, sqlite_db_empty, df_customer):
-        r"""Save a DataFrame to an exisitng table when `if_exists` = 'fail'.
+        r"""Save a DataFrame to an existing table using ``if_exists='fail'``.
 
         pandemy.TableExistsError is expected to be raised.
         """
@@ -823,7 +868,7 @@ class TestSaveDfMethod:
 
     @pytest.mark.raises
     def test_save_to_existing_non_empty_table_if_exists_append(self, sqlite_db_empty, df_customer):
-        r"""Save a DataFrame to an exisitng non empty table.
+        r"""Save a DataFrame to an existing non-empty table using ``if_exists='append'``.
 
         The rows of the DataFrame are already present in the database table
         and inserting the rows will violate a UNIQUE constraint.
@@ -845,7 +890,7 @@ class TestSaveDfMethod:
         # ===========================================================
 
     def test_index_False(self, sqlite_db_empty, df_customer):
-        r"""Save a DataFrame to an exisitng empty table.
+        r"""Save a DataFrame to an existing empty table.
 
         The index column of the DataFrame is not written to the table.
         """
@@ -878,7 +923,7 @@ class TestSaveDfMethod:
     @pytest.mark.parametrize('new_index_names, index_labels, index_type', input_test_index_label)
     def test_index_label(self, new_index_names, index_labels, index_type,
                          sqlite_db_empty, df_customer):
-        r"""Save a DataFrame to an exisitng empty table.
+        r"""Save a DataFrame to an existing empty table.
 
         Supply custom name(s) for the index of the DataFrame.
         that will be used as the column names in the database.
@@ -927,6 +972,32 @@ class TestSaveDfMethod:
                 df_customer.index.names = ['CustomerId', 'CustomerName']
 
             assert_frame_equal(df_result, df_customer, check_dtype=False, check_index_type=False)
+
+    def test_df_does_not_include_all_columns_of_the_table(self, sqlite_db_empty, df_customer):
+        r"""Save a DataFrame to an existing empty table where the DataFrame does not contain all table columns.
+
+        The missing columns BirthDate and Residence should be inserted as NULL.
+        """
+
+        # Setup
+        # ===========================================================
+        query = """SELECT * FROM Customer ORDER BY CustomerId ASC"""
+
+        df_exp = df_customer.copy()
+        df_exp.loc[:, ['BirthDate', 'Residence']] = None
+        df_to_save = df_customer.loc[:, ['CustomerName', 'IsAdventurer']]
+
+        with sqlite_db_empty.engine.begin() as conn:
+
+            # Exercise
+            # ===========================================================
+            sqlite_db_empty.save_df(df=df_to_save, table='Customer', conn=conn, if_exists='append')
+
+            # Verify
+            # ===========================================================
+            df_result = pd.read_sql(sql=query, con=conn, parse_dates=['BirthDate'], index_col='CustomerId')
+
+            assert_frame_equal(df_result, df_exp, check_dtype=False, check_index_type=False)
 
     @pytest.mark.raises
     @pytest.mark.parametrize('df', [pytest.param('df', id='str'),
@@ -1001,6 +1072,49 @@ class TestSaveDfMethod:
             # ===========================================================
             with pytest.raises(pandemy.InvalidTableNameError):
                 sqlite_db_empty.save_df(df=df_customer, table=table, conn=conn)
+
+    @pytest.mark.raises
+    @pytest.mark.parametrize(
+        'chunksize',
+        (
+            pytest.param('2', id='chunksize=str'),
+            pytest.param([3], id='chunksize=[3]'),
+            pytest.param(0, id='chunksize=0'),
+            pytest.param(-3, id='chunksize=-3')
+        )
+    )
+    def test_invalid_chunksize(self, chunksize, sqlite_db_empty, df_customer):
+        r"""Supply invalid values to the `chunksize` parameter.
+
+        `chunksize` should be an integer > 0.
+
+        Parameters
+        ----------
+        chunksize : int or None, default None
+            The number of rows in each batch to be written at a time.
+            If None, all rows will be written at once.
+        """
+
+        # Setup - None
+        # ===========================================================
+
+        # Exercise & Verify
+        # ===========================================================
+        with sqlite_db_empty.engine.begin() as conn:
+            with pytest.raises(pandemy.InvalidInputError) as exc_info:
+                sqlite_db_empty.save_df(
+                    df=df_customer,
+                    table='Customer',
+                    conn=conn,
+                    chunksize=chunksize,
+                )
+
+        # Verify
+        # ===========================================================
+        assert exc_info.value.data == chunksize
+
+        # Clean up - None
+        # ===========================================================
 
 
 class TestLoadTableMethod:
