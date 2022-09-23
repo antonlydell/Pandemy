@@ -747,14 +747,19 @@ WHERE
         conn : sqlalchemy.engine.base.Connection
             An open connection to the database.
 
-        if_exists : str, {'append', 'replace', 'fail'}
+        if_exists : str, {'append', 'replace', 'drop-replace', 'fail'}
             How to update an existing table in the database:
 
-            * 'append': Append the :class:`pandas.DataFrame` to the existing table.
+            * 'append': Append `df` to the existing table.
 
-            * 'replace': Delete all records from the table and then write the :class:`pandas.DataFrame` to the table.
+            * 'replace': Delete all records from the table and then write `df` to the table.
+
+            * 'drop-replace': Drop the table, recreate it, and then write `df` to the table.
 
             * 'fail': Raise :exc:`pandemy.TableExistsError` if the table exists.
+
+            .. versionadded:: 1.2.0
+               'drop-replace'
 
         index : bool, default True
             Write :class:`pandas.DataFrame` index as a column. Uses the name of the index as the
@@ -847,14 +852,15 @@ WHERE
         # ==========================================
         # Validate input
         # ==========================================
+        self._validate_chunksize(chunksize=chunksize)
 
         if not isinstance(df, pd.DataFrame):
             raise pandemy.InvalidInputError(f'df must be of type pandas.DataFrame. Got {type(df)}. df = {df}.')
 
         # Validate if_exists
-        if not isinstance(if_exists, str) or if_exists not in {'replace', 'append', 'fail'}:
+        if not isinstance(if_exists, str) or if_exists not in {'append', 'replace', 'drop-replace', 'fail'}:
             raise pandemy.InvalidInputError(f'Invalid input if_exists = {if_exists}. '
-                                            "Expected 'append', 'replace' or 'fail'.")
+                                            "Expected 'append', 'replace', 'drop-replace' or 'fail'.")
 
         # Validate connection
         if not isinstance(conn, Connection):
@@ -871,6 +877,10 @@ WHERE
         if if_exists == 'replace':
             # self._is_valid_table_name(table=table) is called within delete_all_records_from_table
             self.delete_all_records_from_table(table=table, conn=conn)
+            if_exists = 'append'
+        elif if_exists == 'drop-replace':
+            self._is_valid_table_name(table=table)
+            if_exists = 'replace'  # replace is the name for drop-replace in pandas.DataFrame.to_sql
         else:
             self._is_valid_table_name(table=table)
 
