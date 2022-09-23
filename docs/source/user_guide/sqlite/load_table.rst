@@ -122,7 +122,7 @@ which is a direct link to the ``parse_dates`` option of :func:`pandas.read_sql` 
 ``localize_tz`` and ``target_tz`` can be specified. ``localize_tz`` lets you localize the the naive datetime columns to a specified
 timezone and ``target_tz`` can optionally convert the localized datetime columns into a desired timezone. 
 
-Let's use the table *Customer* from the database *Runescape.db* to illustrate this.
+Let's create the table *Customer* from the database *Runescape.db* and load it into a :class:`pandas.DataFrame` to illustrate this.
 
 
 .. only:: builder_html
@@ -164,22 +164,44 @@ Let's use the table *Customer* from the database *Runescape.db* to illustrate th
    6;Max Pure;2007-08-20;Port Sarim;1
    """)
 
-   df = pd.read_csv(filepath_or_buffer=data, sep=';', index_col='CustomerId',
-                    parse_dates=['BirthDate'])  # Create a DataFrame
+   dtypes = {
+      'CustomerId': 'int8',
+      'CustomerName': 'string',
+      'Residence': 'string',
+      'IsAdventurer': 'boolean'
+   }
 
-   with db.engine.connect() as conn:
+   df = pd.read_csv(filepath_or_buffer=data, sep=';', index_col='CustomerId', dtype=dtypes)
+
+   with db.engine.begin() as conn:
       db.execute(sql=create_table_customer, conn=conn)
       db.save_df(df=df, table='Customer', conn=conn, if_exists='replace')
 
-      df_naive = db.load_table(sql='Customer', conn=conn, index_col='CustomerId',
-                               parse_dates=['Birthdate'])
+      df_naive = db.load_table(
+         sql='Customer',
+         conn=conn,
+         index_col='CustomerId',
+         dtypes=dtypes,
+         parse_dates={'BirthDate': r'%Y-%m-%d'}
+      )
 
-      df_dt_aware = db.load_table(sql='Customer', conn=conn, index_col='CustomerId',
-                                  parse_dates=['Birthdate'], localize_tz='UTC', target_tz='CET')
+      df_dt_aware = db.load_table(
+         sql='Customer',
+         conn=conn,
+         index_col='CustomerId',
+         dtypes=dtypes,
+         parse_dates={'BirthDate': r'%Y-%m-%d'},
+         localize_tz='UTC',
+         target_tz='CET'
+      )
 
    print(f'df:\n{df}\n')
+
    print(f'df_naive:\n{df_naive}\n')
-   print(f'df_dt_aware:\n{df_dt_aware}')
+   print(f'df_naive.dtypes:\n{df_naive.dtypes}\n')
+
+   print(f'df_dt_aware:\n{df_dt_aware}\n')
+   print(f'df_dt_aware.dtypes:\n{df_dt_aware.dtypes}')
 
 
 .. code-block:: bash
@@ -193,29 +215,43 @@ Let's use the table *Customer* from the database *Runescape.db* to illustrate th
    df:
               CustomerName  BirthDate   Residence  IsAdventurer
    CustomerId
-   1                Zezima 1990-07-14     Yanille             1
-   2             Dr Harlow 1970-01-14     Varrock             0
-   3                Baraek 1968-12-13     Varrock             0
-   4            Gypsy Aris 1996-03-24     Varrock             0
-   5             Not a Bot 2006-05-31    Catherby             1
-   6              Max Pure 2007-08-20  Port Sarim             1
+   1                Zezima 1990-07-14     Yanille          True
+   2             Dr Harlow 1970-01-14     Varrock         False
+   3                Baraek 1968-12-13     Varrock         False
+   4            Gypsy Aris 1996-03-24     Varrock         False
+   5             Not a Bot 2006-05-31    Catherby          True
+   6              Max Pure 2007-08-20  Port Sarim          True
 
    df_naive:
                CustomerName  BirthDate   Residence  IsAdventurer
    CustomerId
-   1                Zezima 1990-07-14     Yanille             1
-   2             Dr Harlow 1970-01-14     Varrock             0
-   3                Baraek 1968-12-13     Varrock             0
-   4            Gypsy Aris 1996-03-24     Varrock             0
-   5             Not a Bot 2006-05-31    Catherby             1
-   6              Max Pure 2007-08-20  Port Sarim             1
+   1                Zezima 1990-07-14     Yanille           True
+   2             Dr Harlow 1970-01-14     Varrock          False
+   3                Baraek 1968-12-13     Varrock          False
+   4            Gypsy Aris 1996-03-24     Varrock          False
+   5             Not a Bot 2006-05-31    Catherby           True
+   6              Max Pure 2007-08-20  Port Sarim           True
+
+   df_naive.dtypes:
+   CustomerName            string
+   BirthDate       datetime64[ns]
+   Residence               string
+   IsAdventurer           boolean
+   dtype: object
 
    df_dt_aware:
                CustomerName                 BirthDate   Residence  IsAdventurer
    CustomerId
-   1                Zezima 1990-07-14 02:00:00+02:00     Yanille             1
-   2             Dr Harlow 1970-01-14 01:00:00+01:00     Varrock             0
-   3                Baraek 1968-12-13 01:00:00+01:00     Varrock             0
-   4            Gypsy Aris 1996-03-24 01:00:00+01:00     Varrock             0
-   5             Not a Bot 2006-05-31 02:00:00+02:00    Catherby             1
-   6              Max Pure 2007-08-20 02:00:00+02:00  Port Sarim             1
+   1                Zezima 1990-07-14 02:00:00+02:00     Yanille           True
+   2             Dr Harlow 1970-01-14 01:00:00+01:00     Varrock          False
+   3                Baraek 1968-12-13 01:00:00+01:00     Varrock          False
+   4            Gypsy Aris 1996-03-24 01:00:00+01:00     Varrock          False
+   5             Not a Bot 2006-05-31 02:00:00+02:00    Catherby           True
+   6              Max Pure 2007-08-20 02:00:00+02:00  Port Sarim           True
+
+   df_dt_aware.dtypes:
+   CustomerName                 string
+   BirthDate       datetime64[ns, CET]
+   Residence                    string
+   IsAdventurer                boolean
+   dtype: object

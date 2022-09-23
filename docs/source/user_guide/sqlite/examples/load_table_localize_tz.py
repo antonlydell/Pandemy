@@ -57,22 +57,44 @@ CustomerId;CustomerName;BirthDate;Residence;IsAdventurer
 6;Max Pure;2007-08-20;Port Sarim;1
 """)
 
-df = pd.read_csv(filepath_or_buffer=data, sep=';', index_col='CustomerId',
-                 parse_dates=['BirthDate'])  # Create a DataFrame
+dtypes = {
+    'CustomerId': 'int8',
+    'CustomerName': 'string',
+    'Residence': 'string',
+    'IsAdventurer': 'boolean'
+}
 
-with db.engine.connect() as conn:
+df = pd.read_csv(filepath_or_buffer=data, sep=';', index_col='CustomerId', dtype=dtypes)
+
+with db.engine.begin() as conn:
     db.execute(sql=create_table_customer, conn=conn)
     db.save_df(df=df, table='Customer', conn=conn, if_exists='replace')
 
-    df_naive = db.load_table(sql='Customer', conn=conn, index_col='CustomerId',
-                             parse_dates=['Birthdate'])
+    df_naive = db.load_table(
+        sql='Customer',
+        conn=conn,
+        index_col='CustomerId',
+        dtypes=dtypes,
+        parse_dates={'BirthDate': r'%Y-%m-%d'}
+    )
 
-    df_dt_aware = db.load_table(sql='Customer', conn=conn, index_col='CustomerId',
-                                parse_dates=['Birthdate'], localize_tz='UTC', target_tz='CET')
+    df_dt_aware = db.load_table(
+        sql='Customer',
+        conn=conn,
+        index_col='CustomerId',
+        dtypes=dtypes,
+        parse_dates={'BirthDate': r'%Y-%m-%d'},
+        localize_tz='UTC',
+        target_tz='CET'
+    )
 
 print(f'df:\n{df}\n')
+
 print(f'df_naive:\n{df_naive}\n')
-print(f'df_dt_aware:\n{df_dt_aware}')
+print(f'df_naive.dtypes:\n{df_naive.dtypes}\n')
+
+print(f'df_dt_aware:\n{df_dt_aware}\n')
+print(f'df_dt_aware.dtypes:\n{df_dt_aware.dtypes}')
 
 # ===============================================================
 # Clean up
