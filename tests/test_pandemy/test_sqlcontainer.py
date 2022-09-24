@@ -5,7 +5,7 @@
 # =================================================
 
 # Standard Library
-from typing import List, Optional, Union
+from typing import Callable, List, Optional, Union
 
 # Third Party
 import pytest
@@ -160,6 +160,38 @@ class TestPlaceholder:
 
         # Clean up - None
         # =========================================
+
+    @pytest.mark.parametrize(
+        'func', (pytest.param(str, id='str'), pytest.param(repr, id='repr'))
+    )
+    def test__str__and__repr__(self, func: Callable):
+        r"""Test the output of the `__str__` and `__repr__` methods.
+
+        Parameters
+        ----------
+        func : Callable
+            The `str` and `repr` functions to apply to a `Placeholder`.
+        """
+
+        # Setup
+        # ===========================================================
+        placeholder = pandemy.Placeholder(':placeholder', ['value0', 'value1'], False)
+
+        exp_result = (
+            "Placeholder(placeholder=':placeholder', replacements=['value0', 'value1'], "
+            "return_new_placeholders=False)"
+        )
+
+        # Exercise
+        # ===========================================================
+        result = func(placeholder)
+
+        # Verify
+        # ===========================================================
+        assert result == exp_result
+
+        # Clean up - None
+        # ===========================================================
 
 
 class TestSQLContainerReplacePlaceholders:

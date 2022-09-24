@@ -30,60 +30,83 @@ logger = logging.getLogger(__name__)
 
 
 # ===============================================================
-# Namedtuples
-# ===============================================================
-
-
-Placeholder = namedtuple(
-    'Placeholder', ['placeholder', 'replacements', 'return_new_placeholders'], defaults=(True,)
-)
-r"""Container of placeholders and their replacement values for parametrized SQL statements.
-
-The :class:`Placeholder` :func:`namedtuple <python:collections.namedtuple>` handles placeholders
-and their replacement values when building parametrized SQL statements. A SQL placeholder is
-always prefixed by a colon (*:*) e.g. ``:myplaceholder`` in the SQL statement. :class:`Placeholder`
-is used as input to the :meth:`SQLContainer.replace_placeholders() <pandemy.SQLContainer.replace_placeholders>`
-method.
-
-Parameters
-----------
-placeholder : str
-    The placeholder to replace in the SQL statement. E.g. ``':myplaceholder'``.
-
-replacements : str or int or float or sequence of str or int or float
-    The value(s) to replace `placeholder` with.
-
-return_new_placeholders : bool, default True
-    If `replacements` should be mapped to new placeholders in the `params` return value
-    of the :meth:`SQLContainer.replace_placeholders() <pandemy.SQLContainer.replace_placeholders>` method.
-
-Examples
---------
-Creating a :class:`Placeholder` and accessing its attributes.
-
-.. doctest::
-
-   >>> p1 = pandemy.Placeholder(placeholder=':itemid',
-   ...                          replacements=[1, 2, 3],
-   ...                          return_new_placeholders=True)
-   >>> p1
-   Placeholder(placeholder=':itemid', replacements=[1, 2, 3], return_new_placeholders=True)
-   >>> p2 = pandemy.Placeholder(placeholder=':desc',
-   ...                          replacements='A%',
-   ...                          return_new_placeholders=True)
-   >>> p2
-   Placeholder(placeholder=':desc', replacements='A%', return_new_placeholders=True)
-   >>> p1.placeholder
-   ':itemid'
-   >>> p2.replacements
-   'A%'
-   >>> p2.return_new_placeholders
-   True
-"""
-
-# ===============================================================
 # Classes
 # ===============================================================
+
+
+class Placeholder:
+    r"""Container of placeholders and their replacement values for parametrized SQL statements.
+
+    The :class:`Placeholder` handles placeholders and their replacement values when building
+    parametrized SQL statements. A SQL placeholder is always prefixed by a colon (*:*) e.g.
+    ``:myplaceholder`` in the SQL statement. :class:`Placeholder` is used as input to the
+    :meth:`SQLContainer.replace_placeholders` method.
+
+    Parameters
+    ----------
+    placeholder : str
+        The placeholder to replace in the SQL statement. E.g. ``':myplaceholder'``.
+
+    replacements : str or int or float or sequence of str or int or float
+        The value(s) to replace `placeholder` with.
+
+    return_new_placeholders : bool, default True
+        If `replacements` should be mapped to new placeholders in the `params` return value
+        of the :meth:`SQLContainer.replace_placeholders` method.
+
+    See Also
+    --------
+    * :class:`SQLContainer` : A container of SQL statements.
+
+    Examples
+    --------
+    Creating a :class:`Placeholder` and accessing its attributes.
+
+    >>> p1 = pandemy.Placeholder(
+    ...     placeholder=':itemid',
+    ...     replacements=[1, 2, 3]
+    ... )
+    >>> p1
+    Placeholder(placeholder=':itemid', replacements=[1, 2, 3], return_new_placeholders=True)
+    >>> p2 = pandemy.Placeholder(
+    ...     placeholder=':itemname',
+    ...     replacements='A%',
+    ...     return_new_placeholders=False
+    ... )
+    >>> p2
+    Placeholder(placeholder=':itemname', replacements='A%', return_new_placeholders=False)
+    >>> p1.placeholder
+    ':itemid'
+    >>> p2.replacements
+    'A%'
+    >>> p2.return_new_placeholders
+    False
+    """
+
+    __slots__ = ('placeholder', 'replacements', 'return_new_placeholders')
+
+    def __init__(
+        self,
+        placeholder: str,
+        replacements: Union[str, int, float, Sequence[Union[str, int, float]]],
+        return_new_placeholders: bool = True
+    ) -> None:
+        self.placeholder = placeholder
+        self.replacements = replacements
+        self.return_new_placeholders = return_new_placeholders
+
+    def __str__(self) -> str:
+        r"""String representation of the object."""
+
+        return self.__repr__()
+
+    def __repr__(self) -> str:
+        r"""Debug representation of the object."""
+
+        return (
+            f'Placeholder(placeholder={self.placeholder!r}, replacements={self.replacements!r}, '
+            f'return_new_placeholders={self.return_new_placeholders!r})'
+        )
 
 
 class SQLContainer:
