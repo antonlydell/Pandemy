@@ -889,6 +889,26 @@ class TestSaveDfMethod:
         # Clean up - None
         # ===========================================================
 
+    @pytest.mark.raises
+    def test_save_column_with_invalid_data_type(self, sqlite_db_empty, df_customer):
+        r"""Save a DataFrame, containing a column with a data type not supported by SQLite, to an existing table.
+
+        SQLite does not support unsigned integers for the PRIMARY KEY column.
+        pandemy.SaveDataFrameError is expected to be raised.
+        """
+        # Setup
+        # ===========================================================
+        df_customer.index = df_customer.index.astype('uint8')
+
+        with sqlite_db_empty.engine.begin() as conn:
+            # Exercise & Verify
+            # ===========================================================
+            with pytest.raises(pandemy.SaveDataFrameError, match=r'[Uu]nsigned'):
+                sqlite_db_empty.save_df(df=df_customer, table='Customer', conn=conn)
+
+        # Clean up - None
+        # ===========================================================
+
     def test_index_False(self, sqlite_db_empty, df_customer):
         r"""Save a DataFrame to an existing empty table.
 

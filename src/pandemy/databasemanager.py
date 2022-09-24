@@ -13,6 +13,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 import logging
 from pathlib import Path
+import re
 from typing import Any, Callable, Dict, Iterator, List, Optional, Sequence, Tuple, Union
 import urllib
 
@@ -892,13 +893,21 @@ WHERE
             df.to_sql(table, con=conn, if_exists=if_exists, index=index, index_label=index_label,
                       chunksize=chunksize, schema=schema, dtype=dtype, method=method)
 
-        except ValueError:
-            raise pandemy.TableExistsError(f'Table {table} already exists! and if_exists = {if_exists}') from None
+        except ValueError as e:
+            if re.search(fr'.*{table}.+ already exists', e.args[0]):
+                raise pandemy.TableExistsError(
+                    f'Table {table} already exists! and if_exists = {if_exists!r}', data=table
+                ) from None
+            else:
+                raise pandemy.SaveDataFrameError(
+                    f'Could not save DataFrame to table {table}: {e.args}', data=e.args
+                ) from None
 
         # Unexpected error
         except Exception as e:
-            raise pandemy.SaveDataFrameError(f'Could not save DataFrame to table {table}: {e.args}',
-                                             data=e.args) from None
+            raise pandemy.SaveDataFrameError(
+                f'Could not save DataFrame to table {table}: {e.args}', data=e.args
+            ) from None
 
         else:
             nr_cols = df.shape[1] + len(df.index.names) if index else df.shape[1]
