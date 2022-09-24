@@ -116,6 +116,8 @@ WHERE
     # Template of the MERGE statement. If empty string the database does not support the statement.
     _merge_df_stmt: str = ''
 
+    __slots__ = tuple()
+
     @abstractmethod
     def __init__(self, container: Optional[pandemy.SQLContainer] = None,
                  engine_config: Optional[dict] = None,
@@ -131,7 +133,7 @@ WHERE
         r"""Debug representation of the object."""
 
         # Get the attribute names of the class instance
-        attributes = self.__dict__.items()
+        attributes = {attrib: self.__getattribute__(attrib) for attrib in self.__slots__}
 
         # The space to add before each new parameter on a new line
         space = ' ' * 4
@@ -140,7 +142,7 @@ WHERE
         repr_str = f'{self.__class__.__name__}(\n'
 
         # Append the attribute names and values
-        for attrib, value in attributes:
+        for attrib, value in attributes.items():
             if attrib == 'password':  # Mask the password
                 value = '***'
 
@@ -1629,6 +1631,15 @@ class SQLiteDb(DatabaseManager):
     .. _SQLAlchemy SQLite dialect: https://docs.sqlalchemy.org/en/14/dialects/sqlite.html
     """
 
+    __slots__ = (
+        'file',
+        'must_exist',
+        'container',
+        'engine_config',
+        'conn_str',
+        'engine'
+    )
+
     def __init__(self, file: Union[str, Path] = ':memory:',
                  must_exist: bool = False,
                  container: Optional[pandemy.SQLContainer] = None,
@@ -2049,6 +2060,20 @@ WHEN NOT MATCHED THEN
     )"""
     )
 
+    __slots__ = (
+        'username',
+        'password',
+        'host',
+        'port',
+        'service_name',
+        'sid',
+        'container',
+        'connect_args',
+        'engine_config',
+        'url',
+        'engine'
+    )
+
     def __init__(self,
                  username: str,
                  password: str,
@@ -2056,8 +2081,8 @@ WHEN NOT MATCHED THEN
                  port: Optional[Union[int, str]] = None,
                  service_name: Optional[str] = None,
                  sid: Optional[str] = None,
-                 connect_args: Optional[Dict[str, Any]] = None,
                  container: Optional[pandemy.SQLContainer] = None,
+                 connect_args: Optional[Dict[str, Any]] = None,
                  engine_config: Optional[Dict[str, Any]] = None,
                  url: Optional[Union[str, URL]] = None,
                  engine: Optional[Engine] = None,
