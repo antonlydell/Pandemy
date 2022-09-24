@@ -10,7 +10,6 @@ Each SQL-dialect is implemented as a subclass of :class:`DatabaseManager <pandem
 
 # Standard Library
 from __future__ import annotations
-from abc import ABC, abstractmethod
 import logging
 from pathlib import Path
 import re
@@ -44,38 +43,81 @@ logger = logging.getLogger(__name__)
 # ===============================================================
 
 
-class DatabaseManager(ABC):
+class DatabaseManager():
     r"""Base class with functionality for managing a database.
 
     Each database type will subclass from :class:`DatabaseManager` and
     implement the initializer which is specific to each database type.
-    :class:`DatabaseManager` is never used on its own, but merely provides the methods
-    to interact with the database to its subclasses.
+    Initialization of a :class:`DatabaseManager` creates the database `engine`,
+    which is used to connect to and interact with the database.
 
-    Initialization of a :class:`DatabaseManager` creates the connection string (`conn_str`)
-    and the database `engine`, which are used to connect to and interact with the database.
-    These are available as attributes on the instance. The initializer can contain any number
-    of parameters needed to connect to the database and should always support
-    `container`, `engine_config` and `\*\*kwargs`.
+    The :class:`DatabaseManager` can be used on its own but with **limited** functionality
+    and the initialization requires a SQLAlchemy :class:`URL <sqlalchemy.engine.URL>` or
+    :class:`Engine <sqlalchemy.engine.Engine>`, which require some knowledge about `SQLAlchemy`_.
+
+    .. _SQLAlchemy: https://docs.sqlalchemy.org/en/14/core/engines.html#engine-configuration
+
+    .. note::
+       Some methods like :meth:`~DatabaseManager.upsert_table` and :meth:`~DatabaseManager.merge_df`
+       use dialect specific SQL syntax. These methods may not work properly if using the
+       :class:`DatabaseManager` directly. :class:`DatabaseManager` should *only* be used
+       if there is no subclass implemented that matches the desired SQL dialect.
 
     Parameters
     ----------
-    container : SQLContainer or None, default None
-        A container of database statements that can be used by the :class:`DatabaseManager`.
+    url : :class:`str` or :class:`sqlalchemy.engine.URL` or None, default None
+        A SQLAlchemy connection URL to use for creating the database engine.
+        If ``None`` an :class:`engine <sqlalchemy.engine.Engine>` is expected
+        to be supplied to the `engine` parameter.
 
-    engine_config : dict or None
+    container : SQLContainer or None, default None
+        A container of database statements that :class:`DatabaseManager` can use.
+
+    connect_args : dict or None, default None
+        Additional arguments sent to the driver upon connection that further
+        customizes the connection.
+
+    engine_config : dict or None, default None
         Additional keyword arguments passed to the :func:`sqlalchemy.create_engine` function.
 
+    engine : :class:`sqlalchemy.engine.Engine` or None, default None
+        A SQLAlchemy Engine to use as the database engine of :class:`DatabaseManager`.
+        If ``None`` (the default) the engine will be created from `url`.
+
     **kwargs : dict
-        Additional keyword arguments that are not used by the :class:`DatabaseManager`.
+        Additional keyword arguments that are not used by :class:`DatabaseManager`.
 
-    Attributes
-    ----------
-    conn_str : str
-        The connection string for connecting to the database.
+    Raises
+    ------
+    pandemy.CreateConnectionURLError
+        If there are errors with `url`.
 
-    engine : :class:`sqlalchemy.engine.Engine`
-        The engine for interacting with the database.
+    pandemy.CreateEngineError
+        If the creation of the database engine fails.
+
+    pandemy.InvalidInputError
+        If `url` and `engine` are specified or are ``None`` at the same time.
+
+    See Also
+    --------
+    * :class:`OracleDb` : An Oracle :class:`DatabaseManager`.
+
+    * :class:`SQLiteDb` : A SQLite :class:`DatabaseManager`.
+
+    Examples
+    --------
+    Create an instance of a :class:`DatabaseManager` that connects to a SQLite in-memory database.
+
+    >>> import pandemy
+    >>> db = pandemy.DatabaseManager(url='sqlite://')
+    >>> db
+    DatabaseManager(
+        url=sqlite://,
+        container=None,
+        connect_args={},
+        engine_config={},
+        engine=Engine(sqlite://)
+    )
     """
 
     # Class variables
@@ -116,13 +158,56 @@ WHERE
     # Template of the MERGE statement. If empty string the database does not support the statement.
     _merge_df_stmt: str = ''
 
-    __slots__ = tuple()
+    __slots__ = ('url', 'container', 'connect_args', 'engine_config', 'engine')
 
-    @abstractmethod
-    def __init__(self, container: Optional[pandemy.SQLContainer] = None,
-                 engine_config: Optional[dict] = None,
-                 **kwargs) -> None:
-        pass
+    def __init__(
+        self,
+        url: Optional[Union[str, URL]] = None,
+        container: Optional[pandemy.SQLContainer] = None,
+        connect_args: Optional[Dict[str, Any]] = None,
+        engine_config: Optional[dict] = None,
+        engine: Optional[Engine] = None,
+        **kwargs
+    ) -> None:
+        self.container = container
+        self.connect_args = connect_args if connect_args is not None else {}
+        self.engine_config = engine_config if engine_config is not None else {}
+        self.engine = engine
+
+        if url and engine:
+            raise pandemy.InvalidInputError(
+                'url and engine cannot be specified at the same time.\n'
+                f'url={url!r}, engine={engine!r}',
+                data=(url, engine)
+            )
+
+        if url is None and engine is None:
+            raise pandemy.InvalidInputError('Specify either url or engine. Both cannot be None at the same time.')
+
+        if url is not None:
+            try:
+                url = make_url(url)  # Create a SQLAlchemy database URL
+                # Encode username and password to make special characters url compatible
+                username = url.username if (tmp := url.username) is None else urllib.parse.quote_plus(tmp)
+                password = url.password if (tmp := url.password) is None else urllib.parse.quote_plus(tmp)
+                self.url = url.set(username=username, password=password)
+            except UnicodeEncodeError as e:
+                raise pandemy.CreateConnectionURLError(
+                    f'Could not URL encode username or password: {e.args}', data=e.args
+                ) from None
+            except Exception as e:
+                raise pandemy.CreateConnectionURLError(message=f'{type(e).__name__}: {e.args}', data=e.args) from None
+
+        # Create the engine
+        if self.engine is None:
+            try:
+                self.engine = create_engine(self.url, connect_args=self.connect_args, **self.engine_config)
+            except Exception as e:
+                raise pandemy.CreateEngineError(message=f'{type(e).__name__}: {e.args}', data=e.args) from None
+            else:
+                logger.debug(f'Successfully created database engine from url: {self.url}.')
+        else:
+            self.engine = engine
 
     def __str__(self) -> str:
         r"""String representation of the object."""
