@@ -172,7 +172,6 @@ WHERE
         self.container = container
         self.connect_args = connect_args if connect_args is not None else {}
         self.engine_config = engine_config if engine_config is not None else {}
-        self.engine = engine
 
         if url and engine:
             raise pandemy.InvalidInputError(
@@ -197,9 +196,11 @@ WHERE
                 ) from None
             except Exception as e:
                 raise pandemy.CreateConnectionURLError(message=f'{type(e).__name__}: {e.args}', data=e.args) from None
+        else:
+            self.url = url
 
         # Create the engine
-        if self.engine is None:
+        if engine is None:
             try:
                 self.engine = create_engine(self.url, connect_args=self.connect_args, **self.engine_config)
             except Exception as e:
@@ -1672,11 +1673,14 @@ WHERE
 class SQLiteDb(DatabaseManager):
     r"""A SQLite :class:`DatabaseManager`.
 
+    .. versionadded:: 1.2.0
+       Parameters: `driver`, `url`, `connect_args` and `engine`.
+
     Parameters
     ----------
     file : str or pathlib.Path, default ':memory:'
-        The file (with path) to the SQLite database.
-        The default creates an in memory database.
+        The path (absolute or relative) to the SQLite database file.
+        The default creates an in-memory database.
 
     must_exist : bool, default False
         If ``True`` validate that `file` exists unless ``file=':memory:'``.
@@ -1686,22 +1690,44 @@ class SQLiteDb(DatabaseManager):
     container : SQLContainer or None, default None
         A container of database statements that the SQLite :class:`DatabaseManager` can use.
 
-    engine_config : dict or None
+    driver : str, default 'sqlite3'
+        The database driver to use. The default is the Python built-in module :mod:`sqlite3`,
+        which is also the default driver of SQLAlchemy.
+        When the default is used no driver name is displayed in the connection URL.
+
+    url : :class:`str` or :class:`sqlalchemy.engine.URL` or None, default None
+        A SQLAlchemy connection URL to use for creating the database engine.
+        It overrides the value of `file` and `must_exist`.
+
+    connect_args : dict or None, default None
+        Additional arguments sent to the driver upon connection that further
+        customizes the connection.
+
+    engine_config : dict or None, default None
         Additional keyword arguments passed to the :func:`sqlalchemy.create_engine` function.
+
+    engine : :class:`sqlalchemy.engine.Engine` or None, default None
+        A SQLAlchemy Engine to use as the database engine of :class:`SQLiteDb`.
+        It overrides the value of `file` and `must_exist`. If specified the value
+        of `url` should be ``None``. If ``None`` (the default) the engine will be
+        created from `file` or `url`.
 
     **kwargs : dict
         Additional keyword arguments that are not used by :class:`SQLiteDb`.
 
     Raises
     ------
-    pandemy.InvalidInputError
-        If invalid types are supplied to `file`, `must_exist` and `container`.
+    pandemy.CreateConnectionURLError
+        If there are errors with `url`.
+
+    pandemy.CreateEngineError
+        If the creation of the database engine fails.
 
     pandemy.DatabaseFileNotFoundError
         If the database `file` does not exist when ``must_exist=True``.
 
-    pandemy.CreateEngineError
-        If the creation of the database engine fails.
+    pandemy.InvalidInputError
+        If the parameters are specified with invalid input.
 
     See Also
     --------
@@ -1709,135 +1735,72 @@ class SQLiteDb(DatabaseManager):
 
     * :func:`sqlalchemy.create_engine` : The function used to create the database engine.
 
-    * `SQLAlchemy SQLite dialect`_ : Implementation of the SQLite dialect in SQLAlchemy.
+    * `SQLite dialect and drivers`_ : The SQLite dialect and drivers in SQLAlchemy.
 
     * `SQLite <https://sqlite.org/index.html>`_ : The SQLite homepage.
 
-    .. _SQLAlchemy SQLite dialect: https://docs.sqlalchemy.org/en/14/dialects/sqlite.html
+    .. _SQLite dialect and drivers: https://docs.sqlalchemy.org/en/14/dialects/sqlite.html
     """
 
-    __slots__ = (
-        'file',
-        'must_exist',
-        'container',
-        'engine_config',
-        'conn_str',
-        'engine'
-    )
+    __slots__ = ('file', 'must_exist', 'driver')
 
-    def __init__(self, file: Union[str, Path] = ':memory:',
-                 must_exist: bool = False,
-                 container: Optional[pandemy.SQLContainer] = None,
-                 engine_config: Optional[Dict[str, Any]] = None,
-                 **kwargs: dict) -> None:
-
-        self._set_attributes(file=file, must_exist=must_exist,
-                             container=container, engine_config=engine_config)
-        self._build_conn_str()
-        self._create_engine()
-
-    def _set_attributes(self,
-                        file: Union[str, Path],
-                        must_exist: bool,
-                        container: Optional[pandemy.SQLContainer],
-                        engine_config: Optional[Dict[str, Any]]) -> None:
-        r"""Validate the input parameters from `self.__init__` and set attributes on the instance.
-
-        Raises
-        ------
-        pandemy.InvalidInputError
-            If invalid input is passed to the parameters.
-        """
+    def __init__(
+        self,
+        file: Union[str, Path] = ':memory:',
+        must_exist: bool = False,
+        container: Optional[pandemy.SQLContainer] = None,
+        driver: str = 'sqlite3',
+        url: Optional[Union[str, URL]] = None,
+        connect_args: Optional[Dict[str, Any]] = None,
+        engine_config: Optional[Dict[str, Any]] = None,
+        engine: Optional[Engine] = None,
+        **kwargs
+    ) -> None:
 
         # file
-        # =================================
         if isinstance(file, Path) or file == ':memory:':
             self.file = file
         elif isinstance(file, str):
             self.file = Path(file)
         else:
-            raise pandemy.InvalidInputError('file must be a string or pathlib.Path. '
-                                            f'Received: {file} {type(file)}')
+            raise pandemy.InvalidInputError(
+                f'file must be a string or pathlib.Path. Received: {file}, {type(file)}'
+            )
 
         # must_exist
-        # =================================
         if isinstance(must_exist, bool):
             self.must_exist = must_exist
         else:
-            raise pandemy.InvalidInputError('must_exist must be a boolean '
-                                            f'Received: {must_exist} {type(must_exist)}')
+            raise pandemy.InvalidInputError(
+                f'must_exist must be a boolean. Received: {must_exist}, {type(must_exist)}.'
+            )
 
-        # container
-        # =================================
-        if container is None:
-            self.container = container
-        else:
+        if file != ':memory:' and url is None and engine is None:
+            if not self.file.exists() and must_exist:
+                raise pandemy.DatabaseFileNotFoundError(
+                    f'file={self.file!r} does not exist and and must_exist={must_exist!r}. '
+                    'Cannot instantiate the SQLite DatabaseManager.'
+                )
+
+        # Build the connection URL
+        if url is None and engine is None:
             try:
-                if issubclass(container, pandemy.SQLContainer):  # Throws TypeError if container is not a class
-                    self.container = container
-                    error = False
-                else:
-                    error = True
-            except TypeError:
-                error = True
+                url = URL.create(
+                    drivername='sqlite' if driver == 'sqlite3' else f'sqlite+{driver}',
+                    database=str(self.file)
+                )
+            except Exception as e:
+                raise pandemy.CreateConnectionURLError(message=f'{type(e).__name__}: {e.args}', data=e.args) from None
+        
+        self.driver = driver
 
-            if error:
-                raise pandemy.InvalidInputError('container must be a subclass of pandemy.SQLContainer '
-                                                f'Received: {container} {type(container)}') from None
-
-        # engine_config
-        # =================================
-        if engine_config is None or isinstance(engine_config, dict):
-            self.engine_config = engine_config
-        else:
-            raise pandemy.InvalidInputError('engine_config must be a dict '
-                                            f'Received: {engine_config} {type(engine_config)}') from None
-
-    def _build_conn_str(self) -> None:
-        r"""Build the database connection string and assign it to `self.conn_str`.
-
-        Raises
-        ------
-        pandemy.DatabaseFileNotFoundError
-            If the database file `self.file` does not exist.
-        """
-
-        if self.file == ':memory:':  # Use an in memory database
-            self.conn_str = r'sqlite://'
-
-        else:  # Use a database on file
-            if not self.file.exists() and self.must_exist:
-                raise pandemy.DatabaseFileNotFoundError(f"file='{self.file}' does not exist and "
-                                                        f'and must_exist={self.must_exist}. '
-                                                        'Cannot instantiate the SQLite DatabaseManager.')
-
-            self.conn_str = fr'sqlite:///{self.file}'
-
-    def _create_engine(self) -> None:
-        r"""Create the database engine and assign it to `self.engine`.
-
-        Parameters
-        ----------
-        config : dict
-            Additional keyword arguments passed to the SQLAlchemy create_engine function.
-
-        Raises
-        ------
-        pandemy.CreateEngineError
-            If the creation of the Database engine fails.
-        """
-
-        try:
-            if self.engine_config is not None:
-                self.engine = create_engine(self.conn_str, **self.engine_config)
-            else:
-                self.engine = create_engine(self.conn_str)
-
-        except Exception as e:
-            raise pandemy.CreateEngineError(message=f'{type(e).__name__}: {e.args}', data=e.args) from None
-
-        else:
-            logger.debug(f'Successfully created database engine from conn_str: {self.conn_str}.')
+        super().__init__(
+            url=url,
+            container=container,
+            connect_args=connect_args,
+            engine_config=engine_config,
+            engine=engine
+        )
 
     def __str__(self):
         r"""String representation of the object."""

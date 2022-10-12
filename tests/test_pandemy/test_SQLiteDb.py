@@ -15,6 +15,7 @@ from pandas.testing import assert_frame_equal, assert_series_equal
 import pytest
 
 from sqlalchemy.sql import text
+from sqlalchemy.engine import create_engine, make_url
 import sqlalchemy
 
 # Local
@@ -45,7 +46,7 @@ class SQLiteFakeSQLContainer:
 
 
 class TestInitSQLiteDb:
-    r"""Test the initalization of the SQLite DatabaseManager `SQLiteDb`.
+    r"""Test the initialization of the SQLite DatabaseManager `SQLiteDb`.
 
     Fixtures
     --------
@@ -54,7 +55,7 @@ class TestInitSQLiteDb:
     """
 
     def test_all_defaults(self):
-        r"""Create an instance of SQLiteDb that lives in memory with all default values."""
+        r"""Test to initialize a SQLiteDb with all default values, which creates an in-memory database."""
 
         # Setup - None
         # ===========================================================
@@ -68,39 +69,20 @@ class TestInitSQLiteDb:
         assert db.file == ':memory:'
         assert db.must_exist is False
         assert db.container is None
-        assert db.engine_config is None
-        assert db.conn_str == r'sqlite://'
+        assert db.driver == 'sqlite3'
+        assert str(db.url) == r'sqlite:///:memory:'
+        assert db.connect_args == {}
+        assert db.engine_config == {}
         assert isinstance(db.engine, sqlalchemy.engine.base.Engine)
 
         # Clean up - None
         # ===========================================================
 
-    def test_in_memory(self):
-        r"""Create an instance of SQLiteDb that lives in memory."""
-
-        # Setup - None
-        # ===========================================================
-
-        # Exercise
-        # ===========================================================
-        db = pandemy.SQLiteDb(file=':memory:')
-
-        # Verify
-        # ===========================================================
-        assert db.file == ':memory:'
-        assert db.must_exist is False
-        assert db.conn_str == r'sqlite://'
-        assert isinstance(db.engine, sqlalchemy.engine.base.Engine)
-
-        # Clean up - None
-        # ===========================================================
-
-    @pytest.mark.parametrize('file_as_str', [pytest.param(True, id='str'), pytest.param(False, id='Path')])
+    @pytest.mark.parametrize('file_as_str', (pytest.param(True, id='str'), pytest.param(False, id='Path')))
     def test_file_must_exist(self, file_as_str, sqlite_db_file):
-        r"""Create an instance with a file supplied as a string and pathlib.Path object.
+        r"""Test the `must_exist` parameter with a file supplied as a string and pathlib.Path object.
 
-        The default option `must_exist` is set to True.
-        The file exists on disk.
+        `must_exist` is set to True. The file exists on disk and no exception should be raised.
 
         Parameters
         ----------
@@ -122,20 +104,28 @@ class TestInitSQLiteDb:
         # ===========================================================
         assert db.file == sqlite_db_file
         assert db.must_exist is True
-        assert db.conn_str == fr'sqlite:///{str(sqlite_db_file)}'
+        assert db.container is None
+        assert db.driver == 'sqlite3'
+        assert str(db.url) == fr'sqlite:///{str(sqlite_db_file)}'
+        assert db.connect_args == {}
+        assert db.engine_config == {}
         assert isinstance(db.engine, sqlalchemy.engine.base.Engine)
 
         # Clean up - None
         # ===========================================================
 
     @pytest.mark.raises
-    @pytest.mark.parametrize('file', [pytest.param('does not exist', id='str'),
-                                      pytest.param(Path('does not exist'), id='Path')])
-    def test_on_file_must_exist_file_does_not_exist(self, file):
-        r"""Create an instance with a file supplied as a string and pathlib.Path object.
+    @pytest.mark.parametrize(
+        'file', 
+        (
+            pytest.param('does not exist', id='str'),
+            pytest.param(Path('does not exist'), id='Path')
+        )
+    )
+    def test_file_must_exist_and_file_does_not_exist(self, file):
+        r"""Test the `must_exist` parameter with a file supplied as a string and pathlib.Path object.
 
-        The default option `must_exist` is set to True.
-        The file does not exists on disk.
+        `must_exist` is set to True. The file does not exists on disk.
 
         pandemy.DatabaseFileNotFoundError is expected to be raised.
 
@@ -152,6 +142,99 @@ class TestInitSQLiteDb:
         # ===========================================================
         with pytest.raises(pandemy.DatabaseFileNotFoundError):
             pandemy.SQLiteDb(file=file, must_exist=True)
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_relative_file_path(self, sqlite_relative_db_path):
+        r"""Test interacting with a SQLite database using a relative path to the database file.
+
+        A CREATE TABLE statement is executed to verify that the connection URL is valid.
+
+        A relative path uses three slashes in the connection URL: sqlite:///file
+
+        Fixtures
+        --------
+        sqlite_relative_db_path : Tuple[Union[str, Path], str]
+            A relative path to or a filename of a SQLite database and the expected SQLAlchemy connection URL.
+        """
+
+        # Setup
+        # ===========================================================
+        db_file, url_exp = sqlite_relative_db_path
+
+        # Exercise
+        # ===========================================================
+        db = pandemy.SQLiteDb(file=db_file)
+
+        # Test interacting with the database
+        with db.engine.begin() as conn:
+            conn.execute('CREATE TABLE Item(ItemId INTEGER, ItemName TEXT)')
+
+        # Verify
+        # ===========================================================
+        assert str(db.url) == url_exp
+
+        # Clean up - None
+        # ===========================================================
+
+    @pytest.mark.parametrize(
+        'file_as_str, driver, base_url_exp',
+        (
+            pytest.param(True, 'sqlite3', 'sqlite:///', id="str, driver='sqlite3'"), 
+            pytest.param(True, 'pysqlite', 'sqlite+pysqlite:///', id="str, driver='pysqlite'"), 
+            pytest.param(False, 'sqlite3', 'sqlite:///', id="Path, driver='sqlite3'"), 
+            pytest.param(False, 'pysqlite', 'sqlite+pysqlite:///', id="Path, driver='pysqlite'"), 
+        )
+    )
+    def test_absolute_file_path(self, file_as_str, driver, base_url_exp, tmp_path):
+        r"""Test interacting with a SQLite database using an absolute path to the database file.
+
+        A CREATE TABLE statement is executed to verify that the connection URL is valid.
+
+        The connection URL of an absolute path starts with a slash (after the three slashes):
+        
+        sqlite+driver:////path/to/db_file
+
+        or a drive letter on Windows:
+
+        sqlite+driver:///C:\path\to\db_file
+
+        Parameters
+        ----------
+        file_as_str : bool
+            True if the file should be supplied as a string and False for pathlib.Path.
+        
+        driver : str 
+            The database driver to use.
+
+        base_url_exp : str
+            The expected base of the generated SQLAlchemy connection URL.
+        
+        Fixtures
+        --------
+        tmp_path : pathlib.Path
+            A temporary folder.
+        """
+
+        # Setup
+        # ===========================================================
+        file = tmp_path / 'Runescape_absolute.db'
+        url_exp = f'{base_url_exp}{file}'
+        file = str(file) if file_as_str else file
+
+        # Exercise
+        # ===========================================================
+        db = pandemy.SQLiteDb(file=file, driver=driver)
+
+        # Test interacting with the database
+        with db.engine.begin() as conn:
+            conn.execute('CREATE TABLE Item(ItemId INTEGER, ItemName TEXT)')
+
+        # Verify
+        # ===========================================================
+        assert str(db.url) == url_exp
+        assert db.driver == driver
 
         # Clean up - None
         # ===========================================================
@@ -181,24 +264,142 @@ class TestInitSQLiteDb:
         # Clean up - None
         # ===========================================================
 
-    # file, must_exist, container, engine_config, error_msg
-    input_test_bad_input = [
-        pytest.param(42, False, None, None, 'Received: 42', id='file=42'),
+    @pytest.mark.parametrize(
+        'url, must_exist',
+        (
+            pytest.param('sqlite:///Runescape_does_not_exist.db', False, id='must_exist=False'),
+            pytest.param(make_url('sqlite:///Runescape_does_not_exist.db'), True, id='must_exist=True'),
+        )
+    )
+    def test_connect_with_url(self, url, must_exist):
+        r"""Test to connect to a SQLite database using the `url` parameter.
 
-        pytest.param('my_db.db', 'False', None, {'encoding': 'UTF-8'}, 'Received: False', id="must_exist='False'"),
+        If the `url` parameter is specified it should override the values of the
+        parameters `file` and `must_exist`.
 
-        pytest.param('my_db.db', False,  [42], None, 'container must be a subclass of pandemy.SQLContainer',
-                     id="container=[42]"),
+        Parameters
+        ----------
+        url : str or sqlalchemy.engine.URL
+            The SQLAlchemy connection URL.
+        
+        must_exist : bool
+            The value of the `must_exist` parameter.
+        """
 
-        pytest.param(Path('my_db.db'), False,  SQLiteFakeSQLContainer, None,
-                     'container must be a subclass of pandemy.SQLContainer', id="container=FakeSQLContainer"),
+        # Setup - None
+        # ===========================================================
 
-        pytest.param('my_db.db', False,  None, 42, 'engine_config must be a dict', id="engine_config=42"),
-    ]
+        # Exercise
+        # ===========================================================
+        db = pandemy.SQLiteDb(file='Runescape.db', must_exist=must_exist, url=url)
+
+        # Verify
+        # ===========================================================
+        assert str(db.url) == str(url)
+        assert str(db.engine.url) == str(url)
+
+        # Clean up - None
+        # ===========================================================
+
+    @pytest.mark.parametrize(
+        'url, must_exist',
+        (
+            pytest.param('sqlite:///Runescape_does_not_exist.db', False, id='must_exist=False'),
+            pytest.param('sqlite:///Runescape_does_not_exist.db', True, id='must_exist=True'),
+        )
+    )
+    def test_connect_with_engine(self, url, must_exist):
+        r"""Test to connect to a SQLite database using the `engine` parameter.
+
+        If the `engine` parameter is specified it should override the values of the
+        parameters `file` and `must_exist`.
+
+        Parameters
+        ----------
+        url : str or sqlalchemy.engine.URL
+            A SQLAlchemy connection URL.
+
+        must_exist : bool
+            The value of the `must_exist` parameter.
+        """
+
+        # Setup
+        # ===========================================================
+        engine = create_engine(url=url)
+
+        # Exercise
+        # ===========================================================
+        db = pandemy.SQLiteDb(file='Runescape.db', must_exist=must_exist, engine=engine)
+
+        # Verify
+        # ===========================================================
+        assert db.engine is engine
+
+        # Clean up - None
+        # ===========================================================
 
     @pytest.mark.raises
-    @pytest.mark.parametrize('file, must_exist, container, engine_config, error_msg', input_test_bad_input)
-    def test_bad_input_parameters(self, file, must_exist, container, engine_config, error_msg):
+    def test_specify_url_and_engine(self):
+        r"""Specify the `url` and `engine` parameters at the same time.
+
+        `SQLiteDb` cannot know if it should create an engine from
+        the url or use the provided engine.
+
+        pandemy.InvalidInputError is expected to be raised.
+        """
+
+        # Setup
+        # ===========================================================
+        url = 'sqlite://'
+        engine = create_engine('sqlite:///Runescape.db')
+
+        # Exercise & Verify
+        # ===========================================================
+        with pytest.raises(pandemy.InvalidInputError):
+            pandemy.SQLiteDb(url=url, engine=engine)
+
+        # Clean up - None
+        # ===========================================================
+
+    @pytest.mark.parametrize(
+        'url',
+        (
+            pytest.param('sqlite://Runescape_does_not_exist.db', id='str'),
+            pytest.param(make_url('sqlite://Runescape_does_not_exist.db'), id='URL'),
+        )
+    )
+    def test_invalid_url(self, url):
+        r"""Test to connect to a SQLite database using an invalid connection URL.
+
+        The URL:s are using two backslashes for the relative path instead of three.
+        pandemy.CreateEngineError is expected to be raised.
+
+        Parameters
+        ----------
+        url : str or sqlalchemy.engine.URL
+            The SQLAlchemy connection URL.
+        """
+
+        # Setup - None
+        # ===========================================================
+
+        # Exercise & Verify
+        # ===========================================================
+        with pytest.raises(pandemy.CreateEngineError):
+            pandemy.SQLiteDb(url=url)
+
+        # Clean up - None
+        # ===========================================================
+
+    @pytest.mark.raises
+    @pytest.mark.parametrize(
+        'file, must_exist, error_msg',
+        (
+            pytest.param(42, False, 'Received: 42', id='file=42'),
+            pytest.param('my_db.db', 'False', 'Received: False', id="must_exist='False'"),
+        )
+    )
+    def test_bad_input_parameters(self, file, must_exist, error_msg):
         r"""Test bad input parameters.
 
         pandemy.InvalidInputError is expected to be raised.
@@ -206,19 +407,13 @@ class TestInitSQLiteDb:
         Parameters
         ----------
         file : str or Path, default ':memory:'
-            The file (with path) to the SQLite database.
-            The default creates an in memory database.
+            The path (absolute or relative) to the SQLite database file.
+            The default creates an in-memory database.
 
         must_exist : bool, default True
             If True validate that file exists unless file = ':memory:'.
             If it does not exist FileNotFoundError is raised.
             If False the validation is omitted.
-
-        container : pandemy.SQLContainer or None, default None
-            A container of database statements that the SQLite DatabaseManager can use.
-
-        engine_config : dict or None
-            Additional keyword arguments passed to the SQLAlchemy create_engine function.
         """
 
         # Setup - None
@@ -227,31 +422,7 @@ class TestInitSQLiteDb:
         # Exercise & Verify
         # ===========================================================
         with pytest.raises(pandemy.InvalidInputError, match=error_msg):
-            pandemy.SQLiteDb(file=file, must_exist=must_exist, container=container, engine_config=engine_config)
-
-        # Clean up - None
-        # ===========================================================
-
-    @pytest.mark.raises
-    def test_invalid_parameter_to_create_engine(self):
-        r"""Test to supply an invalid parameter to the SQLAlchemy create_engine function.
-
-        pandemy.CreateEngineError is expected to be raised.
-
-        Also supply a keyword argument that is not used for anything.
-        It should not affect the initialization.
-        """
-
-        # Setup
-        # ===========================================================
-        error_msg = 'invalid_param'
-        engine_config = {'invalid_param': True}
-
-        # Exercise & Verify
-        # ===========================================================
-        with pytest.raises(pandemy.CreateEngineError, match=error_msg):
-            pandemy.SQLiteDb(file='my_db.db', must_exist=False, container=None,
-                             engine_config=engine_config, kwarg='kwarg')
+            pandemy.SQLiteDb(file=file, must_exist=must_exist, kwarg='kwarg')
 
         # Clean up - None
         # ===========================================================
