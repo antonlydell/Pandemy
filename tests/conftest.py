@@ -118,6 +118,48 @@ def sqlite_db_empty(sqlite_db_file_empty) -> pandemy.SQLiteDb:
 
     return pandemy.SQLiteDb(file=sqlite_db_file_empty, must_exist=True)
 
+@pytest.fixture(
+    params=(
+        pytest.param(
+            {'file': './Runescape_relative.db', 'url': 'sqlite:///Runescape_relative.db'},
+            id='Relative path, str'
+        ), 
+        pytest.param(
+            {'file': Path('./Runescape_relative.db'), 'url': 'sqlite:///Runescape_relative.db'},
+            id='Relative path, Path'
+        ), 
+        pytest.param(
+            {'file': 'Runescape_filename.db', 'url': 'sqlite:///Runescape_filename.db'},
+            id='Filename, str'
+        ), 
+        pytest.param(
+            {'file': Path('Runescape_filename.db'), 'url': 'sqlite:///Runescape_filename.db'},
+            id='Filename, Path'
+        ) 
+    )
+)
+def sqlite_relative_db_path(request) -> Tuple[Union[str, Path], str]:
+    r"""A relative path to or a filename of a SQLite database and the expected SQLAlchemy connection URL.
+
+    Used for testing that a correct SQLAlchemy connection URL can be generated
+    when using a relative path.
+
+    A relative path uses three slashes in the connection URL: sqlite:///file
+
+    Yields
+    ------
+    file : str or Path
+        The relative path to or filename of the SQLite database.
+    
+    url : str
+        The expected SQLAlchemy connection URL.
+    """
+
+    file, url = request.param['file'], request.param['url']
+    yield file, url
+
+    Path(file).unlink(missing_ok=True)  # Clean up
+
 
 @pytest.fixture()
 def oracle_db_mocked(monkeypatch) -> pandemy.OracleDb:
