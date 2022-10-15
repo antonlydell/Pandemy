@@ -265,36 +265,59 @@ class TestInitSQLiteDb:
         # ===========================================================
 
     @pytest.mark.parametrize(
-        'url, must_exist',
+        'url, file_exp, driver_exp',
         (
-            pytest.param('sqlite:///Runescape_does_not_exist.db', False, id='must_exist=False'),
-            pytest.param(make_url('sqlite:///Runescape_does_not_exist.db'), True, id='must_exist=True'),
+            pytest.param(
+                'sqlite:///Runescape_does_not_exist.db',
+                'Runescape_does_not_exist.db',
+                'sqlite3',
+                id='sqlite:///Runescape_does_not_exist.db'
+            ),
+            pytest.param(
+                make_url('sqlite://'),
+                None,
+                'sqlite3',
+                id='make_url(sqlite://)'
+            ),
+            pytest.param(
+                'sqlite+pysqlite:///:memory:',
+                ':memory:',
+                'pysqlite',
+                id='sqlite+pysqlite:///:memory:'
+            ),
         )
     )
-    def test_connect_with_url(self, url, must_exist):
+    def test_connect_with_url(self, url, file_exp, driver_exp):
         r"""Test to connect to a SQLite database using the `url` parameter.
 
         If the `url` parameter is specified it should override the values of the
-        parameters `file` and `must_exist`.
+        parameters `file`, `must_exist` and `driver`.
 
         Parameters
         ----------
         url : str or sqlalchemy.engine.URL
             The SQLAlchemy connection URL.
         
-        must_exist : bool
-            The value of the `must_exist` parameter.
+        file_exp : str
+            The expected value of the `file` attribute of SQLiteDb.
+
+        driver_exp : str
+            The expected value of the `driver` attribute of SQLiteDb.
         """
 
-        # Setup - None
+        # Setup
         # ===========================================================
+        must_exist = True
 
         # Exercise
         # ===========================================================
-        db = pandemy.SQLiteDb(file='Runescape.db', must_exist=must_exist, url=url)
+        db = pandemy.SQLiteDb(file='Runescape.db', must_exist=must_exist, driver='my_driver', url=url)
 
         # Verify
         # ===========================================================
+        assert db.file == file_exp
+        assert db.must_exist == must_exist
+        assert db.driver == driver_exp
         assert str(db.url) == str(url)
         assert str(db.engine.url) == str(url)
 
@@ -2918,6 +2941,15 @@ class TestStrAndReprMethods:
         If it does not exist :exc:`pandemy.DatabaseFileNotFoundError` is raised.
         If `False` the validation is omitted.
 
+    driver : str, default 'sqlite3'
+        The database driver to use. The default is the Python built-in module :mod:`sqlite3`,
+        which is also the default driver of SQLAlchemy.
+        When the default is used no driver name is displayed in the connection URL.
+
+    url : :class:`str` or :class:`sqlalchemy.engine.URL` or None, default None
+        A SQLAlchemy connection URL to use for creating the database engine.
+        It overrides the value of `file` and `must_exist`.
+
     container : pandemy.SQLContainer or None, default None
         A container of database statements that the SQLite DatabaseManager can use.
     """
@@ -2951,34 +2983,49 @@ class TestStrAndReprMethods:
         # ===========================================================
 
     @pytest.mark.parametrize(
-        'file, must_exist, container',
+        'file, must_exist, driver, url, container',
         (
             pytest.param(
-                ':memory:', True, None,
+                ':memory:',
+                True, 
+                'sqlite3',
+                None,
+                None,
                 id="file=':memory', no container"
             ),
-
             pytest.param(
-                Path('my_db_file.db'), False, SQLiteSQLContainer,
+                Path('Runescape.db'),
+                False, 
+                'pysqlite',
+                None,
+                SQLiteSQLContainer,
                 id='file=Path, with container'
+            ),
+            pytest.param(
+                'Runescape.db',
+                False, 
+                'sqlite3',
+                'sqlite+pysqlite://',
+                SQLiteSQLContainer,
+                id='url=sqlite+pysqlite://'
             ),
         )
     )
-    def test__repr__(self, file, must_exist, container):
+    def test__repr__(self, file, must_exist, driver, url, container):
         r"""Test the output of the `__repr__` method."""
 
         # Setup
         # ===========================================================
-        engine_config = None
-
-        db = pandemy.SQLiteDb(file=file, must_exist=must_exist, container=container, engine_config=engine_config)
+        db = pandemy.SQLiteDb(file=file, must_exist=must_exist, driver=driver, url=url, container=container)
 
         exp_result = f"""SQLiteDb(
-    file={file!r},
-    must_exist={must_exist!r},
-    container={container!r},
-    engine_config={engine_config!r},
-    conn_str={db.conn_str!r},
+    file={db.file!r},
+    must_exist={db.must_exist!r},
+    driver={db.driver!r},
+    url={db.url!r},
+    container={db.container!r},
+    connect_args={db.connect_args!r},
+    engine_config={db.engine_config!r},
     engine={db.engine!r}
 )"""
 

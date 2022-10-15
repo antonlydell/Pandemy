@@ -10,6 +10,7 @@ Each SQL-dialect is implemented as a subclass of :class:`DatabaseManager <pandem
 
 # Standard Library
 from __future__ import annotations
+import itertools
 import logging
 from pathlib import Path
 import re
@@ -218,8 +219,12 @@ WHERE
     def __repr__(self) -> str:
         r"""Debug representation of the object."""
 
-        # Get the attribute names of the class instance
-        attributes = {attrib: self.__getattribute__(attrib) for attrib in self.__slots__}
+        # Get the slot names of the parent classes
+        slots = itertools.chain.from_iterable(
+            getattr(cls, '__slots__', tuple()) for cls in type(self).__mro__
+        )
+
+        attributes = {attrib: self.__getattribute__(attrib) for attrib in slots}
 
         # The space to add before each new parameter on a new line
         space = ' ' * 4
@@ -1782,6 +1787,8 @@ class SQLiteDb(DatabaseManager):
                     'Cannot instantiate the SQLite DatabaseManager.'
                 )
 
+        self.driver = driver
+
         # Build the connection URL
         if url is None and engine is None:
             try:
@@ -1791,8 +1798,10 @@ class SQLiteDb(DatabaseManager):
                 )
             except Exception as e:
                 raise pandemy.CreateConnectionURLError(message=f'{type(e).__name__}: {e.args}', data=e.args) from None
-        
-        self.driver = driver
+        elif url is not None and engine is None:
+            url = make_url(url)
+            self.file = url.database
+            self.driver = 'sqlite3' if len(dvr := url.drivername.split('+')) == 1 else dvr[1]  # drivername = backend+driver
 
         super().__init__(
             url=url,
