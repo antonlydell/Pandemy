@@ -3039,3 +3039,47 @@ class TestStrAndReprMethods:
 
         # Clean up - None
         # ===========================================================
+
+
+class TestConnStrDeprecation:
+    r"""Tests for the `conn_str` attribute deprecation. 
+
+    The `conn_str` attribute is deprecated in version 1.2.0 and refactored into a property.
+    It should trigger a DeprecationWarning when accessed and return the value of the url attribute.
+    """
+
+    def test_access_conn_str(self):
+        r"""Test that `conn_str` can be accessed and that it returns the string value of the url attribute."""
+
+        # Setup
+        # ===========================================================
+        url = 'sqlite:///Runescape.db'
+        db = pandemy.SQLiteDb(url=url)
+
+        # Exercise
+        # ===========================================================
+        result = db.conn_str 
+
+        # Verify
+        # ===========================================================
+        assert result == str(db.url)
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_deprecation_warning(self):
+        r"""Test that the DeprecationWarning is triggered when `conn_str` is accessed."""
+
+        # Setup
+        # ===========================================================
+        url = 'sqlite:///Runescape.db'
+        db = pandemy.SQLiteDb(url=url)
+        message = 'conn_str attribute is deprecated in version 1.2.0 and replaced by url. Use SQLiteDb.url instead.'
+
+        # Exercise & Verify
+        # ===========================================================
+        with pytest.warns(DeprecationWarning, match=message):
+            db.conn_str 
+
+        # Clean up - None
+        # ===========================================================
