@@ -16,6 +16,7 @@ from pathlib import Path
 import re
 from typing import Any, Callable, Dict, Iterator, List, Optional, Sequence, Tuple, Union
 import urllib
+import warnings
 
 # Third Party
 import pandas as pd
@@ -1815,6 +1816,20 @@ class SQLiteDb(DatabaseManager):
         r"""String representation of the object."""
 
         return f"SQLiteDb(file='{self.file}', must_exist={self.must_exist})"
+
+    @property
+    def conn_str(self) -> str:
+        r"""Backwards compatibility for the `conn_str` attribute.
+
+        The `conn_str` attribute is deprecated in version 1.2.0 and replaced by the url attribute.
+        """
+
+        warnings.warn(
+            message='conn_str attribute is deprecated in version 1.2.0 and replaced by url. Use SQLiteDb.url instead.',
+            category=DeprecationWarning
+        )
+
+        return str(self.url)
 
     def manage_foreign_keys(self, conn: Connection, action: str = 'ON') -> None:
         r"""Manage how the database handles foreign key constraints.
