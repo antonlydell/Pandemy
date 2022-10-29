@@ -10,6 +10,7 @@ r"""Tests for the Oracle DatabaseManager `OracleDb`."""
 import cx_Oracle
 import pytest
 from sqlalchemy import create_engine
+from sqlalchemy.engine import make_url
 
 # Local
 import pandemy
@@ -169,10 +170,216 @@ class TestInitOracleDb:
         # ===========================================================
 
     @pytest.mark.parametrize(
+        'username, password, host, port, sid, service_name, driver, url',
+        (
+            pytest.param(
+                'Fred_the_Farmer',
+                'Penguins-sheep-are-not',
+                'fred.farmer.rs',
+                1234,
+                'shears',
+                None,
+                'cx_oracle',
+                f'oracle+cx_oracle://Fred_the_Farmer:Penguins-sheep-are-not@fred.farmer.rs:1234/shears',
+                id='sid'
+            ),
+            pytest.param(
+                'Fred_the_Farmer',
+                'Penguins-sheep-are-not',
+                'fred.farmer.rs',
+                1234,
+                None,
+                'woollysheep',
+                'cx_oracle',
+                make_url(
+                    'oracle+cx_oracle://Fred_the_Farmer:Penguins-sheep-are-not@fred.farmer.rs:1234?service_name=woollysheep'
+                ),
+                id='service_name'
+            ),
+        )
+    )
+    def test_connect_with_url(
+        self,
+        username,
+        password,
+        host,
+        port,
+        sid,
+        service_name,
+        driver,
+        url
+    ):
+        r"""Test to connect to an Oracle database using the `url` parameter.
+
+        If the `url` parameter is specified it should override the values of the parameters:
+        `username`, `password`, `host`, `port`, `service_name`, `sid` and `driver`.
+
+        Parameters
+        ----------
+        username : str
+            The expected value of the `username` attribute.
+
+        password : str
+            The expected value of the `password` attribute.
+
+        host : str
+            The expected value of the `host` attribute.
+
+        port : str
+            The expected value of the `port` attribute.
+
+        service_name : str
+            The expected value of the `service_name` attribute.
+
+        sid : str
+            The expected value of the `sid` attribute.
+
+        driver : str
+            The expected value of the `driver` attribute.
+
+        url : str or sqlalchemy.engine.URL
+            The SQLAlchemy connection URL.
+        """
+
+        # Setup - None
+        # ===========================================================
+
+        # Exercise
+        # ===========================================================
+        db = pandemy.OracleDb(
+            username='Dark_Wizard',
+            password='Silverlight',
+            host='draynor.village.rs',
+            port=4321,
+            sid='Lumbridge_Castle',
+            driver='Ernest',
+            url=url
+        ) 
+
+        # Verify
+        # ===========================================================
+        assert db.username == username 
+        assert db.password == password
+        assert db.host == host
+        assert db.port == port
+        assert db.sid == sid
+        assert db.service_name == service_name
+        assert db.driver == driver
+        assert str(db.url) == str(url)
+        assert str(db.engine.url) == str(url)
+
+        # Clean up - None
+        # ===========================================================
+
+    @pytest.mark.parametrize(
+        'username, password, host, port, sid, service_name, driver, url',
+        (
+            pytest.param(
+                'Fred_the_Farmer',
+                'Penguins-sheep-are-not',
+                'fred.farmer.rs',
+                1234,
+                'shears',
+                None,
+                'cx_oracle',
+                'oracle+cx_oracle://Fred_the_Farmer:Penguins-sheep-are-not@fred.farmer.rs:1234/shears',
+                id='sid'
+            ),
+            pytest.param(
+                'Fred_the_Farmer',
+                'Penguins-sheep-are-not',
+                'fred.farmer.rs',
+                1234,
+                None,
+                'woollysheep',
+                'cx_oracle',
+                make_url(
+                    'oracle+cx_oracle://Fred_the_Farmer:Penguins-sheep-are-not@fred.farmer.rs:1234?service_name=woollysheep'
+                ),
+                id='service_name'
+            ),
+        )
+    )
+    def test_connect_with_engine(
+        self,
+        username,
+        password,
+        host,
+        port,
+        sid,
+        service_name,
+        driver,
+        url
+    ):
+        r"""Test to connect to an Oracle database using the `engine` parameter.
+
+        If the `engine` parameter is specified it should override the values of the parameters:
+        `username`, `password`, `host`, `port`, `service_name`, `sid` and `driver`.
+
+        Parameters
+        ----------
+        username : str
+            The expected value of the `username` attribute.
+
+        password : str
+            The expected value of the `password` attribute.
+
+        host : str
+            The expected value of the `host` attribute.
+
+        port : str
+            The expected value of the `port` attribute.
+
+        service_name : str
+            The expected value of the `service_name` attribute.
+
+        sid : str
+            The expected value of the `sid` attribute.
+
+        driver : str
+            The expected value of the `driver` attribute.
+
+        url : str or sqlalchemy.engine.URL
+            A SQLAlchemy connection URL.
+        """
+
+        # Setup
+        # ===========================================================
+        engine = create_engine(url=url)
+
+        # Exercise
+        # ===========================================================
+        db = pandemy.OracleDb(
+            username='Dark_Wizard',
+            password='Silverlight',
+            host='draynor.village.rs',
+            port=4321,
+            sid='Lumbridge_Castle',
+            driver='Ernest',
+            engine=engine
+        ) 
+
+        # Verify
+        # ===========================================================
+        assert db.username == username 
+        assert db.password == password
+        assert db.host == host
+        assert db.port == port
+        assert db.sid == sid
+        assert db.service_name == service_name
+        assert db.driver == driver
+        assert str(db.url) == str(url)
+        assert db.engine is engine
+
+        # Clean up - None
+        # ===========================================================
+
+    @pytest.mark.parametrize(
         'port, port_exp',
         (
             pytest.param(1234, 1234, id='int: 1234'),
             pytest.param('1234', 1234, id='str: 1234'),
+            pytest.param(None, None, id='None'),
         )
     )
     def test_port_dtypes(self, port, port_exp):
@@ -180,10 +387,10 @@ class TestInitOracleDb:
 
         Parameters
         ----------
-        port : str or int
+        port : str or int or None
             The port the `host` is listening on.
 
-        port_exp : str or int
+        port_exp : str or int or None
             The expected value of the url.port attribute on the `OracleDb` instance.
         """
 
@@ -395,6 +602,121 @@ class TestInitOracleDb:
         assert 'service_name' in exc_info.value.args[0]
         assert 'sid' in exc_info.value.args[0]
         assert exc_info.value.data == (service_name, sid)
+
+        # Clean up - None
+        # ===========================================================
+
+    @pytest.mark.raises
+    def test_username_password_host_url_engine_as_none(self):
+        r"""Initialize OracleDb with all required parameters set to None.
+
+        if `username`, `password`, `host`, `url` and `engine` are None at the same time
+        pandemy.InvalidInputError is expected to be raised.
+        """
+
+        # Setup
+        # ===========================================================
+
+        # Exercise & Verify
+        # ===========================================================
+        with pytest.raises(pandemy.InvalidInputError):
+            pandemy.OracleDb()
+
+        # Clean up - None
+        # ===========================================================
+
+    @pytest.mark.parametrize(
+        'required_not_none',
+        (
+            pytest.param(
+                {'username': 'Fred_the_Farmer', 'password': None, 'host': None}, id='username'
+            ),
+
+            pytest.param(
+                {'username': 'Fred_the_Farmer', 'password':  'Penguins-sheep-are-not', 'host': None},
+                id='username, password'
+            ),
+
+            pytest.param(
+                {'username': 'Fred_the_Farmer', 'password': None, 'host':  'fred.farmer.rs'},
+                id='username, host'
+            ),
+
+            pytest.param(
+                {'username': None, 'password': 'Penguins-sheep-are-not', 'host':  'fred.farmer.rs'},
+                id='password, host'
+            ),
+
+            pytest.param({'username': None, 'password': 'Penguins-sheep-are-not', 'host': None}, id='password'),
+
+            pytest.param({'username': None, 'password': None, 'host': 'fred.farmer.rs'}, id='host'),
+        )
+
+    )
+    @pytest.mark.raises
+    def test_username_password_host_when_url_and_engine_are_none(self, required_not_none):
+        r"""Initialize OracleDb with combinations of `username`, `password` and `host` that are invalid.
+
+        if `username`, `password` and `host` are not specified together when `url` and `engine`
+        are None pandemy.InvalidInputError is expected to be raised.
+
+        Parameters
+        ----------
+        required_not_none : dict[str, Union[str, None]]
+            Dictionary with the values of `username`, `password` and `host`.
+        """
+
+        # Setup - None
+        # ===========================================================
+
+        # Exercise
+        # ===========================================================
+        with pytest.raises(pandemy.InvalidInputError) as exc_info:
+            pandemy.OracleDb(
+                username=required_not_none['username'],
+                password=required_not_none['password'],
+                host=required_not_none['host']
+            )
+
+        # Verify
+        # ===========================================================
+        assert exc_info.value.data == required_not_none
+
+        # Clean up - None
+        # ===========================================================
+
+    @pytest.mark.parametrize(
+        'url_str',
+        (
+            pytest.param('oracle://Fred_the_Farmer:Penguins-sheep-are-not@fred.farmer.rs:1234/shears'),
+            pytest.param('oracle+://Fred_the_Farmer:Penguins-sheep-are-not@fred.farmer.rs:1234/shears'),
+        )
+    )
+    @pytest.mark.raises
+    def test_url_missing_driver(self, url_str):
+        r"""Connect to the database with a url that is missing the driver component.
+
+        pandemy.CreateConnectionURLError is expected to be raised.
+
+        Parameters
+        ----------
+        url_str : str
+            The SQLAlchemy connection URL.
+        """
+
+        # Setup
+        # ===========================================================
+        url = make_url(url_str)
+
+        # Exercise
+        # ===========================================================
+        with pytest.raises(pandemy.CreateConnectionURLError) as exc_info:
+            pandemy.OracleDb(url=url_str)
+
+        # Verify
+        # ===========================================================
+        assert str(url) in exc_info.value.args[0]
+        assert exc_info.value.data == url
 
         # Clean up - None
         # ===========================================================

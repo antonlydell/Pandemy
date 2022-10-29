@@ -211,6 +211,7 @@ WHERE
                 logger.debug(f'Successfully created database engine from url: {self.url}.')
         else:
             self.engine = engine
+            self.url = engine.url
 
     def __str__(self) -> str:
         r"""String representation of the object."""
@@ -1933,18 +1934,24 @@ class OracleDb(DatabaseManager):
 
     .. versionadded:: 1.1.0
 
+    .. versionadded:: 1.2.0
+       The parameter `driver`.
+
     .. _cx_Oracle: https://oracle.github.io/python-cx_Oracle/
 
     Parameters
     ----------
-    username : str
+    username : str or None, default None
         The username of the database account.
+        Must be specified if `url` or `engine` are ``None``.
 
-    password : str
+    password : str or None, default None
         The password of the database account.
+        Must be specified if `url` or `engine` are ``None``.
 
-    host : str
+    host : str or None, default None
         The host name or server IP-address where the database is located.
+        Must be specified if `url` or `engine` are ``None``.
 
     port : int or str or None, default None
         The port the `host` is listening on.
@@ -1960,6 +1967,15 @@ class OracleDb(DatabaseManager):
     container : SQLContainer or None, default None
         A container of database statements that :class:`OracleDb` can use.
 
+    driver : str, default 'cx_oracle'
+        The database driver to use. 
+
+    url : :class:`str` or :class:`sqlalchemy.engine.URL` or None, default None
+        A SQLAlchemy connection URL to use for creating the database engine.
+        Specifying `url` overrides the parameters: `username`, `password`, `host`
+        `port`, `service_name`, `sid` and `driver`. If `url` is specified
+        `engine` should be ``None``.
+
     connect_args : dict or None, default None
         Additional arguments sent to the driver upon connection that further
         customizes the connection.
@@ -1967,29 +1983,25 @@ class OracleDb(DatabaseManager):
     engine_config : dict or None, default None
         Additional keyword arguments passed to the :func:`sqlalchemy.create_engine` function.
 
+    engine : :class:`sqlalchemy.engine.Engine` or None, default None
+        A SQLAlchemy Engine to use as the database engine of :class:`OracleDb`.
+        If ``None`` (the default) the engine will be created from the other parameters.
+        When specified it overrides the parameters: `username`, `password`, `host`, `port`,
+        `service_name`, `sid` and `driver`. If specified `url` should be ``None``.
+
     **kwargs : dict
         Additional keyword arguments that are not used by :class:`OracleDb`.
 
-    Other Parameters
-    ----------------
-    url : :class:`str` or :class:`sqlalchemy.engine.URL`
-        A SQLAlchemy connection URL to use for creating the database engine.
-        This parameter is set by the :meth:`OracleDb.from_url` alternative constructor method.
-
-    engine : :class:`sqlalchemy.engine.Engine`
-        A SQLAlchemy Engine to use as the database engine of :class:`OracleDb`.
-        This parameter is set by the :meth:`OracleDb.from_engine` alternative constructor method.
-
     Raises
     ------
-    pandemy.InvalidInputError
-        If both `service` and `sid` are specified at the same time.
-
     pandemy.CreateConnectionURLError
         If the creation of the connection URL fails.
 
     pandemy.CreateEngineError
         If the creation of the database engine fails.
+
+    pandemy.InvalidInputError
+        If invalid combinations of the parameters are used.
 
     See Also
     --------
@@ -2013,7 +2025,7 @@ class OracleDb(DatabaseManager):
 
     .. _tnsnames.ora: https://docs.oracle.com/database/121/NETRF/tnsnames.htm#NETRF259
 
-    .. _Oracle Cloud Autononmous Databases : https://cx-oracle.readthedocs.io/en/latest/user_guide/connection_handling.html#connecting-to-oracle-cloud-autononmous-databases
+    .. _Oracle Cloud Autononmous Databases : https://cx-oracle.readthedocs.io/en/latest/user_guide/connection_handling.html#connecting-to-oracle-cloud-autonomous-databases
 
     Examples
     --------
@@ -2073,10 +2085,11 @@ class OracleDb(DatabaseManager):
         port=None,
         service_name=None,
         sid=None,
+        driver='cx_oracle',
+        url=oracle+cx_oracle://Fred_the_Farmer:***@my_dsn_name,
         container=None,
         connect_args={'encoding': 'UTF-8', 'nencoding': 'UTF-8', 'mode': 2, 'events': True},
         engine_config={'coerce_to_unicode': False, 'arraysize': 40, 'auto_convert_lobs': False},
-        url=oracle+cx_oracle://Fred_the_Farmer:***@my_dsn_name,
         engine=Engine(oracle+cx_oracle://Fred_the_Farmer:***@my_dsn_name)
     )
     """
@@ -2132,69 +2145,73 @@ WHEN NOT MATCHED THEN
     )"""
     )
 
-    __slots__ = (
-        'username',
-        'password',
-        'host',
-        'port',
-        'service_name',
-        'sid',
-        'container',
-        'connect_args',
-        'engine_config',
-        'url',
-        'engine'
-    )
+    __slots__ = ('username', 'password', 'host', 'port', 'service_name', 'sid', 'driver')
 
     def __init__(self,
-                 username: str,
-                 password: str,
-                 host: str,
-                 port: Optional[Union[int, str]] = None,
-                 service_name: Optional[str] = None,
-                 sid: Optional[str] = None,
-                 container: Optional[pandemy.SQLContainer] = None,
-                 connect_args: Optional[Dict[str, Any]] = None,
-                 engine_config: Optional[Dict[str, Any]] = None,
-                 url: Optional[Union[str, URL]] = None,
-                 engine: Optional[Engine] = None,
-                 **kwargs: dict) -> None:
+        username: Optional[str] = None,
+        password: Optional[str] = None,
+        host: Optional[str] = None,
+        port: Optional[Union[int, str]] = None,
+        service_name: Optional[str] = None,
+        sid: Optional[str] = None,
+        container: Optional[pandemy.SQLContainer] = None,
+        driver: str = 'cx_oracle',
+        url: Optional[Union[str, URL]] = None,
+        connect_args: Optional[Dict[str, Any]] = None,
+        engine_config: Optional[Dict[str, Any]] = None,
+        engine: Optional[Engine] = None,
+        **kwargs: dict
+    ) -> None:
 
-        self.username = username
-        self.password = password
-        self.host = host
-        self.port = port
-        self.service_name = service_name
-        self.sid = sid
-        self.container = container
-        self.connect_args = connect_args if connect_args is not None else {}
-        self.engine_config = engine_config if engine_config is not None else {}
-        self.url = url
-        self.engine = engine
+        # Set parameters from provided url or engine
+        if url is not None or engine is not None: 
+            url = make_url(url) if url is not None else engine.url
+            self.username = url.username
+            self.password = url.password
+            self.host = url.host
+            self.port = url.port
+            self.service_name = url.query.get('service_name')
+            self.sid = url.database
 
-        # Check that service_name and sid are not used together
-        if service_name is not None and sid is not None:
-            raise pandemy.InvalidInputError(
-                        'Use either service_name or sid to connect to the database, not both! '
-                        f'service={service_name!r}, sid={sid!r}',
-                        data=(service_name, sid)
-                    )
+            if len(dvr := url.drivername.split('+')) == 1 or not dvr[1]:   # drivername = backend+driver
+                raise pandemy.CreateConnectionURLError(f'The url does not contain a driver. url={url}', data=url)
+            else:
+                self.driver = dvr[1]
+        # Build the connection URL
+        else:
+            required_not_none = {'username': username, 'password': password, 'host': host}
+            if len(none_result := {key: value for key, value in required_not_none.items() if value is None}) == 3:
+                raise pandemy.InvalidInputError(
+                    'username, password, host, url and engine cannot be None at the same time.'
+                )
+            elif len(none_result) in {1, 2}:
+                raise pandemy.InvalidInputError(
+                    'username, password and host must all be specified if url and engine are None. '
+                    f'Got: {required_not_none}',
+                    data=required_not_none
+                )
+            else:
+                pass
 
-        if self.url is None:
-            # Encode username and password to make special characters url compatible
+            # Check that service_name and sid are not used together
+            if service_name is not None and sid is not None:
+                raise pandemy.InvalidInputError(
+                            'Use either service_name or sid to connect to the database, not both! '
+                            f'service={service_name!r}, sid={sid!r}',
+                            data=(service_name, sid)
+                        )
+
+            port = port if port is None else int(port)
+            self.username = username
+            self.password = password
+            self.host = host
+            self.port = port
+            self.service_name = service_name
+            self.sid = sid
+            self.driver = driver
             try:
-                username = urllib.parse.quote_plus(username)
-                password = urllib.parse.quote_plus(password)
-            except UnicodeEncodeError as e:
-                raise pandemy.CreateConnectionURLError(
-                            f'Could not URL encode username or password: {e.args}',
-                            data=e.args
-                        ) from None
-
-            # Build the connection URL
-            try:
-                self.url = URL.create(
-                        drivername='oracle+cx_oracle',
+                url = URL.create(
+                        drivername=f'oracle+{driver}',
                         username=username,
                         password=password,
                         host=host,
@@ -2205,14 +2222,13 @@ WHEN NOT MATCHED THEN
             except Exception as e:
                 raise pandemy.CreateConnectionURLError(message=f'{type(e).__name__}: {e.args}', data=e.args) from None
 
-        # Create the engine
-        if self.engine is None:
-            try:
-                self.engine = create_engine(self.url, connect_args=self.connect_args, **self.engine_config)
-            except Exception as e:
-                raise pandemy.CreateEngineError(message=f'{type(e).__name__}: {e.args}', data=e.args) from None
-            else:
-                logger.debug(f'Successfully created database engine from url: {self.url}.')
+        super().__init__(
+            url=url if engine is None else None,
+            container=container,
+            connect_args=connect_args,
+            engine_config=engine_config,
+            engine=engine
+        )
 
     @classmethod
     def from_url(cls,
