@@ -1827,7 +1827,8 @@ class SQLiteDb(DatabaseManager):
 
         warnings.warn(
             message='conn_str attribute is deprecated in version 1.2.0 and replaced by url. Use SQLiteDb.url instead.',
-            category=DeprecationWarning
+            category=DeprecationWarning,
+            stacklevel=2
         )
 
         return str(self.url)
@@ -2092,6 +2093,56 @@ class OracleDb(DatabaseManager):
         engine_config={'coerce_to_unicode': False, 'arraysize': 40, 'auto_convert_lobs': False},
         engine=Engine(oracle+cx_oracle://Fred_the_Farmer:***@my_dsn_name)
     )
+
+    If you are familiar with the connection URL syntax of SQLAlchemy you can create an instance of
+    :class:`OracleDb` directly from a URL:
+
+    >>> url = 'oracle+cx_oracle://Fred_the_Farmer:Penguins-sheep-are-not@my_dsn_name'
+    >>> db = pandemy.OracleDb(url=url)
+    >>> db
+    OracleDb(
+        username='Fred_the_Farmer',
+        password='***',
+        host='my_dsn_name',
+        port=None,
+        service_name=None,
+        sid=None,
+        driver='cx_oracle',
+        url=oracle+cx_oracle://Fred_the_Farmer:***@my_dsn_name,
+        container=None,
+        connect_args={},
+        engine_config={},
+        engine=Engine(oracle+cx_oracle://Fred_the_Farmer:***@my_dsn_name)
+    )
+
+    If you already have a database :class:`engine <sqlalchemy.engine.Engine>` and would like to use it
+    with :class:`OracleDb` simply create the instance like this:
+
+    >>> from sqlalchemy import create_engine
+    >>> url = 'oracle+cx_oracle://Fred_the_Farmer:Penguins-sheep-are-not@fred.farmer.rs:1234/shears'
+    >>> engine = create_engine(url, coerce_to_unicode=False)
+    >>> db = pandemy.OracleDb(engine=engine)
+    >>> db
+    OracleDb(
+        username='Fred_the_Farmer',
+        password='***',
+        host='fred.farmer.rs',
+        port=1234,
+        service_name=None,
+        sid='shears',
+        driver='cx_oracle',
+        url=oracle+cx_oracle://Fred_the_Farmer:***@fred.farmer.rs:1234/shears,
+        container=None,
+        connect_args={},
+        engine_config={},
+        engine=Engine(oracle+cx_oracle://Fred_the_Farmer:***@fred.farmer.rs:1234/shears)
+    )
+
+    This is useful if you have special needs for creating the engine that cannot be accomplished
+    with the engine constructor of :class:`OracleDb`. See for instance the `cx_Oracle SessionPool`_
+    example in the SQLAlchemy docs.
+
+    .. _cx_Oracle SessionPool: https://docs.sqlalchemy.org/en/14/dialects/oracle.html#using-cx-oracle-sessionpool
     """
 
     # Class variables
@@ -2165,7 +2216,11 @@ WHEN NOT MATCHED THEN
 
         # Set parameters from provided url or engine
         if url is not None or engine is not None: 
-            url = make_url(url) if url is not None else engine.url
+            try:
+                url = make_url(url) if url is not None else engine.url
+            except Exception as e:
+                raise pandemy.CreateConnectionURLError(message=f'{type(e).__name__}: {e.args}', data=e.args) from None
+
             self.username = url.username
             self.password = url.password
             self.host = url.host
@@ -2237,6 +2292,9 @@ WHEN NOT MATCHED THEN
                  engine_config: Optional[Dict[str, Any]] = None) -> OracleDb:
         r"""Create an instance of :class:`OracleDb` from a SQLAlchemy :class:`URL <sqlalchemy.engine.URL>`.
 
+        .. deprecated:: 1.2.0
+           Use the `url` parameter of the normal initializer of :class:`OracleDb` instead.
+
         Parameters
         ----------
         url : str or sqlalchemy.engine.URL
@@ -2268,34 +2326,33 @@ WHEN NOT MATCHED THEN
             port=None,
             service_name=None,
             sid=None,
+            driver='cx_oracle',
+            url=oracle+cx_oracle://Fred_the_Farmer:***@my_dsn_name,
             container=None,
             connect_args={},
             engine_config={},
-            url=oracle+cx_oracle://Fred_the_Farmer:***@my_dsn_name,
             engine=Engine(oracle+cx_oracle://Fred_the_Farmer:***@my_dsn_name)
         )
         """
 
-        try:
-            url = make_url(url)
-        except Exception as e:
-            raise pandemy.CreateConnectionURLError(message=f'{type(e).__name__}: {e.args}', data=e.args) from None
-
-        return cls(
-            username=url.username,
-            password=url.password,
-            host=url.host,
-            port=url.port,
-            sid=url.database,
-            service_name=url.query.get('service_name'),
-            container=container,
-            engine_config=engine_config,
-            url=url
+        warnings.warn(
+            message=(
+                'from_url is deprecated in version 1.2.0. '
+                'Use the url parameter of the normal initializer of OracleDb instead. '
+                'db = pandemy.OracleDb(url=url)'
+            ),
+            category=DeprecationWarning,
+            stacklevel=2
         )
+
+        return cls(url=url, container=container, engine_config=engine_config)
 
     @classmethod
     def from_engine(cls, engine: Engine, container: Optional[pandemy.SQLContainer] = None) -> OracleDb:
         r"""Create an instance of :class:`OracleDb` from a SQLAlchemy :class:`Engine <sqlalchemy.engine.Engine>`.
+
+        .. deprecated:: 1.2.0
+           Use the `engine` parameter of the normal initializer of :class:`OracleDb` instead.
 
         Parameters
         ----------
@@ -2322,28 +2379,29 @@ WHEN NOT MATCHED THEN
             port=1234,
             service_name=None,
             sid='shears',
+            driver='cx_oracle',
+            url=oracle+cx_oracle://Fred_the_Farmer:***@fred.farmer.rs:1234/shears,
             container=None,
             connect_args={},
             engine_config={},
-            url=oracle+cx_oracle://Fred_the_Farmer:***@fred.farmer.rs:1234/shears,
             engine=Engine(oracle+cx_oracle://Fred_the_Farmer:***@fred.farmer.rs:1234/shears)
         )
 
         This is useful if you have special needs for creating the engine that cannot be accomplished
-        with the default constructor of :class:`OracleDb`. See for instance the `cx_Oracle SessionPool`_
+        with the engine constructor of :class:`OracleDb`. See for instance the `cx_Oracle SessionPool`_
         example in the SQLAlchemy docs.
 
         .. _cx_Oracle SessionPool: https://docs.sqlalchemy.org/en/14/dialects/oracle.html#using-cx-oracle-sessionpool
         """
 
-        return cls(
-            username=engine.url.username,
-            password=engine.url.password,
-            host=engine.url.host,
-            port=engine.url.port,
-            sid=engine.url.database,
-            service_name=engine.url.query.get('service_name'),
-            container=container,
-            url=engine.url,
-            engine=engine
+        warnings.warn(
+            message=(
+                'from_engine is deprecated in version 1.2.0. '
+                'Use the engine parameter of the normal initializer of OracleDb instead. '
+                'db = pandemy.OracleDb(engine=engine)'
+            ),
+            category=DeprecationWarning,
+            stacklevel=2
         )
+
+        return cls(engine=engine, container=container)

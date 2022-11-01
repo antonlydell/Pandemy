@@ -271,6 +271,95 @@ class TestInitOracleDb:
         # Clean up - None
         # ===========================================================
 
+    def test_connect_with_url_with_query_params(self):
+        r"""The connection URL contains connect arguments as query parameters.
+
+        SQLAlchemy orders the query parameters alphabetically when
+        the string URL is converted to a `sqlalchemy.engine.URL`.
+        """
+
+        # Setup
+        # ===========================================================
+        driver = 'cx_oracle'
+        username = 'Fred_the_Farmer'
+        password = 'Penguins-sheep-are-not'
+        host = 'fred.farmer.rs'
+        port = 1234
+        service_name = 'woollysheep'
+        url_str = (
+            f'oracle+{driver}://{username}:{password}@{host}:{port}?service_name={service_name}'
+            '&encoding=UTF-8&nencoding=UTF-8&mode=SYSDBA&events=true'
+        )
+        query_dict_exp = {
+            'service_name': 'woollysheep',
+            'encoding': 'UTF-8',
+            'nencoding': 'UTF-8',
+            'mode': 'SYSDBA',
+            'events': 'true'
+        }
+
+        # Exercise
+        # ===========================================================
+        db = pandemy.OracleDb(url=url_str)
+
+        # Verify
+        # ===========================================================
+        assert db.username == username
+        assert db.password == password
+        assert db.host == host
+        assert db.port == port
+        assert db.service_name == service_name
+        assert db.sid is None
+        assert db.driver == driver
+        assert db.container is None
+        assert db.connect_args == {}
+        assert db.engine_config == {}
+        assert db.url.query == query_dict_exp
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_connect_with_url_with_engine_config(self):
+        r"""Create an instance of `OracleDb` from a URL and add extra engine configuration."""
+
+        # Setup
+        # ===========================================================
+        driver = 'cx_oracle'
+        username = 'Fred_the_Farmer'
+        password = 'Penguins-sheep-are-not'
+        host = 'fred.farmer.rs'
+        port = 1234
+        service_name = 'woollysheep'
+        engine_config = {
+            'coerce_to_unicode': False,
+            'arraysize': 40,
+            'auto_convert_lobs': False
+        }
+        url_str = f'oracle+{driver}://{username}:{password}@{host}:{port}?service_name={service_name}'
+        url_repr = f'oracle+{driver}://{username}:***@{host}:{port}?service_name={service_name}'
+
+        # Exercise
+        # ===========================================================
+        db = pandemy.OracleDb(url=url_str, engine_config=engine_config)
+
+        # Verify
+        # ===========================================================
+        assert db.username == username
+        assert db.password == password
+        assert db.host == host
+        assert db.port == port
+        assert db.service_name == service_name
+        assert db.sid is None
+        assert db.driver == driver
+        assert str(db.url) == url_str
+        assert repr(db.url) == url_repr
+        assert db.container is None
+        assert db.connect_args == {}
+        assert db.engine_config == engine_config
+
+        # Clean up - None
+        # ===========================================================
+
     @pytest.mark.parametrize(
         'username, password, host, port, sid, service_name, driver, url',
         (
@@ -722,6 +811,30 @@ class TestInitOracleDb:
         # ===========================================================
 
     @pytest.mark.raises
+    def test_invalid_url(self):
+        r"""Test a connection URL that has invalid URL syntax.
+
+        pandemy.CreateConnectionURLError is expected to be raised.
+        """
+
+        # Setup
+        # ===========================================================
+        url = 'oracle+cx_oracle:://Fred_the_Farmer:Penguins-sheep-are-not@fred.farmer.rs:1234?service_name=woollysheep'
+
+        # Exercise
+        # ===========================================================
+        with pytest.raises(pandemy.CreateConnectionURLError) as exc_info:
+            pandemy.OracleDb(url=url)
+
+        # Verify
+        # ===========================================================
+        assert exc_info.type is pandemy.CreateConnectionURLError
+        assert exc_info.value.data is not None
+
+        # Clean up - None
+        # ===========================================================
+
+    @pytest.mark.raises
     def test_connect_with_invalid_engine_config(self):
         r"""Connect to the database and pass an invalid configuration to the create_engine function.
 
@@ -777,14 +890,14 @@ class TestFromURLMethod:
 
         # Setup
         # ===========================================================
-        drivername = 'oracle+cx_oracle'
+        driver = 'cx_oracle'
         username = 'Fred_the_Farmer'
         password = 'Penguins-sheep-are-not'
         host = 'fred.farmer.rs'
         port = 1234
         service_name = 'woollysheep'
-        url_str = f'{drivername}://{username}:{password}@{host}:{port}?service_name={service_name}'
-        url_repr = f'{drivername}://{username}:***@{host}:{port}?service_name={service_name}'
+        url_str = f'oracle+{driver}://{username}:{password}@{host}:{port}?service_name={service_name}'
+        url_repr = f'oracle+{driver}://{username}:***@{host}:{port}?service_name={service_name}'
 
         # Exercise
         # ===========================================================
@@ -798,11 +911,12 @@ class TestFromURLMethod:
         assert db.port == port
         assert db.service_name == service_name
         assert db.sid is None
+        assert db.driver == driver
+        assert str(db.url) == url_str
+        assert repr(db.url) == url_repr
         assert db.container is container
         assert db.connect_args == {}
         assert db.engine_config == {}
-        assert str(db.url) == url_str
-        assert repr(db.url) == url_repr
 
         # Clean up - None
         # ===========================================================
@@ -812,7 +926,7 @@ class TestFromURLMethod:
 
         # Setup
         # ===========================================================
-        drivername = 'oracle+cx_oracle'
+        driver = 'cx_oracle'
         username = 'Fred_the_Farmer'
         password = 'Penguins-sheep-are-not'
         host = 'fred.farmer.rs'
@@ -823,8 +937,8 @@ class TestFromURLMethod:
             'arraysize': 40,
             'auto_convert_lobs': False
         }
-        url_str = f'{drivername}://{username}:{password}@{host}:{port}?service_name={service_name}'
-        url_repr = f'{drivername}://{username}:***@{host}:{port}?service_name={service_name}'
+        url_str = f'oracle+{driver}://{username}:{password}@{host}:{port}?service_name={service_name}'
+        url_repr = f'oracle+{driver}://{username}:***@{host}:{port}?service_name={service_name}'
 
         # Exercise
         # ===========================================================
@@ -838,11 +952,12 @@ class TestFromURLMethod:
         assert db.port == port
         assert db.service_name == service_name
         assert db.sid is None
+        assert db.driver == driver
+        assert str(db.url) == url_str
+        assert repr(db.url) == url_repr
         assert db.container is None
         assert db.connect_args == {}
         assert db.engine_config == engine_config
-        assert str(db.url) == url_str
-        assert repr(db.url) == url_repr
 
         # Clean up - None
         # ===========================================================
@@ -856,14 +971,14 @@ class TestFromURLMethod:
 
         # Setup
         # ===========================================================
-        drivername = 'oracle+cx_oracle'
+        driver = 'cx_oracle'
         username = 'Fred_the_Farmer'
         password = 'Penguins-sheep-are-not'
         host = 'fred.farmer.rs'
         port = 1234
         service_name = 'woollysheep'
         url_str = (
-            f'{drivername}://{username}:{password}@{host}:{port}?service_name={service_name}'
+            f'oracle+{driver}://{username}:{password}@{host}:{port}?service_name={service_name}'
             '&encoding=UTF-8&nencoding=UTF-8&mode=SYSDBA&events=true'
         )
         query_dict_exp = {
@@ -886,6 +1001,7 @@ class TestFromURLMethod:
         assert db.port == port
         assert db.service_name == service_name
         assert db.sid is None
+        assert db.driver == driver
         assert db.container is None
         assert db.connect_args == {}
         assert db.engine_config == {}
@@ -918,6 +1034,32 @@ class TestFromURLMethod:
         # Clean up - None
         # ===========================================================
 
+    def test_deprecation_warning(self):
+        r"""Test that the DeprecationWarning is triggered when `from_url` is called."""
+
+        # Setup
+        # ===========================================================
+        url = 'oracle+cx_oracle://Fred_the_Farmer:Penguins-sheep-are-not@fred.farmer.rs:1234?service_name=woollysheep'
+        message = (
+            'from_url is deprecated in version 1.2.0. '
+            'Use the url parameter of the normal initializer of OracleDb instead. '
+            'db = pandemy.OracleDb(url=url)'
+        )
+
+        # Exercise
+        # ===========================================================
+        with pytest.warns(DeprecationWarning) as record:
+            pandemy.OracleDb.from_url(url)
+
+        # Verify
+        # ===========================================================
+        assert len(record) == 1
+        assert str(record[0].message) == message
+        assert issubclass(record[0].category, DeprecationWarning)
+
+        # Clean up - None
+        # ===========================================================
+
 
 class TestFromEngineMethod:
     r"""Test the `from_engine` class method of the Oracle DatabaseManager `OracleDb`.
@@ -944,14 +1086,14 @@ class TestFromEngineMethod:
 
         # Setup
         # ===========================================================
-        drivername = 'oracle+cx_oracle'
+        driver = 'cx_oracle'
         username = 'Fred_the_Farmer'
         password = 'Penguins-sheep-are-not'
         host = 'fred.farmer.rs'
         port = 1234
         service_name = 'woollysheep'
-        url_str = f'{drivername}://{username}:{password}@{host}:{port}?service_name={service_name}'
-        url_repr = f'{drivername}://{username}:***@{host}:{port}?service_name={service_name}'
+        url_str = f'oracle+{driver}://{username}:{password}@{host}:{port}?service_name={service_name}'
+        url_repr = f'oracle+{driver}://{username}:***@{host}:{port}?service_name={service_name}'
         engine = create_engine(url_str)
 
         # Exercise
@@ -966,12 +1108,41 @@ class TestFromEngineMethod:
         assert db.port == port
         assert db.service_name == service_name
         assert db.sid is None
+        assert db.driver == driver
         assert db.container is container
         assert db.connect_args == {}
         assert db.engine_config == {}
         assert str(db.url) == url_str
         assert repr(db.url) == url_repr
         assert db.engine is engine
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_deprecation_warning(self):
+        r"""Test that the DeprecationWarning is triggered when `from_engine` is called."""
+
+        # Setup
+        # ===========================================================
+        engine = create_engine(
+            'oracle+cx_oracle://Fred_the_Farmer:Penguins-sheep-are-not@fred.farmer.rs:1234?service_name=woollysheep'
+        )
+        message=(
+            'from_engine is deprecated in version 1.2.0. '
+            'Use the engine parameter of the normal initializer of OracleDb instead. '
+            'db = pandemy.OracleDb(engine=engine)'
+        )
+
+        # Exercise
+        # ===========================================================
+        with pytest.warns(DeprecationWarning) as record:
+            pandemy.OracleDb.from_engine(engine)
+
+        # Verify
+        # ===========================================================
+        assert len(record) == 1
+        assert str(record[0].message) == message
+        assert issubclass(record[0].category, DeprecationWarning)
 
         # Clean up - None
         # ===========================================================
