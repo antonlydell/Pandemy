@@ -1192,7 +1192,7 @@ class TestStrAndReprMethods:
 
         # Setup
         # ===========================================================
-        drivername = 'oracle+cx_oracle'
+        driver = 'cx_oracle'
         username = 'Fred_the_Farmer'
         password = 'Penguins-sheep-are-not'
         host = 'localhost'
@@ -1209,7 +1209,7 @@ class TestStrAndReprMethods:
             'arraysize': 40,
             'auto_convert_lobs': False
         }
-        url_repr = f'{drivername}://{username}:***@{host}:{port}/{sid}'
+        url_repr = f'oracle+{driver}://{username}:***@{host}:{port}/{sid}'
 
         # Exercise
         # ===========================================================
@@ -1231,10 +1231,11 @@ class TestStrAndReprMethods:
     port={port!r},
     service_name=None,
     sid={sid!r},
+    driver={driver!r},
+    url={url_repr},
     container={container!r},
     connect_args={connect_args!r},
     engine_config={engine_config!r},
-    url={url_repr},
     engine={db.engine!r}
 )"""
 
