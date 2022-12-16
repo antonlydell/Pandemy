@@ -12,8 +12,9 @@ import io
 
 # Third Party
 import pandas as pd
-from pandas.testing import assert_frame_equal
+from pandas.testing import assert_frame_equal, assert_series_equal
 import pytest
+from typing import Dict, List, Tuple
 
 # Local
 import pandemy
@@ -27,7 +28,7 @@ import pandemy._datetime
 CSV_DELIM = ';'
 
 @pytest.fixture()
-def df_datetime() -> pd.DataFrame:
+def df_datetime() -> Tuple[pd.DataFrame, List[str]]:
     r"""A DataFrame with naive datetime columns.
 
     Used for testing to localize and convert the datetime columns
@@ -52,8 +53,57 @@ Id;Datetime1;Datetime2;Datetime3;Price;City;DatetimeAsString
 
     datetime_cols = ['Datetime1', 'Datetime2', 'Datetime3']
 
-    return pd.read_csv(filepath_or_buffer=data, sep=CSV_DELIM, index_col='Id',
-                       parse_dates=datetime_cols, dtype=dtypes)
+    df = pd.read_csv(filepath_or_buffer=data, sep=CSV_DELIM, index_col='Id',
+                     parse_dates=datetime_cols, dtype=dtypes)
+    
+    return df, datetime_cols
+
+
+@pytest.fixture()
+def df_datetime_tz_aware(df_datetime: Tuple[pd.DataFrame, List[str]]) -> Tuple[pd.DataFrame, Dict[str, str]]:
+    r"""A DataFrame with timezone aware columns.
+
+    Used for testing to localize and convert the datetime columns
+    to a desired timezone.
+    """
+
+    df, datetime_cols = df_datetime
+    df_output = df.copy()
+
+    col_tz = {
+        datetime_cols[0]: 'EET',
+        datetime_cols[1]: 'UTC',
+        datetime_cols[2]: 'America/Denver'
+    }
+
+    for col, tz in col_tz.items():
+        df_output[col] = df_output[col].dt.tz_localize(tz)
+
+    return df_output, col_tz
+
+
+@pytest.fixture()
+def df_datetime_naive_and_tz_aware(df_datetime: Tuple[pd.DataFrame, List[str]]) -> Tuple[pd.DataFrame, Dict[str, str]]:
+    r"""A DataFrame with a mixture of datetime columns that are naive and timezone aware.
+
+    Used for testing to localize and convert the datetime columns
+    to a desired timezone.
+    """
+
+    df, datetime_cols = df_datetime
+    df_output = df.copy()
+
+    cols_tz = {
+        datetime_cols[0]: None, 
+        datetime_cols[1]: 'UTC',
+        datetime_cols[2]: 'America/Denver'
+    }
+
+    for col, tz in cols_tz.items():
+        df_output[col] = df_output[col].dt.tz_localize(tz)
+
+    return df_output, cols_tz
+
 
 # =================================================
 # Tests
@@ -82,19 +132,19 @@ class TestDatetimeColumnsToTimezone:
 
         # Setup
         # ===========================================================
-        df_exp_result = df_datetime.copy()
-        datetime_cols = df_datetime.select_dtypes(include=['datetime']).columns
+        df, datetime_cols = df_datetime
+        df_exp_result = df.copy()
+
         for col in datetime_cols:
             df_exp_result.loc[:, col] = df_exp_result[col].dt.tz_localize(localize_tz)
 
         # Exercise
         # ===========================================================
-        pandemy._datetime.datetime_columns_to_timezone(df=df_datetime,
-                                                       localize_tz=localize_tz, target_tz=None)
+        pandemy._datetime.datetime_columns_to_timezone(df=df, localize_tz=localize_tz, target_tz=None)
 
         # Verify
         # ===========================================================
-        assert_frame_equal(df_datetime, df_exp_result)
+        assert_frame_equal(df, df_exp_result)
 
         # Clean up - None
         # ===========================================================
@@ -108,20 +158,19 @@ class TestDatetimeColumnsToTimezone:
 
         # Setup
         # ===========================================================
-        datetime_cols = df_datetime.select_dtypes(include=['datetime']).columns
+        df, datetime_cols = df_datetime
 
         # Make all datetime columns string columns
-        df_datetime = df_datetime.astype({col: pd.StringDtype() for col in datetime_cols})
-        df_exp_result = df_datetime.copy()
+        df = df.astype({col: pd.StringDtype() for col in datetime_cols})
+        df_exp_result = df.copy()
 
         # Exercise
         # ===========================================================
-        pandemy._datetime.datetime_columns_to_timezone(df=df_datetime,
-                                                       localize_tz='UTC', target_tz='CET')
+        pandemy._datetime.datetime_columns_to_timezone(df=df, localize_tz='UTC', target_tz='CET')
 
         # Verify
         # ===========================================================
-        assert_frame_equal(df_datetime, df_exp_result)
+        assert_frame_equal(df, df_exp_result)
 
         # Clean up - None
         # ===========================================================
@@ -148,8 +197,8 @@ class TestDatetimeColumnsToTimezone:
 
         # Setup
         # ===========================================================
-        df_exp_result = df_datetime.copy()
-        datetime_cols = df_datetime.select_dtypes(include=['datetime']).columns
+        df, datetime_cols = df_datetime
+        df_exp_result = df.copy()
 
         for col in datetime_cols:
             df_exp_result.loc[:, col] = df_exp_result[col].dt.tz_localize(localize_tz)
@@ -158,12 +207,11 @@ class TestDatetimeColumnsToTimezone:
 
         # Exercise
         # ===========================================================
-        pandemy._datetime.datetime_columns_to_timezone(df=df_datetime,
-                                                       localize_tz=localize_tz, target_tz=target_tz)
+        pandemy._datetime.datetime_columns_to_timezone(df=df, localize_tz=localize_tz, target_tz=target_tz)
 
         # Verify
         # ===========================================================
-        assert_frame_equal(df_datetime, df_exp_result)
+        assert_frame_equal(df, df_exp_result)
 
         # Clean up - None
         # ===========================================================
@@ -191,14 +239,14 @@ class TestDatetimeColumnsToTimezone:
             no timezone conversion will be performed.
         """
 
-        # Setup - None
+        # Setup
         # ===========================================================
+        df, _ = df_datetime
 
         # Exercise & Verify
         # ===========================================================
         with pytest.raises(pandemy.InvalidInputError):
-            pandemy._datetime.datetime_columns_to_timezone(df=df_datetime,
-                                                           localize_tz=localize_tz, target_tz=target_tz)
+            pandemy._datetime.datetime_columns_to_timezone(df=df, localize_tz=localize_tz, target_tz=target_tz)
 
         # Clean up - None
         # ===========================================================
@@ -211,25 +259,31 @@ class TestConvertDatetimeColumns:
     --------
     df_datetime : pd.DataFrame
        Input DataFrame with datetime columns.
+    
+    df_datetime_tz_aware : Tuple[pd.DataFrame, Dict[str, str]]
+        A DataFrame with timezone aware columns.   
+
+    df_datetime_naive_and_tz_aware : Tuple[pd.DataFrame, Dict[str, str]]
+        A DataFrame with a mixture of datetime columns that are naive and timezone aware.
     """
 
     def test_datetime_to_str(self, df_datetime):
-        r"""Convert datetime columns to string."""
+        r"""Convert naive datetime columns to string."""
 
         # Setup
         # ===========================================================
         datetime_format = r'%Y-%m-%d'
 
-        df_exp_result = df_datetime.copy()
+        df, _ = df_datetime
+        df_exp_result = df.copy()
+
         df_exp_result['Datetime1'] = df_exp_result['Datetime1'].dt.strftime(datetime_format).astype('string')
         df_exp_result['Datetime2'] = df_exp_result['Datetime2'].dt.strftime(datetime_format).astype('string')
         df_exp_result['Datetime3'] = df_exp_result['Datetime3'].dt.strftime(datetime_format).astype('string')
 
         # Exercise
         # ===========================================================
-        df_result = pandemy._datetime.convert_datetime_columns(df=df_datetime,
-                                                               dtype='str',
-                                                               datetime_format=datetime_format)
+        df_result = pandemy._datetime.convert_datetime_columns(df=df, dtype='str', datetime_format=datetime_format)
 
         # Verify
         # ===========================================================
@@ -238,18 +292,214 @@ class TestConvertDatetimeColumns:
         # Clean up - None
         # ===========================================================
 
-    def test_datetime_to_int(self, df_datetime):
-        r"""Convert datetime columns to integer.
+    def test_naive_datetime_to_str_localize_tz(self, df_datetime):
+        r"""Convert naive datetime columns to string format and localize the timezone to CET."""
 
-        The integer value represents the number of seconds since
-        the unix epoch of 1970-01-01 in UTC timezone.
+        # Setup
+        # ===========================================================
+        datetime_format = r'%Y-%m-%d+%z'
+
+        df, _ = df_datetime
+        df_exp_result = df.copy()
+
+        df_exp_result['Datetime1'] = df_exp_result['Datetime1'].dt.tz_localize('CET').dt.strftime(datetime_format).astype('string')
+        df_exp_result['Datetime2'] = df_exp_result['Datetime2'].dt.tz_localize('CET').dt.strftime(datetime_format).astype('string')
+        df_exp_result['Datetime3'] = df_exp_result['Datetime3'].dt.tz_localize('CET').dt.strftime(datetime_format).astype('string')
+
+        # Exercise
+        # ===========================================================
+        df_result = pandemy._datetime.convert_datetime_columns(
+            df=df,
+            dtype='str',
+            datetime_format=datetime_format,
+            localize_tz='CET'
+        )
+
+        # Verify
+        # ===========================================================
+        assert_frame_equal(df_result, df_exp_result)
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_naive_datetime_to_str_localize_tz_and_target_tz(self, df_datetime):
+        r"""Localize naive datetime columns and convert to desired timezone in string format."""
+
+        # Setup
+        # ===========================================================
+        datetime_format : str = r'%Y-%m-%d %H:%M:%S%z'
+        localize_tz : str = 'CET'
+        target_tz : str = 'UTC'
+
+        df, _ = df_datetime
+        df_exp_result = df.copy()
+
+        df_exp_result['Datetime1'] = (
+            df_exp_result['Datetime1']
+                .dt.tz_localize(localize_tz)
+                .dt.tz_convert(target_tz)
+                .dt.strftime(datetime_format)
+                .astype('string')
+        )
+        df_exp_result['Datetime2'] = (
+            df_exp_result['Datetime2']
+                .dt.tz_localize(localize_tz)
+                .dt.tz_convert(target_tz)
+                .dt.strftime(datetime_format)
+                .astype('string')
+        )
+        df_exp_result['Datetime3'] = (
+            df_exp_result['Datetime3']
+                .dt.tz_localize(localize_tz)
+                .dt.tz_convert(target_tz)
+                .dt.strftime(datetime_format)
+                .astype('string')
+        )
+
+        # Exercise
+        # ===========================================================
+        df_result = pandemy._datetime.convert_datetime_columns(
+            df=df,
+            dtype='str',
+            datetime_format=datetime_format,
+            localize_tz=localize_tz,
+            target_tz=target_tz
+        )
+
+        # Verify
+        # ===========================================================
+        assert_frame_equal(df_result, df_exp_result)
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_tz_aware_datetime_to_str_localize_tz(self, df_datetime_tz_aware):
+        r"""Convert timezone aware datetime columns to string format.
+        
+        The parameter `localize_tz` is set to 'CET', but should have no effect
+        since the datetime columns are already timezone aware.
         """
 
         # Setup
         # ===========================================================
-        df_datetime = df_datetime.loc[:, ['Datetime1', 'Datetime2']]
+        datetime_format : str = r'%Y-%m-%d %H:%M:%S%z'
+        localize_tz : str = 'CET'
 
-        df_exp_result = pd.DataFrame(index=df_datetime.index, columns=df_datetime.columns)
+        df, col_tz = df_datetime_tz_aware
+        df_exp_result = df.copy()
+
+        for col in col_tz.keys():
+            df_exp_result[col] = df_exp_result[col].dt.strftime(datetime_format).astype('string')
+
+        # Exercise
+        # ===========================================================
+        df_result = pandemy._datetime.convert_datetime_columns(
+            df=df,
+            dtype='str',
+            datetime_format=datetime_format,
+            localize_tz=localize_tz
+        )
+
+        # Verify
+        # ===========================================================
+        assert_frame_equal(df_result, df_exp_result)
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_naive_and_tz_aware_datetime_to_str_localize_tz_and_target_tz(self, df_datetime_naive_and_tz_aware):
+        r"""Convert naive and timezone aware datetime columns to string format.
+        
+        The parameter `localize_tz` is set to 'CET', and `target_tz` is set to 'UTC'.
+        One naive column should be localized to CET and then converted to to UTC.
+        The other two timezone aware columns should be converted to UTC without being localized first.
+        """
+
+        # Setup
+        # ===========================================================
+        datetime_format : str = r'%Y-%m-%d %H:%M:%S%z'
+        localize_tz : str = 'CET'
+        target_tz : str = 'UTC'
+
+        df, col_tz = df_datetime_naive_and_tz_aware
+        df_exp_result = df.copy()
+
+        for col, tz in col_tz.items():
+            if tz is None:
+                df_exp_result[col] = df_exp_result[col].dt.tz_localize(localize_tz)
+
+            df_exp_result[col] = df_exp_result[col].dt.tz_convert(target_tz)
+            df_exp_result[col] = df_exp_result[col].dt.strftime(datetime_format).astype('string')
+
+
+        # Exercise
+        # ===========================================================
+        df_result = pandemy._datetime.convert_datetime_columns(
+            df=df,
+            dtype='str',
+            datetime_format=datetime_format,
+            localize_tz=localize_tz,
+            target_tz=target_tz
+        )
+
+        # Verify
+        # ===========================================================
+        assert_frame_equal(df_result, df_exp_result)
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_naive_and_tz_aware_datetime_to_str_target_tz_no_localize_tz(self, df_datetime_naive_and_tz_aware):
+        r"""Convert naive and timezone aware datetime columns to string format without localizing.
+        
+        The parameter `localize_tz` is not specified, and `target_tz` is set to 'UTC'.
+        One naive column should be left naive and the others converted to to UTC.
+        """
+
+        # Setup
+        # ===========================================================
+        datetime_format : str = r'%Y-%m-%d %H:%M:%S%z'
+        target_tz : str = 'UTC'
+
+        df, col_tz = df_datetime_naive_and_tz_aware
+        df_exp_result = df.copy()
+
+        for col, tz in col_tz.items():
+            if tz is not None:  # Convert timezone aware columns
+                df_exp_result[col] = df_exp_result[col].dt.tz_convert(target_tz)
+
+            df_exp_result[col] = df_exp_result[col].dt.strftime(datetime_format).astype('string')
+
+        # Exercise
+        # ===========================================================
+        df_result = pandemy._datetime.convert_datetime_columns(
+            df=df,
+            dtype='str',
+            datetime_format=datetime_format,
+            target_tz=target_tz
+        )
+
+        # Verify
+        # ===========================================================
+        assert_frame_equal(df_result, df_exp_result, check_exact=True)
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_naive_datetime_to_int(self, df_datetime):
+        r"""Convert naive datetime columns to integer.
+
+        The integer value represents the number of seconds since
+        the Unix Epoch of 1970-01-01 in UTC timezone. The naive
+        datetime columns are assumed to be in UTC timezone.
+        """
+
+        # Setup
+        # ===========================================================
+        df, _ = df_datetime
+        df = df.loc[:, ['Datetime1', 'Datetime2']]
+
+        df_exp_result = pd.DataFrame(index=df.index, columns=df.columns)
 
         df_exp_result.loc[1, 'Datetime1'] = 1229040000   # 2008-12-12 00:00:00 UTC
         df_exp_result.loc[2, 'Datetime1'] = 1244279168   # 2009-06-06 09:06:08 UTC
@@ -263,11 +513,199 @@ class TestConvertDatetimeColumns:
 
         # Exercise
         # ===========================================================
-        df_result = pandemy._datetime.convert_datetime_columns(df=df_datetime, dtype='int')
+        df_result = pandemy._datetime.convert_datetime_columns(df=df, dtype='int')
 
         # Verify
         # ===========================================================
-        assert_frame_equal(df_result, df_exp_result)
+        assert_frame_equal(df_result, df_exp_result, check_exact=True)
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_naive_datetime_to_int_localize_tz(self, df_datetime):
+        r"""Localize naive datetime columns to UTC timezone and convert to Unix Epoch."""
+
+        # Setup
+        # ===========================================================
+        df, datetime_cols = df_datetime
+        datetime_cols = datetime_cols[:-1]
+        df = df.loc[:, datetime_cols]
+
+        df_exp_result = pd.DataFrame(index=df.index, columns=df.columns)
+
+        df_exp_result.loc[1, datetime_cols[0]] = 1229040000   # 2008-12-12 00:00:00 UTC
+        df_exp_result.loc[2, datetime_cols[0]] = 1244279168   # 2009-06-06 09:06:08 UTC
+        df_exp_result.loc[3, datetime_cols[0]] = 1013711940   # 2002-02-14 18:39:00 UTC
+
+        df_exp_result.loc[1, datetime_cols[1]] = 1355314332   # 2012-12-12 12:12:12 UTC
+        df_exp_result.loc[2, datetime_cols[1]] = 240589860    # 1977-08-16 14:31:00 UTC
+        df_exp_result.loc[3, datetime_cols[1]] = -3287378318  # 1865-10-29 15:21:22 UTC
+
+        df_exp_result = df_exp_result.astype('int64')
+
+        # Exercise
+        # ===========================================================
+        df_result = pandemy._datetime.convert_datetime_columns(df=df, dtype='int', localize_tz='UTC')
+
+        # Verify
+        # ===========================================================
+        assert_frame_equal(df_result, df_exp_result, check_exact=True)
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_tz_aware_datetime_to_int(self, df_datetime):
+        r"""Convert UTC timezone aware datetime columns to integer.
+
+        No timezone localization or conversion should be performed
+        since `localize_tz` and `target_tz` are not specified.
+        """
+
+        # Setup
+        # ===========================================================
+        df, datetime_cols = df_datetime
+        datetime_cols = datetime_cols[:-1]
+        df = df.loc[:, datetime_cols]
+
+        for col in datetime_cols:
+            df.loc[:, col] = df.loc[:, col].dt.tz_localize('UTC')
+
+        df_exp_result = pd.DataFrame(index=df.index, columns=df.columns)
+
+        df_exp_result.loc[1, 'Datetime1'] = 1229040000   # 2008-12-12 00:00:00 UTC
+        df_exp_result.loc[2, 'Datetime1'] = 1244279168   # 2009-06-06 09:06:08 UTC
+        df_exp_result.loc[3, 'Datetime1'] = 1013711940   # 2002-02-14 18:39:00 UTC
+
+        df_exp_result.loc[1, 'Datetime2'] = 1355314332   # 2012-12-12 12:12:12 UTC
+        df_exp_result.loc[2, 'Datetime2'] = 240589860    # 1977-08-16 14:31:00 UTC
+        df_exp_result.loc[3, 'Datetime2'] = -3287378318  # 1865-10-29 15:21:22 UTC
+
+        df_exp_result = df_exp_result.astype('int64')
+
+        # Exercise
+        # ===========================================================
+        df_result = pandemy._datetime.convert_datetime_columns(df=df, dtype='int')
+
+        # Verify
+        # ===========================================================
+        assert_frame_equal(df_result, df_exp_result, check_exact=True)
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_tz_aware_datetime_to_int_convert_to_target_tz(self, df_datetime):
+        r"""Convert timezone aware datetime columns to target timezone and then to integer.
+
+        The target timezone is UTC. Only column Datetime1 of timezone EET
+        needs to be converted to UTC.
+        """
+
+        # Setup
+        # ===========================================================
+        df, datetime_cols = df_datetime
+        datetime_cols = datetime_cols[:-1]
+        df = df.loc[:, datetime_cols]
+
+        df[datetime_cols[0]] = df[datetime_cols[0]].dt.tz_localize('EET')
+        df[datetime_cols[1]] = df[datetime_cols[1]].dt.tz_localize('UTC')
+
+        df_exp_result = pd.DataFrame(index=df.index, columns=df.columns)
+
+        df_exp_result.loc[1, datetime_cols[0]] = 1229032800   # 2008-12-12 00:00:00 EET --> 2008-12-11 22:00:00 UTC
+        df_exp_result.loc[2, datetime_cols[0]] = 1244268368   # 2009-06-06 09:06:08 EET --> 2009-06-06 06:06:08 UTC
+        df_exp_result.loc[3, datetime_cols[0]] = 1013704740   # 2002-02-14 18:39:00 EET --> 2002-02-14 16:39:00 UTC
+
+        df_exp_result.loc[1, datetime_cols[1]] = 1355314332   # 2012-12-12 12:12:12 UTC
+        df_exp_result.loc[2, datetime_cols[1]] = 240589860    # 1977-08-16 14:31:00 UTC
+        df_exp_result.loc[3, datetime_cols[1]] = -3287378318  # 1865-10-29 15:21:22 UTC
+
+        df_exp_result = df_exp_result.astype('int64')
+
+        # Exercise
+        # ===========================================================
+        df_result = pandemy._datetime.convert_datetime_columns(df=df, dtype='int', target_tz='UTC')
+
+        # Verify
+        # ===========================================================
+        assert_frame_equal(df_result, df_exp_result, check_exact=True)
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_naive_and_tz_aware_datetime_to_int_localize_tz_and_target_tz(self, df_datetime):
+        r"""Convert naive and timezone aware datetime columns to target timezone and then to integer.
+
+        The target timezone is UTC. Column Datetime2 is naive but is of timezone CET. It should be
+        localized to CET before being converted to UTC. Column Datetime1 of timezone EET should
+        not be converted to CET since it is already timezone aware.
+        """
+
+        # Setup
+        # ===========================================================
+        df, datetime_cols = df_datetime
+        datetime_cols = datetime_cols[:-1]
+        df = df.loc[:, datetime_cols]
+        df['Datetime1'] = df['Datetime1'].dt.tz_localize('EET')
+
+        df_exp_result = pd.DataFrame(index=df.index, columns=df.columns)
+
+        df_exp_result.loc[1, datetime_cols[0]] = 1229032800   # 2008-12-12 00:00:00 EET --> 2008-12-11 22:00:00 UTC
+        df_exp_result.loc[2, datetime_cols[0]] = 1244268368   # 2009-06-06 09:06:08 EET --> 2009-06-06 06:06:08 UTC
+        df_exp_result.loc[3, datetime_cols[0]] = 1013704740   # 2002-02-14 18:39:00 EET --> 2002-02-14 16:39:00 UTC
+
+        df_exp_result.loc[1, datetime_cols[1]] = 1355310732   # 2012-12-12 12:12:12 CET --> 2012-12-12 11:12:12 UTC
+        df_exp_result.loc[2, datetime_cols[1]] = 240582660    # 1977-08-16 14:31:00 CET --> 1977-08-16 12:31:00 UTC
+        df_exp_result.loc[3, datetime_cols[1]] = -3287381918  # 1865-10-29 15:21:22 CET --> 1865-10-29 14:21:22 UTC
+
+        df_exp_result = df_exp_result.astype('int64')
+
+        # Exercise
+        # ===========================================================
+        df_result = pandemy._datetime.convert_datetime_columns(df=df, dtype='int', localize_tz='CET', target_tz='UTC')
+
+        # Verify
+        # ===========================================================
+        assert_frame_equal(df_result, df_exp_result, check_exact=True)
+
+        # Clean up - None
+        # ===========================================================
+
+    @pytest.mark.raises
+    def test_convert_non_UTC_timezone_to_int(self, df_datetime):
+        r"""Localize a naive datetime column to timezone CET and then convert to Unix Epoch.
+
+        A UserWarning is expected to be raised since the timezone of the column
+        being converted to Unix Epoch should be in UTC and not CET.
+
+        Datetime2 of timezone CET is assumed to be in UTC when the conversion to Unix Epoch
+        occurs, which means that the Unix Epoch timestamp will be incorrect.
+        """
+
+        # Setup
+        # ===========================================================
+        df, datetime_cols = df_datetime
+        datetime_cols = datetime_cols[:-1]
+        df = df.loc[:, datetime_cols]
+        df['Datetime1'] = df['Datetime1'].dt.tz_localize('UTC')
+
+        df_exp_result = pd.DataFrame(index=df.index, columns=df.columns)
+
+        df_exp_result.loc[1, datetime_cols[0]] = 1229040000   # 2008-12-12 00:00:00 UTC
+        df_exp_result.loc[2, datetime_cols[0]] = 1244279168   # 2009-06-06 09:06:08 UTC
+        df_exp_result.loc[3, datetime_cols[0]] = 1013711940   # 2002-02-14 18:39:00 UTC
+
+        # Do not assert column Datetime2
+
+        df_exp_result.loc[:, datetime_cols[0]] = df_exp_result[datetime_cols[0]].astype('int64')
+
+        # Exercise
+        # ===========================================================
+        with pytest.warns(UserWarning):
+            df_result = pandemy._datetime.convert_datetime_columns(df=df, dtype='int', localize_tz='CET')
+
+        # Verify
+        # ===========================================================
+        assert_series_equal(df_result[datetime_cols[0]], df_exp_result[datetime_cols[0]], check_exact=True)
 
         # Clean up - None
         # ===========================================================
@@ -297,15 +735,14 @@ class TestConvertDatetimeColumns:
         pandemy.InvalidInputError is expected to be raised.
         """
 
-        # Setup - None
+        # Setup
         # ===========================================================
+        df, _ = df_datetime
 
         # Exercise & Verify
         # ===========================================================
         with pytest.raises(pandemy.InvalidInputError, match='datetime'):
-            pandemy._datetime.convert_datetime_columns(df=df_datetime,
-                                                       dtype='str',
-                                                       datetime_format=2)
+            pandemy._datetime.convert_datetime_columns(df=df, dtype='str', datetime_format=2)
 
         # Clean up - None
         # ===========================================================
