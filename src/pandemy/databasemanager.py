@@ -1431,6 +1431,8 @@ WHERE
             nan_to_none: bool = True,
             datetime_cols_dtype: Optional[str] = None,
             datetime_format: str = r'%Y-%m-%d %H:%M:%S',
+            localize_tz: Optional[str] = None,
+            target_tz: Optional[str] = None,
             dry_run: bool = False) -> Union[CursorResult, str, None]:
         r"""Merge data from a :class:`pandas.DataFrame` into a table.
 
@@ -1515,6 +1517,14 @@ WHERE
         datetime_format : str, default r'%Y-%m-%d %H:%M:%S'
             The datetime (:meth:`strftime <datetime.datetime.strftime>`) format
             to use when converting datetime columns to strings.
+
+        localize_tz : str or None, default None 
+            Name of the timezone which to localize naive datetime columns into.
+            If None (the default) timezone localization is omitted.
+
+        target_tz : str or None, default None
+            Name of the target timezone to convert timezone aware datetime columns, or columns that have been
+            localized by `localize_tz`, into. If None (the default) timezone conversion is omitted.
 
         dry_run : bool, default False
             Do not execute the merge. Instead return the SQL statement
@@ -1642,7 +1652,11 @@ WHERE
         # Convert datetime columns to string or int
         if datetime_cols_dtype is not None:
             df_merge = pandemy._datetime.convert_datetime_columns(
-                df=df_merge, dtype=datetime_cols_dtype, datetime_format=datetime_format
+                df=df_merge,
+                dtype=datetime_cols_dtype,
+                datetime_format=datetime_format,
+                localize_tz=localize_tz,
+                target_tz=target_tz
             )
 
         # Convert missing values

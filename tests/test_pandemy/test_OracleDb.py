@@ -1441,10 +1441,10 @@ class TestMergeDfMethod:
             pytest.param(10, 1, id='chunksize=10'),
         )
     )
-    def test_merge_all_cols_1_on_col(self, chunksize, nr_chunks_exp, oracle_db_mocked, df_customer):
+    def test_merge_all_cols_1_on_col_and_chunksize(self, chunksize, nr_chunks_exp, oracle_db_mocked, df_customer):
         r"""Merge data from all columns of a DataFrame into a table using 1 column in the ON clause.
 
-        Verifying that the SQL statement is executed once.
+        Also tests the chunksize parameter and that the SQL statement is executed the expected amount of times.
 
         Parameters
         ----------
@@ -1474,6 +1474,54 @@ class TestMergeDfMethod:
         # ===========================================================
         conn.execute.assert_called()
         assert conn.execute.call_count == nr_chunks_exp
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_localize_tz_target_tz_datetime_cols_dtype_datetime_format(self, oracle_db_mocked, df_customer):
+        r"""Test the parameters `localize_tz`, `target_tz`, `datetime_cols_dtype` and `datetime_format`.
+
+        The parameters are passed along to the function `pandemy._datetime.convert_datetime_columns`.
+
+        Validate that the datetime column (BirthDate) of the input DataFrame is correctly converted to desired timezone.
+        """
+
+        # Setup
+        # ===========================================================
+        datetime_format = r'%Y-%m-%d %H:%M:%S%z'
+        localize_tz = 'UTC'
+        target_tz = 'CET'
+        datetime_cols_dtype = 'str'
+        timestamps_exp = [
+            '1990-07-14 02:00:00+0200',
+            '1970-01-14 01:00:00+0100',
+            '1968-12-13 01:00:00+0100',
+            '1996-03-24 01:00:00+0100',
+            '2006-05-31 02:00:00+0200',
+            '2007-08-20 02:00:00+0200',
+        ]
+
+        # Exercise
+        # ===========================================================
+        with oracle_db_mocked.engine.begin() as conn:
+            oracle_db_mocked.merge_df(
+                df=df_customer,
+                table='Customer',
+                conn=conn,
+                on_cols=['CustomerName'],
+                datetime_cols_dtype=datetime_cols_dtype,
+                datetime_format=datetime_format,
+                localize_tz=localize_tz,
+                target_tz=target_tz
+            )
+
+        # Verify
+        # ===========================================================
+        params = conn.execute.call_args.args[1]
+        timestamps = [item['BirthDate'] for item in params]
+
+        assert timestamps == timestamps_exp 
+        conn.execute.assert_called_once()
 
         # Clean up - None
         # ===========================================================
