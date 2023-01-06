@@ -2274,6 +2274,60 @@ WHERE
         # Clean up - None
         # ===========================================================
 
+    def test_localize_tz_target_tz_datetime_cols_dtype_datetime_format(self, sqlite_db_to_modify, df_customer):
+        r"""Test the parameters `localize_tz`, `target_tz`, `datetime_cols_dtype` and `datetime_format`.
+
+        The parameters are passed along to the function `pandemy._datetime.convert_datetime_columns`.
+
+        Validate that the datetime column (BirthDate) of the input DataFrame is correctly converted to desired timezone.
+        """
+
+        # Setup
+        # ===========================================================
+        load_table_query = 'SELECT * FROM Customer ORDER BY CustomerId'
+        datetime_format = r'%Y-%m-%d %H:%M:%S%z'
+        localize_tz = 'UTC'
+        target_tz = 'CET'
+
+        df_exp_result = df_customer.copy()
+        df_exp_result['BirthDate'] = (
+            df_exp_result['BirthDate']
+            .dt.tz_localize(localize_tz)
+            .dt.tz_convert(target_tz)
+            .dt.strftime(datetime_format)
+        )
+
+        # Exercise
+        # ===========================================================
+        with sqlite_db_to_modify.engine.begin() as conn:
+            sqlite_db_to_modify.upsert_table(
+                df=df_customer,
+                table='Customer',
+                conn=conn,
+                where_cols=['CustomerName'],
+                update_only=True,
+                nan_to_none=True,
+                datetime_cols_dtype='str',
+                datetime_format=datetime_format,
+                localize_tz=localize_tz,
+                target_tz=target_tz
+            )
+
+
+        # Verify
+        # ===========================================================
+        with sqlite_db_to_modify.engine.connect() as conn:
+            df_updated = pd.read_sql(
+                sql=load_table_query,
+                con=conn,
+                index_col='CustomerId',
+            )
+
+        assert_frame_equal(df_updated, df_exp_result, check_dtype=False, check_index_type=False)
+
+        # Clean up - None
+        # ===========================================================
+
     def test_logging_output_debug(self, sqlite_db_to_modify, df_customer, caplog):
         r"""Test the logging output when no errors occur.
 
