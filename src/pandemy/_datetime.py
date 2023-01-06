@@ -76,8 +76,104 @@ def datetime_columns_to_timezone(df: pd.DataFrame,  localize_tz: str = 'UTC',
                                             data=(e.args[0], localize_tz, target_tz)) from None
 
 
+def localize_and_convert_timezone(
+    s: pd.Series,
+    localize_tz: Optional[str] = None,
+    target_tz: Optional[str] = None
+) -> pd.Series:
+    r"""Set a timezone to a naive datetime serie.
+
+    Localize a naive datetime serie to the desired timezone and
+    perform an optional conversion to the target timezone.
+
+    Parameters
+    ----------
+    s : pd.Series
+        The datetime serie to localize and convert to desired timezone.
+
+    localize_tz : str or None, default None.
+        Name of the timezone which to localize `s` into.
+        If None (the default) localization is omitted.
+
+    target_tz : str or None, default None 
+        Name of the target timezone to convert `s` into after localization.
+        If `target_tz` is None or `target_tz = `localize_tz` timezone conversion is omitted.
+
+    Returns
+    -------
+    s : pd.Series
+        `s` localized and converted to desired timezone.
+
+    Raises
+    ------
+    pandemy.InvalidInputError
+        If an unknown timezone is supplied.
+    """
+
+    tz = s.dt.tz
+
+    try:
+        if tz is None and localize_tz is not None:
+            s = s.dt.tz_localize(localize_tz)
+            tz = s.dt.tz
+        if target_tz is not None and tz is not None and target_tz != str(tz):
+            s = s.dt.tz_convert(target_tz)
+    except Exception as e:
+        col_name = s.name
+        raise pandemy.InvalidInputError(
+            f'Column = {col_name} | {type(e).__name__}: {e.args[0]} | {localize_tz=}, {target_tz=}',
+            data=(col_name, e.args)
+        ) from None
+
+    return s
+
+
+def to_unix_epoch(s: pd.Series, target_tz: Optional[str] = None) -> pd.Series:
+    r"""Convert a datetime serie to Unix Epoch time.
+    
+    Parameters
+    ----------
+    s : pd.Series
+        The datetime serie to convert to Unix Epoch time.
+
+    target_tz : str or None, default None
+        Name of the target timezone that `s` was converted into prior to calling this function.
+        Used in the UserWarning if the timezone of `s` is not UTC. If None the timezone of `s`
+        was not converted prior to calling this function.
+    
+    Returns
+    -------
+    pd.Serie
+        `s` converted to Unix Epoch time.
+
+    Raises
+    ------
+    UserWarning
+        If the timezone of `s` is not in timezone UTC.
+
+    References
+    ----------
+    Converting timestamps to Unix Epoch:
+    - https://pandas.pydata.org/pandas-docs/stable/user_guide/timeseries.html#from-timestamps-to-epoch
+    """
+
+    tz = s.dt.tz
+
+    if tz is not None and str(tz) != 'UTC':
+        warnings.warn(
+            message=(
+                f'Converting to Unix Epoch but timezone ({tz}) of column {s.name} is not set to UTC. '
+                f'target_tz={target_tz!r}. The result may be incorrect!'
+            ),
+            category=UserWarning,
+            stacklevel=2
+        )
+
+    return (s - pd.Timestamp('1970-01-01',  tz=tz)) // pd.Timedelta('1s')
+
+
 def convert_datetime_columns(df: pd.DataFrame,
-                             dtype: str = 'str',
+                             dtype: Optional[str] = None,
                              datetime_format: str = r'%Y-%m-%d %H:%M:%S',
                              localize_tz: Optional[str] = None,
                              target_tz: Optional[str] = None) -> pd.DataFrame:
@@ -88,22 +184,22 @@ def convert_datetime_columns(df: pd.DataFrame,
     df : pd.DataFrame
         The DataFrame with datetime columns to convert.
 
-    dtype : {'str', 'int'}, default 'str'
+    dtype : {'str', 'int'} or None, default None
         The data type to convert the datetime columns into.
         'int' converts the datetime columns to the number of seconds since
-        the unix epoch of 1970-01-01 in UTC timezone.
+        the Unix Epoch of 1970-01-01 in UTC timezone. If None (the default)
+        the datetime data type is kept.
 
     datetime_format : str, default r'%Y-%m-%d %H:%M:%S'
         The datetime format to use when converting datetime columns to string.
 
     localize_tz : str or None, default None 
         Name of the timezone which to localize naive datetime columns into.
-        If None no localization is performed.
+        If None localization is omitted.
 
     target_tz : str or None, default None
         Name of the target timezone to convert timezone aware datetime columns into.
-        If `target_tz` is None or `target_tz = `localize_tz` no timezone conversion
-        will be performed.
+        If `target_tz` is None or `target_tz = `localize_tz` timezone conversion is omitted.
 
     Returns
     -------
@@ -113,66 +209,43 @@ def convert_datetime_columns(df: pd.DataFrame,
     Raises
     ------
     pandemy.InvalidInputError
-        If an unknown `dtype` is supplied or the timezone localization or conversion fails.
+        If an unknown `dtype` is supplied or if the timezone localization or conversion fails.
 
-    References
-    ----------
-    Converting timestamps to unix epoch:
-    - https://pandas.pydata.org/pandas-docs/stable/user_guide/timeseries.html#from-timestamps-to-epoch
+    UserWarning
+        If the timezone of a datetime column is not in timezone UTC when converting to Unix Epoch.
     """
 
-    if dtype not in {'str', 'int'}:
-        raise pandemy.InvalidInputError(f"Invalid option ({dtype}) for dtype. Valid options are: {{'str', 'int'}}.")
+    if dtype not in {'str', 'int', None}:
+        raise pandemy.InvalidInputError(f"Invalid option ({dtype}) for dtype. Valid options are: {{'str', 'int', None}}.")
 
     df_output = df.copy()
 
     for col in df_output.select_dtypes(include=['datetime', 'datetime64', np.datetime64, 'datetimetz']).columns:
-
         s = df_output[col]
-        tz = s.dt.tz
+        s = localize_and_convert_timezone(s=s, localize_tz=localize_tz, target_tz=target_tz)
 
-        # Localize and convert timezone
         try:
-            if tz is None and localize_tz is not None:
-                s = s.dt.tz_localize(localize_tz)
-                df_output.loc[:, col] = s 
-                tz = s.dt.tz
-
-            if target_tz is not None and tz is not None and target_tz != str(tz):
-                s = df_output[col].dt.tz_convert(target_tz)
-                tz = s.dt.tz
-                df_output.loc[:, col] = s 
-        except TypeError as e:
-            raise pandemy.InvalidInputError(f'Column = {col} : {e.args[0]}', data=(col, e.args)) from None
-
-        # Convert to string or Unix Epoch
-        try:
-            if dtype == 'str':
+            if dtype is None:
+                df_output[col] = s
+            elif dtype == 'str':
                 df_output[col] = s.dt.strftime(datetime_format).astype('string')
-            elif dtype == 'int':  # Convert to Unix Epoch (UTC)
-                if tz is not None and str(tz) != 'UTC':
-                    warnings.warn(
-                        message=(
-                            f'Converting to Unix Epoch but timezone ({tz}) of column {col} is not set to UTC. '
-                            f'target_tz={target_tz}. The result may be incorrect!'
-                        ),
-                        category=UserWarning,
-                        stacklevel=2
-                    )
-                df_output[col] = (s - pd.Timestamp('1970-01-01',  tz=tz)) // pd.Timedelta('1s')
+            elif dtype == 'int':
+                df_output[col] = to_unix_epoch(s=s, target_tz=target_tz)
         except Exception as e:
             if dtype == 'int':
                 error_msg: str = (
-                    f'Could not convert datetime column {col} to {dtype} '
-                    f'with localize_tz={localize_tz} and target_tz={target_tz}\n'
+                    f'Could not convert datetime column {col} to {dtype!r} '
+                    f'with localize_tz={localize_tz!r} and target_tz={target_tz!r}'
                 )
                 data = (col, localize_tz, target_tz, e.args)
             elif dtype == 'str':
                 error_msg: str = (
-                    f'Could not convert datetime column {col} to {dtype} '
-                    f'to {dtype} with format string: {datetime_format}\n'
+                    f'Could not convert datetime column {col} to {dtype!r} '
+                    f'with format string: {datetime_format!r}'
                 )
                 data = (col, datetime_format, e.args)
+
+            error_msg = f'{error_msg}\n{type(e).__name__} : {e.args[0]}'
 
             raise pandemy.InvalidInputError(error_msg, data=data) from None
 
