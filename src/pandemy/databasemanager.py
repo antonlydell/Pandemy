@@ -821,11 +821,22 @@ WHERE
         else:
             logger.debug(f'Successfully deleted existing data from table {table}.')
 
-    def save_df(self, df: pd.DataFrame, table: str, conn: Connection, if_exists: str = 'append',
-                index: bool = True, index_label: Optional[Union[str, Sequence[str]]] = None,
-                chunksize: Optional[int] = None, schema: Optional[str] = None,
-                dtype: Optional[Union[Dict[str, Union[str, object]], object]] = None,
-                method: Optional[Union[str, Callable]] = None) -> None:
+    def save_df(
+        self,
+        df: pd.DataFrame,
+        table: str,
+        conn: Connection,
+        if_exists: str = 'append',
+        index: bool = True,
+        index_label: Optional[Union[str, Sequence[str]]] = None,
+        chunksize: Optional[int] = None,
+        schema: Optional[str] = None,
+        dtype: Optional[Union[Dict[str, Union[str, object]], object]] = None,
+        datetime_cols_dtype: Optional[str] = None,
+        datetime_format: str = r'%Y-%m-%d %H:%M:%S',
+        localize_tz: Optional[str] = None,
+        target_tz: Optional[str] = None,
+        method: Optional[Union[str, Callable]] = None) -> None:
         r"""Save the :class:`pandas.DataFrame` `df` to specified table in the database.
 
         If the table does not exist it will be created. If the table already exists
@@ -877,6 +888,33 @@ WHERE
             Specifying the data type for columns. If a dictionary is used, the keys should be the column names
             and the values should be the SQLAlchemy types or strings for the sqlite3 legacy mode.
             If a scalar is provided, it will be applied to all columns.
+
+        datetime_cols_dtype : {'str', 'int'} or None, default None
+            If the datetime columns of `df` should be converted to string or integer data types
+            before saving the table. If ``None`` no conversion of datetime columns is performed,
+            which is the default. When using ``'int'`` the datetime columns are converted to the
+            number of seconds since the Unix Epoch of 1970-01-01. The timezone of the datetime 
+            columns should be in UTC when using ``'int'``.
+
+            .. versionadded:: 1.2.0
+
+        datetime_format : str, default r'%Y-%m-%d %H:%M:%S'
+            The datetime (:meth:`strftime <datetime.datetime.strftime>`) format
+            to use when converting datetime columns to strings.
+
+            .. versionadded:: 1.2.0
+
+        localize_tz : str or None, default None 
+            The name of the timezone which to localize naive datetime columns into.
+            If None (the default) timezone localization is omitted.
+
+            .. versionadded:: 1.2.0
+
+        target_tz : str or None, default None
+            The name of the target timezone to convert timezone aware datetime columns, or columns that
+            have been localized by `localize_tz`, into. If None (the default) timezone conversion is omitted.
+
+            .. versionadded:: 1.2.0
 
         method : None, 'multi', callable, default None
             Controls the SQL insertion clause used:
@@ -981,12 +1019,36 @@ WHERE
             self._is_valid_table_name(table=table)
 
         # ==========================================
+        # Convert datetime columns
+        # ==========================================
+
+        if datetime_cols_dtype is None and localize_tz is None and target_tz is None:
+            df_save = df
+        else:
+            df_save = pandemy._datetime.convert_datetime_columns(
+                df=df,
+                dtype=datetime_cols_dtype,
+                datetime_format=datetime_format,
+                localize_tz=localize_tz,
+                target_tz=target_tz
+            )
+
+        # ==========================================
         # Write the DataFrame to the SQL table
         # ==========================================
 
         try:
-            df.to_sql(table, con=conn, if_exists=if_exists, index=index, index_label=index_label,
-                      chunksize=chunksize, schema=schema, dtype=dtype, method=method)
+            df_save.to_sql(
+                table,
+                con=conn,
+                if_exists=if_exists,
+                index=index,
+                index_label=index_label,
+                chunksize=chunksize,
+                schema=schema,
+                dtype=dtype,
+                method=method
+            )
 
         except ValueError as e:
             if re.search(fr'.*{table}.+ already exists', e.args[0]):
