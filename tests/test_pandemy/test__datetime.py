@@ -767,39 +767,37 @@ class TestConvertDatetimeColumnsToStrAndInt:
         # Clean up - None
         # ===========================================================
 
+    @pytest.mark.raises
     def test_naive_and_tz_aware_datetime_to_str_target_tz_no_localize_tz(self, df_datetime_naive_and_tz_aware):
         r"""Convert naive and timezone aware datetime columns to string format without localizing.
         
         The parameter `localize_tz` is not specified, and `target_tz` is set to 'UTC'.
-        One naive column should be left naive and the others converted to to UTC.
+        The naive datetime column Datetime1 should raise pandemy.InvalidInputError
+        since it is not possible to convert the timezone of a naive datetime column.
         """
 
         # Setup
         # ===========================================================
-        datetime_format : str = r'%Y-%m-%d %H:%M:%S%z'
+        localize_tz = None
         target_tz : str = 'UTC'
 
-        df, col_tz = df_datetime_naive_and_tz_aware
-        df_exp_result = df.copy()
-
-        for col, tz in col_tz.items():
-            if tz is not None:  # Convert timezone aware columns
-                df_exp_result[col] = df_exp_result[col].dt.tz_convert(target_tz)
-
-            df_exp_result[col] = df_exp_result[col].dt.strftime(datetime_format).astype('string')
+        df, _ = df_datetime_naive_and_tz_aware
 
         # Exercise
         # ===========================================================
-        df_result = pandemy._datetime.convert_datetime_columns(
-            df=df,
-            dtype='str',
-            datetime_format=datetime_format,
-            target_tz=target_tz
-        )
+        with pytest.raises(pandemy.InvalidInputError) as exc_info:
+            pandemy._datetime.convert_datetime_columns(
+                df=df,
+                dtype='str',
+                target_tz=target_tz
+            )
 
         # Verify
         # ===========================================================
-        assert_frame_equal(df_result, df_exp_result, check_exact=True)
+        assert 'Datetime1' in exc_info.value.args[0]
+        assert f'{target_tz=}' in exc_info.value.args[0]
+        assert f'{localize_tz=}' in exc_info.value.args[0]
+        assert 'Datetime1' in exc_info.value.data
 
         # Clean up - None
         # ===========================================================

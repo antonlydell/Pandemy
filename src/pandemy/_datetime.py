@@ -107,23 +107,30 @@ def localize_and_convert_timezone(
     Raises
     ------
     pandemy.InvalidInputError
-        If an unknown timezone is supplied.
+        If an unknown timezone is supplied or if trying to convert a timezone of a naive datetime column.
     """
 
     tz = s.dt.tz
+    col_name: str = s.name
+    error_msg: str = ''
 
     try:
         if tz is None and localize_tz is not None:
             s = s.dt.tz_localize(localize_tz)
             tz = s.dt.tz
-        if target_tz is not None and tz is not None and target_tz != str(tz):
+        if target_tz is not None and target_tz != str(tz):
+            if tz is None:
+                error_msg = (
+                    f'Cannot convert naive datetime column {col_name} to {target_tz=}. '
+                    'Supply a timezone to localize_tz to localize the column into its current timezone. '
+                    f'{localize_tz=}, {target_tz=}'
+                )
+                raise pandemy.InvalidInputError(message=error_msg, data=target_tz)
             s = s.dt.tz_convert(target_tz)
     except Exception as e:
-        col_name = s.name
-        raise pandemy.InvalidInputError(
-            f'Column = {col_name} | {type(e).__name__}: {e.args[0]} | {localize_tz=}, {target_tz=}',
-            data=(col_name, e.args)
-        ) from None
+        if not error_msg:
+            error_msg = f'Column = {col_name} | {type(e).__name__}: {e.args[0]} | {localize_tz=}, {target_tz=}',
+        raise pandemy.InvalidInputError(message=error_msg, data=(col_name, e.args)) from None
 
     return s
 
