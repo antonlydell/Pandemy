@@ -1311,20 +1311,21 @@ WHERE
         datetime_cols_dtype : {'str', 'int'} or None, default None
             If the datetime columns of `df` should be converted to string or integer data types
             before upserting the table. SQLite cannot handle datetime objects as parameters
-            and should use this option. If ``None`` no conversion of datetime columns is performed,
+            and should use this option. If ``None`` conversion of datetime columns is omitted,
             which is the default. When using ``'int'`` the datetime columns are converted to the
-            number of seconds since the unix epoch of 1970-01-01 in UTC time zone.
+            number of seconds since the Unix Epoch of 1970-01-01. The timezone of the datetime
+            columns should be in UTC when using ``'int'``.
 
         datetime_format : str, default r'%Y-%m-%d %H:%M:%S'
             The datetime (:meth:`strftime <datetime.datetime.strftime>`) format
             to use when converting datetime columns to strings.
 
         localize_tz : str or None, default None 
-            Name of the timezone which to localize naive datetime columns into.
+            The name of the timezone which to localize naive datetime columns into.
             If None (the default) timezone localization is omitted.
 
         target_tz : str or None, default None
-            Name of the target timezone to convert timezone aware datetime columns, or columns that have been
+            The name of the target timezone to convert timezone aware datetime columns, or columns that have been
             localized by `localize_tz`, into. If None (the default) timezone conversion is omitted.
 
         dry_run : bool, default False
@@ -1454,8 +1455,9 @@ WHERE
         if dry_run:  # Early exit to check the statements
             return update_stmt, insert_stmt
 
-        # Convert datetime columns to string or int
-        if datetime_cols_dtype is not None:
+        if datetime_cols_dtype is None and localize_tz is None and target_tz is None:
+            pass
+        else:
             df_upsert = pandemy._datetime.convert_datetime_columns(
                 df=df_upsert,
                 dtype=datetime_cols_dtype,

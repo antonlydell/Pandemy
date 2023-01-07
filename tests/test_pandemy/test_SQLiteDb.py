@@ -2484,6 +2484,100 @@ WHERE
         # Clean up - None
         # ===========================================================
 
+    @pytest.mark.raises
+    def test_localize_tz_target_tz_datetime_cols_dtype_is_none(self, sqlite_db_to_modify, df_customer):
+        r"""Test the parameters `localize_tz`, `target_tz` when `datetime_cols_dtype` is None.
+
+        The parameter `datetime_cols_dtype` is set to None, which means that the datetime column
+        (BirthDate) should be localized and converted but kept as a datetime column.
+
+        pandemy.ExecuteStatementError is expected to be raised because SQLite cannot handle
+        datetime data types as parameters the `conn.execute` method, which is used to execute
+        the upsert statement.
+        """
+
+        # Setup - None
+        # ===========================================================
+
+        # Exercise & Verify
+        # ===========================================================
+        with pytest.raises(pandemy.ExecuteStatementError):
+            with sqlite_db_to_modify.engine.begin() as conn:
+                sqlite_db_to_modify.upsert_table(
+                    df=df_customer,
+                    table='Customer',
+                    conn=conn,
+                    where_cols=['CustomerName'],
+                    update_only=True,
+                    nan_to_none=True,
+                    datetime_cols_dtype=None,
+                    localize_tz='UTC',
+                    target_tz='CET'
+                )
+
+        # Clean up - None
+        # ===========================================================
+
+    @pytest.mark.raises
+    def test_target_tz_no_localize_tz(self, sqlite_db_to_modify, df_customer):
+        r"""Test to supply a value to `target_tz` when `localize_tz` is None.
+
+        pandemy.InvalidInputError is expected to be raised because a naive datetime
+        column cannot be converted without first being localized.
+        """
+
+        # Setup - None
+        # ===========================================================
+
+        # Exercise & Verify
+        # ===========================================================
+        with pytest.raises(pandemy.InvalidInputError):
+            with sqlite_db_to_modify.engine.begin() as conn:
+                sqlite_db_to_modify.upsert_table(
+                    df=df_customer,
+                    table='Customer',
+                    conn=conn,
+                    where_cols=['CustomerName'],
+                    update_only=True,
+                    nan_to_none=True,
+                    datetime_cols_dtype='str',
+                    localize_tz=None,
+                    target_tz='CET'
+                )
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_input_df_not_mutated(self, sqlite_db_to_modify, df_customer):
+        r"""Test that the input DataFrame is not mutated after executing the method."""
+
+        # Setup
+        # ===========================================================
+        df_exp_result = df_customer.copy()
+
+        # Exercise
+        # ===========================================================
+        with sqlite_db_to_modify.engine.begin() as conn:
+            sqlite_db_to_modify.upsert_table(
+                df=df_customer,
+                table='Customer',
+                conn=conn,
+                where_cols=['CustomerName'],
+                update_only=True,
+                nan_to_none=True,
+                datetime_cols_dtype='str',
+                datetime_format=r'%Y-%m-%d %H:%M:%S%z',
+                localize_tz='UTC',
+                target_tz='CET'
+            )
+
+        # Verify
+        # ===========================================================
+        assert_frame_equal(df_customer, df_exp_result, check_dtype=True, check_index_type=True)
+
+        # Clean up - None
+        # ===========================================================
+
     def test_logging_output_debug(self, sqlite_db_to_modify, df_customer, caplog):
         r"""Test the logging output when no errors occur.
 
