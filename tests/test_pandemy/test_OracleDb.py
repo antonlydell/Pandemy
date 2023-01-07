@@ -8,6 +8,7 @@ r"""Tests for the Oracle DatabaseManager `OracleDb`."""
 
 # Third Party
 import cx_Oracle
+from pandas.testing import assert_frame_equal
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.engine import make_url
@@ -1522,6 +1523,105 @@ class TestMergeDfMethod:
 
         assert timestamps == timestamps_exp 
         conn.execute.assert_called_once()
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_localize_tz_target_tz_datetime_cols_dtype_is_none(self, oracle_db_mocked, df_customer):
+        r"""Test the parameters `localize_tz`, `target_tz` when `datetime_cols_dtype` is None.
+
+        The parameter `datetime_cols_dtype` is set to None, which means that the datetime column
+        (BirthDate) should be localized and converted but kept as a datetime column.
+        """
+
+        # Setup
+        # ===========================================================
+        localize_tz = 'UTC'
+        target_tz = 'CET'
+
+        timestamps_exp = (
+            df_customer['BirthDate']
+            .dt.tz_localize(localize_tz)
+            .dt.tz_convert(target_tz)
+            .tolist()
+        )
+
+        # Exercise
+        # ===========================================================
+        with oracle_db_mocked.engine.begin() as conn:
+            oracle_db_mocked.merge_df(
+                df=df_customer,
+                table='Customer',
+                conn=conn,
+                on_cols=['CustomerName'],
+                datetime_cols_dtype=None,
+                localize_tz=localize_tz,
+                target_tz=target_tz
+            )
+
+        # Verify
+        # ===========================================================
+        params = conn.execute.call_args.args[1]
+        timestamps = [item['BirthDate'] for item in params]
+
+        assert timestamps == timestamps_exp 
+        conn.execute.assert_called_once()
+
+        # Clean up - None
+        # ===========================================================
+
+    @pytest.mark.raises
+    def test_target_tz_no_localize_tz(self, oracle_db_mocked, df_customer):
+        r"""Test to supply a value to `target_tz` when `localize_tz` is None.
+
+        pandemy.InvalidInputError is expected to be raised because a naive datetime
+        column cannot be converted without first being localized.
+        """
+
+        # Setup - None
+        # ===========================================================
+
+        # Exercise & Verify
+        # ===========================================================
+        with pytest.raises(pandemy.InvalidInputError):
+            with oracle_db_mocked.engine.begin() as conn:
+                oracle_db_mocked.merge_df(
+                    df=df_customer,
+                    table='Customer',
+                    conn=conn,
+                    on_cols=['CustomerName'],
+                    datetime_cols_dtype=None,
+                    localize_tz=None,
+                    target_tz='CET'
+                )
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_input_df_Not_mutated(self, oracle_db_mocked, df_customer):
+        r"""Test that the input DataFrame is not mutated after executing the method."""
+
+        # Setup
+        # ===========================================================
+        df_exp_result = df_customer.copy()
+
+        # Exercise
+        # ===========================================================
+        with oracle_db_mocked.engine.begin() as conn:
+            oracle_db_mocked.merge_df(
+                df=df_customer,
+                table='Customer',
+                conn=conn,
+                on_cols=['CustomerName'],
+                datetime_cols_dtype='str',
+                datetime_format=r'%Y-%m-%d %H:%M:%S%z',
+                localize_tz='UTC',
+                target_tz='CET'
+            )
+
+        # Verify
+        # ===========================================================
+        assert_frame_equal(df_customer, df_exp_result, check_dtype=True, check_index_type=True)
 
         # Clean up - None
         # ===========================================================
