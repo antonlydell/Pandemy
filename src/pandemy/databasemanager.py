@@ -1071,15 +1071,22 @@ WHERE
             nr_rows = df.shape[0]
             logger.info(f'Successfully wrote {nr_rows} rows over {nr_cols} columns to table {table}.')
 
-    def load_table(self, sql: Union[str, TextClause], conn: Connection,
-                   params: Optional[Dict[str, str]] = None,
-                   index_col: Optional[Union[str, Sequence[str]]] = None,
-                   columns: Optional[Sequence[str]] = None,
-                   parse_dates: Optional[Union[list, dict]] = None,
-                   localize_tz: Optional[str] = None, target_tz: Optional[str] = None,
-                   dtypes: Optional[Dict[str, Union[str, object]]] = None,
-                   chunksize: Optional[int] = None,
-                   coerce_float: bool = True) -> Union[pd.DataFrame, Iterator[pd.DataFrame]]:
+    def load_table(
+        self,
+        sql: Union[str, TextClause],
+        conn: Connection,
+        params: Optional[Dict[str, str]] = None,
+        index_col: Optional[Union[str, Sequence[str]]] = None,
+        columns: Optional[Sequence[str]] = None,
+        parse_dates: Optional[Union[list, dict]] = None,
+        datetime_cols_dtype: Optional[str] = None,
+        datetime_format: str = r'%Y-%m-%d %H:%M:%S',
+        localize_tz: Optional[str] = None,
+        target_tz: Optional[str] = None,
+        dtypes: Optional[Dict[str, Union[str, object]]] = None,
+        chunksize: Optional[int] = None,
+        coerce_float: bool = True
+) -> Union[pd.DataFrame, Iterator[pd.DataFrame]]:
         r"""Load a SQL table into a :class:`pandas.DataFrame`.
 
         Specify a table name or a SQL query to load the :class:`pandas.DataFrame` from.
@@ -1105,7 +1112,7 @@ WHERE
             List of column names to select from the SQL table (only used when `sql` is a table name).
 
         parse_dates : list or dict or None, default None
-            * List of column names to parse as dates.
+            * List of column names to parse into datetime columns.
 
             * Dict of `{column_name: format string}` where format string is strftime compatible
               in case of parsing string times, or is one of (D, s, ns, ms, us)
@@ -1115,13 +1122,29 @@ WHERE
               :func:`pandas.to_datetime`. Especially useful with databases without native datetime support,
               such as SQLite.
 
+        datetime_cols_dtype : {'str', 'int'} or None, default None
+            If the datetime columns of the loaded DataFrame `df` should be converted to string or integer
+            data types. If ``None`` conversion of datetime columns is omitted, which is the default.
+            When using ``'int'`` the datetime columns are converted to the number of seconds since the
+            Unix Epoch of 1970-01-01. The timezone of the datetime columns should be in UTC when using ``'int'``.
+            You may need to specify `parse_dates` in order for columns be converted into datetime columns
+            depending on the SQL driver.
+
+            .. versionadded:: 1.2.0
+
+        datetime_format : str, default r'%Y-%m-%d %H:%M:%S'
+            The datetime (:meth:`strftime <datetime.datetime.strftime>`) format
+            to use when converting datetime columns to strings.
+
+            .. versionadded:: 1.2.0
+
         localize_tz : str or None, default None
-            Localize naive datetime columns of the returned :class:`pandas.DataFrame` to specified timezone.
-            If None no localization is performed.
+            The name of the timezone which to localize naive datetime columns into.
+            If None (the default) timezone localization is omitted.
 
         target_tz : str or None, default None
-            The timezone to convert the datetime columns of the returned :class:`pandas.DataFrame` into after
-            they have been localized. If None no conversion is performed.
+            The name of the target timezone to convert the datetime columns into after they have been localized.
+            If None (the default) timezone conversion is omitted.
 
         dtypes : dict or None, default None
             Desired data types for specified columns `{'column_name': data type}`.
@@ -1159,6 +1182,8 @@ WHERE
 
         See Also
         --------
+        * :meth:`DatabaseManager.save_df` : Save a :class:`pandas.DataFrame` to a table in the database.
+
         * :func:`pandas.read_sql` : Read SQL query or database table into a :class:`pandas.DataFrame`.
 
         * :func:`pandas.to_datetime` : The function used for datetime conversion with `parse_dates`.
@@ -1200,26 +1225,41 @@ WHERE
         if len(df.index) == 0:
             logger.warning('No rows were returned form the query.')
 
-        # Convert specifed columns to desired data types
+        # Convert specified columns to desired data types
         if dtypes is not None:
             logger.debug('Convert columns to desired data types.')
+            error_msg: str = ''
+            data: Optional[tuple] = None
             try:
                 df = df.astype(dtype=dtypes)
             except KeyError:
                 # The keys that are not in the columns
                 difference = ', '.join([key for key in dtypes.keys() if key not in (cols := set(df.columns))])
                 cols = df.columns.tolist()
-                raise pandemy.DataTypeConversionError(f'Only column names can be used for the keys in dtypes parameter.'
-                                                      f'\nColumns   : {cols}\ndtypes    : {dtypes}\n'
-                                                      f'Difference: {difference}',
-                                                      data=(cols, dtypes, difference)) from None
+                error_msg = (
+                    f'Only column names can be used for the keys in dtypes parameter.'
+                    f'\nColumns   : {cols}\ndtypes    : {dtypes}\n'
+                    f'Difference: {difference}'
+                )
+                data=(cols, dtypes, difference)
             except TypeError as e:
-                raise pandemy.DataTypeConversionError(f'Cannot convert data types: {e.args[0]}.\ndtypes={dtypes}',
-                                                      data=(e.args, dtypes)) from None
+                error_msg = f'Cannot convert data types: {e.args[0]}.\ndtypes={dtypes}'
+                data=(e.args, dtypes)
+
+            if error_msg:
+                raise pandemy.DataTypeConversionError(message=error_msg, data=data)
 
         # Localize (and convert) to desired timezone
-        if localize_tz is not None:
-            pandemy._datetime.datetime_columns_to_timezone(df=df, localize_tz=localize_tz, target_tz=target_tz)
+        if datetime_cols_dtype is None and localize_tz is None and target_tz is None:
+            pass
+        else:
+            df = pandemy._datetime.convert_datetime_columns(
+                df=df,
+                dtype=datetime_cols_dtype,
+                datetime_format=datetime_format,
+                localize_tz=localize_tz,
+                target_tz=target_tz
+            )
 
         # Nr of rows and columns retrieved by the query
         nr_rows = df.shape[0]
@@ -1227,15 +1267,16 @@ WHERE
 
         # Set the index/indices column(s)
         if index_col is not None:
+            error_msg = ''
             try:
                 df.set_index(index_col, inplace=True)
             except KeyError as e:
-                raise pandemy.SetIndexError(f'Cannot set index to {index_col}: {e.args[0]}.',
-                                            data=index_col) from None
+                error_msg = f'Cannot set index to {index_col}: {e.args[0]}.'
             except TypeError as e:
-                raise pandemy.SetIndexError(f'Cannot set index to {index_col}: '
-                                            f'{e.args[0].replace("""keys""", "index_col")}.',
-                                            data=index_col) from None
+                error_msg = f'Cannot set index to {index_col}: {e.args[0].replace("""keys""", "index_col")}.'
+
+            if error_msg:
+                raise pandemy.SetIndexError(message=error_msg, data=index_col)
 
         logger.info(f'Successfully loaded {nr_rows} rows and {nr_cols} columns.')
 
