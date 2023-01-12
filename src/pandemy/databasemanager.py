@@ -609,11 +609,11 @@ WHERE
 
         Raises
         ------
-        pandemy.InvalidInputError
-            If invalid input is supplied to `action`.
-
         pandemy.ExecuteStatementError
             If changing the handling of foreign key constraint fails.
+
+        pandemy.InvalidInputError
+            If invalid input is supplied to `action`.
 
         See Also
         --------
@@ -694,17 +694,15 @@ WHERE
 
         Raises
         ------
-        pandemy.InvalidInputError
-            If `sql` is not of type str or sqlalchemy.sql.elements.TextClause.
-
         pandemy.ExecuteStatementError
             If an error occurs when executing the statement.
+
+        pandemy.InvalidInputError
+            If `sql` is not of type str or :class:`sqlalchemy.sql.elements.TextClause`.
 
         See Also
         --------
         * :meth:`sqlalchemy.engine.Connection.execute` : The method used for executing the SQL statement.
-
-        * :class:`sqlalchemy.engine.CursorResult` : The return type from the method.
 
         Examples
         --------
@@ -754,11 +752,11 @@ WHERE
 
         Raises
         ------
-        pandemy.InvalidTableNameError
-            If the supplied table name is invalid.
-
         pandemy.DeleteFromTableError
             If data cannot be deleted from the table.
+
+        pandemy.InvalidTableNameError
+            If the supplied table name is invalid.
 
         See Also
         --------
@@ -821,11 +819,22 @@ WHERE
         else:
             logger.debug(f'Successfully deleted existing data from table {table}.')
 
-    def save_df(self, df: pd.DataFrame, table: str, conn: Connection, if_exists: str = 'append',
-                index: bool = True, index_label: Optional[Union[str, Sequence[str]]] = None,
-                chunksize: Optional[int] = None, schema: Optional[str] = None,
-                dtype: Optional[Union[Dict[str, Union[str, object]], object]] = None,
-                method: Optional[Union[str, Callable]] = None) -> None:
+    def save_df(
+        self,
+        df: pd.DataFrame,
+        table: str,
+        conn: Connection,
+        if_exists: str = 'append',
+        index: bool = True,
+        index_label: Optional[Union[str, Sequence[str]]] = None,
+        chunksize: Optional[int] = None,
+        schema: Optional[str] = None,
+        dtype: Optional[Union[Dict[str, Union[str, object]], object]] = None,
+        datetime_cols_dtype: Optional[str] = None,
+        datetime_format: str = r'%Y-%m-%d %H:%M:%S',
+        localize_tz: Optional[str] = None,
+        target_tz: Optional[str] = None,
+        method: Optional[Union[str, Callable]] = None) -> None:
         r"""Save the :class:`pandas.DataFrame` `df` to specified table in the database.
 
         If the table does not exist it will be created. If the table already exists
@@ -878,6 +887,33 @@ WHERE
             and the values should be the SQLAlchemy types or strings for the sqlite3 legacy mode.
             If a scalar is provided, it will be applied to all columns.
 
+        datetime_cols_dtype : {'str', 'int'} or None, default None
+            If the datetime columns of `df` should be converted to string or integer data types
+            before saving the table. If ``None`` no conversion of datetime columns is performed,
+            which is the default. When using ``'int'`` the datetime columns are converted to the
+            number of seconds since the Unix Epoch of 1970-01-01. The timezone of the datetime 
+            columns should be in UTC when using ``'int'``.
+
+            .. versionadded:: 1.2.0
+
+        datetime_format : str, default r'%Y-%m-%d %H:%M:%S'
+            The datetime (:meth:`strftime <datetime.datetime.strftime>`) format
+            to use when converting datetime columns to strings.
+
+            .. versionadded:: 1.2.0
+
+        localize_tz : str or None, default None 
+            The name of the timezone which to localize naive datetime columns into.
+            If None (the default) timezone localization is omitted.
+
+            .. versionadded:: 1.2.0
+
+        target_tz : str or None, default None
+            The name of the target timezone to convert timezone aware datetime columns, or columns that
+            have been localized by `localize_tz`, into. If None (the default) timezone conversion is omitted.
+
+            .. versionadded:: 1.2.0
+
         method : None, 'multi', callable, default None
             Controls the SQL insertion clause used:
 
@@ -897,14 +933,11 @@ WHERE
 
         Raises
         ------
-        pandemy.TableExistsError
-            If the table exists and ``if_exists='fail'``.
-
         pandemy.DeleteFromTableError
             If data in the table cannot be deleted when ``if_exists='replace'``.
 
         pandemy.InvalidInputError
-            Invalid values or types for input parameters.
+            Invalid values or types for input parameters or if the timezone localization or conversion fails.
 
         pandemy.InvalidTableNameError
             If the supplied table name is invalid.
@@ -912,8 +945,18 @@ WHERE
         pandemy.SaveDataFrameError
             If the :class:`pandas.DataFrame` cannot be saved to the table.
 
+        pandemy.TableExistsError
+            If the table exists and ``if_exists='fail'``.
+
         See Also
         --------
+
+        * :meth:`~DatabaseManager.load_table` : Load a SQL table into a :class:`pandas.DataFrame`.
+
+        * :meth:`~DatabaseManager.merge_df` : Merge data from a :class:`pandas.DataFrame` into a table.
+
+        * :meth:`~DatabaseManager.upsert_table` : Update a table with a :class:`pandas.DataFrame` and insert new rows if any.
+
         * :meth:`pandas.DataFrame.to_sql` : Write records stored in a DataFrame to a SQL database.
 
         * `pandas SQL insertion method`_ : Details about using the `method` parameter.
@@ -981,12 +1024,36 @@ WHERE
             self._is_valid_table_name(table=table)
 
         # ==========================================
+        # Convert datetime columns
+        # ==========================================
+
+        if datetime_cols_dtype is None and localize_tz is None and target_tz is None:
+            df_save = df
+        else:
+            df_save = pandemy._datetime.convert_datetime_columns(
+                df=df,
+                dtype=datetime_cols_dtype,
+                datetime_format=datetime_format,
+                localize_tz=localize_tz,
+                target_tz=target_tz
+            )
+
+        # ==========================================
         # Write the DataFrame to the SQL table
         # ==========================================
 
         try:
-            df.to_sql(table, con=conn, if_exists=if_exists, index=index, index_label=index_label,
-                      chunksize=chunksize, schema=schema, dtype=dtype, method=method)
+            df_save.to_sql(
+                table,
+                con=conn,
+                if_exists=if_exists,
+                index=index,
+                index_label=index_label,
+                chunksize=chunksize,
+                schema=schema,
+                dtype=dtype,
+                method=method
+            )
 
         except ValueError as e:
             if re.search(fr'.*{table}.+ already exists', e.args[0]):
@@ -1009,15 +1076,22 @@ WHERE
             nr_rows = df.shape[0]
             logger.info(f'Successfully wrote {nr_rows} rows over {nr_cols} columns to table {table}.')
 
-    def load_table(self, sql: Union[str, TextClause], conn: Connection,
-                   params: Optional[Dict[str, str]] = None,
-                   index_col: Optional[Union[str, Sequence[str]]] = None,
-                   columns: Optional[Sequence[str]] = None,
-                   parse_dates: Optional[Union[list, dict]] = None,
-                   localize_tz: Optional[str] = None, target_tz: Optional[str] = None,
-                   dtypes: Optional[Dict[str, Union[str, object]]] = None,
-                   chunksize: Optional[int] = None,
-                   coerce_float: bool = True) -> Union[pd.DataFrame, Iterator[pd.DataFrame]]:
+    def load_table(
+        self,
+        sql: Union[str, TextClause],
+        conn: Connection,
+        params: Optional[Dict[str, str]] = None,
+        index_col: Optional[Union[str, Sequence[str]]] = None,
+        columns: Optional[Sequence[str]] = None,
+        parse_dates: Optional[Union[list, dict]] = None,
+        datetime_cols_dtype: Optional[str] = None,
+        datetime_format: str = r'%Y-%m-%d %H:%M:%S',
+        localize_tz: Optional[str] = None,
+        target_tz: Optional[str] = None,
+        dtypes: Optional[Dict[str, Union[str, object]]] = None,
+        chunksize: Optional[int] = None,
+        coerce_float: bool = True
+) -> Union[pd.DataFrame, Iterator[pd.DataFrame]]:
         r"""Load a SQL table into a :class:`pandas.DataFrame`.
 
         Specify a table name or a SQL query to load the :class:`pandas.DataFrame` from.
@@ -1043,7 +1117,7 @@ WHERE
             List of column names to select from the SQL table (only used when `sql` is a table name).
 
         parse_dates : list or dict or None, default None
-            * List of column names to parse as dates.
+            * List of column names to parse into datetime columns.
 
             * Dict of `{column_name: format string}` where format string is strftime compatible
               in case of parsing string times, or is one of (D, s, ns, ms, us)
@@ -1053,13 +1127,29 @@ WHERE
               :func:`pandas.to_datetime`. Especially useful with databases without native datetime support,
               such as SQLite.
 
+        datetime_cols_dtype : {'str', 'int'} or None, default None
+            If the datetime columns of the loaded DataFrame `df` should be converted to string or integer
+            data types. If ``None`` conversion of datetime columns is omitted, which is the default.
+            When using ``'int'`` the datetime columns are converted to the number of seconds since the
+            Unix Epoch of 1970-01-01. The timezone of the datetime columns should be in UTC when using ``'int'``.
+            You may need to specify `parse_dates` in order for columns be converted into datetime columns
+            depending on the SQL driver.
+
+            .. versionadded:: 1.2.0
+
+        datetime_format : str, default r'%Y-%m-%d %H:%M:%S'
+            The datetime (:meth:`strftime <datetime.datetime.strftime>`) format
+            to use when converting datetime columns to strings.
+
+            .. versionadded:: 1.2.0
+
         localize_tz : str or None, default None
-            Localize naive datetime columns of the returned :class:`pandas.DataFrame` to specified timezone.
-            If None no localization is performed.
+            The name of the timezone which to localize naive datetime columns into.
+            If None (the default) timezone localization is omitted.
 
         target_tz : str or None, default None
-            The timezone to convert the datetime columns of the returned :class:`pandas.DataFrame` into after
-            they have been localized. If None no conversion is performed.
+            The name of the target timezone to convert the datetime columns into after they have been localized.
+            If None (the default) timezone conversion is omitted.
 
         dtypes : dict or None, default None
             Desired data types for specified columns `{'column_name': data type}`.
@@ -1085,6 +1175,12 @@ WHERE
 
         Raises
         ------
+        pandemy.DataTypeConversionError
+            If errors when converting data types using the `dtypes` parameter.
+
+        pandemy.InvalidInputError
+            Invalid values or types for input parameters or if the timezone localization or conversion fails.
+
         pandemy.LoadTableError
             If errors when loading the table using :func:`pandas.read_sql`.
 
@@ -1092,11 +1188,10 @@ WHERE
             If setting the index of the returned :class:`pandas.DataFrame` fails when `index_col` is specified
             and chunksize is None.
 
-        pandemy.DataTypeConversionError
-            If errors when converting data types using the `dtypes` parameter.
-
         See Also
         --------
+        * :meth:`~DatabaseManager.save_df` : Save a :class:`pandas.DataFrame` to a table in the database.
+
         * :func:`pandas.read_sql` : Read SQL query or database table into a :class:`pandas.DataFrame`.
 
         * :func:`pandas.to_datetime` : The function used for datetime conversion with `parse_dates`.
@@ -1138,26 +1233,41 @@ WHERE
         if len(df.index) == 0:
             logger.warning('No rows were returned form the query.')
 
-        # Convert specifed columns to desired data types
+        # Convert specified columns to desired data types
         if dtypes is not None:
             logger.debug('Convert columns to desired data types.')
+            error_msg: str = ''
+            data: Optional[tuple] = None
             try:
                 df = df.astype(dtype=dtypes)
             except KeyError:
                 # The keys that are not in the columns
                 difference = ', '.join([key for key in dtypes.keys() if key not in (cols := set(df.columns))])
                 cols = df.columns.tolist()
-                raise pandemy.DataTypeConversionError(f'Only column names can be used for the keys in dtypes parameter.'
-                                                      f'\nColumns   : {cols}\ndtypes    : {dtypes}\n'
-                                                      f'Difference: {difference}',
-                                                      data=(cols, dtypes, difference)) from None
+                error_msg = (
+                    f'Only column names can be used for the keys in dtypes parameter.'
+                    f'\nColumns   : {cols}\ndtypes    : {dtypes}\n'
+                    f'Difference: {difference}'
+                )
+                data=(cols, dtypes, difference)
             except TypeError as e:
-                raise pandemy.DataTypeConversionError(f'Cannot convert data types: {e.args[0]}.\ndtypes={dtypes}',
-                                                      data=(e.args, dtypes)) from None
+                error_msg = f'Cannot convert data types: {e.args[0]}.\ndtypes={dtypes}'
+                data=(e.args, dtypes)
+
+            if error_msg:
+                raise pandemy.DataTypeConversionError(message=error_msg, data=data)
 
         # Localize (and convert) to desired timezone
-        if localize_tz is not None:
-            pandemy._datetime.datetime_columns_to_timezone(df=df, localize_tz=localize_tz, target_tz=target_tz)
+        if datetime_cols_dtype is None and localize_tz is None and target_tz is None:
+            pass
+        else:
+            df = pandemy._datetime.convert_datetime_columns(
+                df=df,
+                dtype=datetime_cols_dtype,
+                datetime_format=datetime_format,
+                localize_tz=localize_tz,
+                target_tz=target_tz
+            )
 
         # Nr of rows and columns retrieved by the query
         nr_rows = df.shape[0]
@@ -1165,15 +1275,16 @@ WHERE
 
         # Set the index/indices column(s)
         if index_col is not None:
+            error_msg = ''
             try:
                 df.set_index(index_col, inplace=True)
             except KeyError as e:
-                raise pandemy.SetIndexError(f'Cannot set index to {index_col}: {e.args[0]}.',
-                                            data=index_col) from None
+                error_msg = f'Cannot set index to {index_col}: {e.args[0]}.'
             except TypeError as e:
-                raise pandemy.SetIndexError(f'Cannot set index to {index_col}: '
-                                            f'{e.args[0].replace("""keys""", "index_col")}.',
-                                            data=index_col) from None
+                error_msg = f'Cannot set index to {index_col}: {e.args[0].replace("""keys""", "index_col")}.'
+
+            if error_msg:
+                raise pandemy.SetIndexError(message=error_msg, data=index_col)
 
         logger.info(f'Successfully loaded {nr_rows} rows and {nr_cols} columns.')
 
@@ -1192,6 +1303,8 @@ WHERE
             nan_to_none: bool = True,
             datetime_cols_dtype: Optional[str] = None,
             datetime_format: str = r'%Y-%m-%d %H:%M:%S',
+            localize_tz: Optional[str] = None,
+            target_tz: Optional[str] = None,
             dry_run: bool = False
     ) -> Union[Tuple[CursorResult, Optional[CursorResult]], Tuple[str, Optional[str]], Tuple[None, None]]:
         r"""Update a table with data from a :class:`pandas.DataFrame` and insert new rows if any.
@@ -1247,13 +1360,22 @@ WHERE
         datetime_cols_dtype : {'str', 'int'} or None, default None
             If the datetime columns of `df` should be converted to string or integer data types
             before upserting the table. SQLite cannot handle datetime objects as parameters
-            and should use this option. If ``None`` no conversion of datetime columns is performed,
+            and should use this option. If ``None`` conversion of datetime columns is omitted,
             which is the default. When using ``'int'`` the datetime columns are converted to the
-            number of seconds since the unix epoch of 1970-01-01 in UTC time zone.
+            number of seconds since the Unix Epoch of 1970-01-01. The timezone of the datetime
+            columns should be in UTC when using ``'int'``.
 
         datetime_format : str, default r'%Y-%m-%d %H:%M:%S'
             The datetime (:meth:`strftime <datetime.datetime.strftime>`) format
             to use when converting datetime columns to strings.
+
+        localize_tz : str or None, default None 
+            The name of the timezone which to localize naive datetime columns into.
+            If None (the default) timezone localization is omitted.
+
+        target_tz : str or None, default None
+            The name of the target timezone to convert timezone aware datetime columns, or columns that have been
+            localized by `localize_tz`, into. If None (the default) timezone conversion is omitted.
 
         dry_run : bool, default False
             Do not execute the upsert. Instead return the SQL statements that would have been executed on the database.
@@ -1276,7 +1398,7 @@ WHERE
             among the columns or index of `df`.
 
         pandemy.InvalidInputError
-            Invalid values or types for input parameters.
+            Invalid values or types for input parameters or if the timezone localization or conversion fails.
 
         pandemy.InvalidTableNameError
             If the supplied table name is invalid.
@@ -1382,10 +1504,15 @@ WHERE
         if dry_run:  # Early exit to check the statements
             return update_stmt, insert_stmt
 
-        # Convert datetime columns to string or int
-        if datetime_cols_dtype is not None:
+        if datetime_cols_dtype is None and localize_tz is None and target_tz is None:
+            pass
+        else:
             df_upsert = pandemy._datetime.convert_datetime_columns(
-                df=df_upsert, dtype=datetime_cols_dtype, datetime_format=datetime_format
+                df=df_upsert,
+                dtype=datetime_cols_dtype,
+                datetime_format=datetime_format,
+                localize_tz=localize_tz,
+                target_tz=target_tz
             )
 
         # Convert missing values
@@ -1431,6 +1558,8 @@ WHERE
             nan_to_none: bool = True,
             datetime_cols_dtype: Optional[str] = None,
             datetime_format: str = r'%Y-%m-%d %H:%M:%S',
+            localize_tz: Optional[str] = None,
+            target_tz: Optional[str] = None,
             dry_run: bool = False) -> Union[CursorResult, str, None]:
         r"""Merge data from a :class:`pandas.DataFrame` into a table.
 
@@ -1508,13 +1637,22 @@ WHERE
 
         datetime_cols_dtype : {'str', 'int'} or None, default None
             If the datetime columns of `df` should be converted to string or integer data types
-            before updating the table. If ``None`` no conversion of datetime columns is performed,
+            before updating the table. If ``None`` conversion of datetime columns is omitted,
             which is the default. When using ``'int'`` the datetime columns are converted to the
-            number of seconds since the unix epoch of 1970-01-01 in UTC time zone.
+            number of seconds since the Unix Epoch of 1970-01-01. The timezone of the datetime
+            columns should be in UTC when using ``'int'``.
 
         datetime_format : str, default r'%Y-%m-%d %H:%M:%S'
             The datetime (:meth:`strftime <datetime.datetime.strftime>`) format
             to use when converting datetime columns to strings.
+
+        localize_tz : str or None, default None 
+            The name of the timezone which to localize naive datetime columns into.
+            If None (the default) timezone localization is omitted.
+
+        target_tz : str or None, default None
+            The name of the target timezone to convert timezone aware datetime columns, or columns that have been
+            localized by `localize_tz`, into. If None (the default) timezone conversion is omitted.
 
         dry_run : bool, default False
             Do not execute the merge. Instead return the SQL statement
@@ -1537,7 +1675,7 @@ WHERE
             among the columns or index of the input DataFrame `df`.
 
         pandemy.InvalidInputError
-            Invalid values or types for input parameters.
+            Invalid values or types for input parameters or if the timezone localization or conversion fails.
 
         pandemy.InvalidTableNameError
             If the supplied table name is invalid.
@@ -1547,6 +1685,8 @@ WHERE
 
         See Also
         --------
+        * :meth:`~DatabaseManager.save_df()` : Save a :class:`pandas.DataFrame` to specified table in the database.
+
         * :meth:`~DatabaseManager.upsert_table()` : Update a table with a :class:`pandas.DataFrame` and optionally insert new rows.
 
         Examples
@@ -1639,10 +1779,15 @@ WHERE
         if dry_run:  # Early exit to check the statement
             return merge_stmt
 
-        # Convert datetime columns to string or int
-        if datetime_cols_dtype is not None:
+        if datetime_cols_dtype is None and localize_tz is None and target_tz is None:
+            pass
+        else:
             df_merge = pandemy._datetime.convert_datetime_columns(
-                df=df_merge, dtype=datetime_cols_dtype, datetime_format=datetime_format
+                df=df_merge,
+                dtype=datetime_cols_dtype,
+                datetime_format=datetime_format,
+                localize_tz=localize_tz,
+                target_tz=target_tz
             )
 
         # Convert missing values
@@ -1848,11 +1993,11 @@ class SQLiteDb(DatabaseManager):
 
         Raises
         ------
-        pandemy.InvalidInputError
-            If invalid input is supplied to `action`.
-
         pandemy.ExecuteStatementError
             If the enabling/disabling of the foreign key constraints fails.
+
+        pandemy.InvalidInputError
+            If invalid input is supplied to `action`.
 
         See Also
         --------

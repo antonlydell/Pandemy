@@ -1213,6 +1213,162 @@ class TestSaveDfMethod:
 
             assert_frame_equal(df_result, df_exp, check_dtype=False, check_index_type=False)
 
+    def test_localize_tz_target_tz_datetime_cols_dtype_datetime_format(self, sqlite_db_empty, df_customer):
+        r"""Test the parameters `localize_tz`, `target_tz`, `datetime_cols_dtype` and `datetime_format`.
+
+        The parameters are passed along to the function `pandemy._datetime.convert_datetime_columns`.
+
+        Validate that the datetime column (BirthDate) of the input DataFrame is correctly converted to desired timezone.
+        """
+
+        # Setup
+        # ===========================================================
+        query = 'SELECT * FROM Customer ORDER BY CustomerId'
+        datetime_format = r'%Y-%m-%d %H:%M:%S%z'
+        localize_tz = 'UTC'
+        target_tz = 'CET'
+
+        df_exp_result = df_customer.copy()
+        df_exp_result['BirthDate'] = (
+            df_exp_result['BirthDate']
+            .dt.tz_localize(localize_tz)
+            .dt.tz_convert(target_tz)
+            .dt.strftime(datetime_format)
+        )
+
+        # Exercise
+        # ===========================================================
+        with sqlite_db_empty.engine.begin() as conn:
+            sqlite_db_empty.save_df(
+                df=df_customer,
+                table='Customer',
+                conn=conn,
+                if_exists='append',
+                datetime_cols_dtype='str',
+                datetime_format=datetime_format,
+                localize_tz=localize_tz,
+                target_tz=target_tz
+            )
+
+        # Verify
+        # ===========================================================
+        with sqlite_db_empty.engine.connect() as conn:
+            df_updated = pd.read_sql(
+                sql=query,
+                con=conn,
+                index_col='CustomerId',
+            )
+
+        assert_frame_equal(df_updated, df_exp_result, check_dtype=False, check_index_type=True)
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_localize_tz_target_tz_datetime_cols_dtype_is_none(self, sqlite_db_empty, df_customer):
+        r"""Test the parameters `localize_tz`, `target_tz` when `datetime_cols_dtype` is None.
+
+        The parameter `datetime_cols_dtype` is set to None which means that the datetime column
+        (BirthDate) should be localized and converted but kept as a datetime column.
+        """
+
+        # Setup
+        # ===========================================================
+        query = 'SELECT * FROM Customer ORDER BY CustomerId'
+        localize_tz = 'UTC'
+        target_tz = 'CET'
+
+        df_exp_result = df_customer.copy()
+        df_exp_result['BirthDate'] = (
+            df_exp_result['BirthDate']
+            .dt.tz_localize(localize_tz)
+            .dt.tz_convert(target_tz)
+            .dt.tz_localize(None)  # Remove timezone information, because it is lost when saving to the database.
+        )
+
+        # Exercise
+        # ===========================================================
+        with sqlite_db_empty.engine.begin() as conn:
+            sqlite_db_empty.save_df(
+                df=df_customer,
+                table='Customer',
+                conn=conn,
+                if_exists='append',
+                datetime_cols_dtype=None,
+                localize_tz=localize_tz,
+                target_tz=target_tz
+            )
+
+        # Verify
+        # ===========================================================
+        with sqlite_db_empty.engine.connect() as conn:
+            df_updated = pd.read_sql(
+                sql=query,
+                con=conn,
+                index_col='CustomerId',
+                parse_dates=['BirthDate']
+            )
+
+        assert_frame_equal(df_updated, df_exp_result, check_dtype=False, check_index_type=True)
+
+        # Clean up - None
+        # ===========================================================
+
+    @pytest.mark.raises
+    def test_target_tz_no_localize_tz(self, sqlite_db_empty, df_customer):
+        r"""Test to supply a value to `target_tz` when `localize_tz` is None.
+
+        pandemy.InvalidInputError is expected to be raised because a naive datetime
+        column cannot be converted without first being localized.
+        """
+
+        # Setup - None
+        # ===========================================================
+
+        # Exercise & Verify
+        # ===========================================================
+        with pytest.raises(pandemy.InvalidInputError):
+            with sqlite_db_empty.engine.begin() as conn:
+                sqlite_db_empty.save_df(
+                    df=df_customer,
+                    table='Customer',
+                    conn=conn,
+                    if_exists='append',
+                    datetime_cols_dtype=None,
+                    localize_tz=None,
+                    target_tz='CET'
+                )
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_input_df_not_mutated(self, sqlite_db_empty, df_customer):
+        r"""Test that the input DataFrame is not mutated after executing the method."""
+
+        # Setup
+        # ===========================================================
+        df_exp_result = df_customer.copy()
+
+        # Exercise
+        # ===========================================================
+        with sqlite_db_empty.engine.begin() as conn:
+            sqlite_db_empty.save_df(
+                df=df_customer,
+                table='Customer',
+                conn=conn,
+                if_exists='append',
+                datetime_cols_dtype='str',
+                datetime_format=r'%Y-%m-%d %H:%M:%S%z',
+                localize_tz='UTC',
+                target_tz='CET'
+            )
+
+        # Verify
+        # ===========================================================
+        assert_frame_equal(df_customer, df_exp_result, check_dtype=True, check_index_type=True)
+
+        # Clean up - None
+        # ===========================================================
+
     @pytest.mark.raises
     @pytest.mark.parametrize('df', [pytest.param('df', id='str'),
                                     pytest.param([], id='list')])
@@ -1617,10 +1773,7 @@ class TestLoadTableMethod:
         # ===========================================================
 
     def test_load_table_localize_timezone(self, sqlite_db, df_item_traded_in_store):
-        r"""
-        Load table ItemTradedInStore and localize datetime column TransactionTimestamp
-        to CET timezone.
-        """
+        r"""Load table ItemTradedInStore and localize datetime column TransactionTimestamp to CET timezone."""
 
         # Setup
         # ===========================================================
@@ -1631,18 +1784,30 @@ class TestLoadTableMethod:
         # Exercise
         # ===========================================================
         with sqlite_db.engine.begin() as conn:
-            df_result = sqlite_db.load_table(sql='ItemTradedInStore', conn=conn, index_col='TransactionId',
-                                             parse_dates='TransactionTimestamp', localize_tz=tz)
+            df_result = sqlite_db.load_table(
+                sql='ItemTradedInStore',
+                conn=conn,
+                index_col='TransactionId',
+                parse_dates='TransactionTimestamp',
+                localize_tz=tz
+            )
 
         # Verify
         # ===========================================================
         assert_frame_equal(df_result, df_item_traded_in_store, check_dtype=False, check_index_type=False)
+        assert_series_equal(
+            df_result[datetime_col],
+            df_item_traded_in_store[datetime_col],
+            check_dtype=True,
+            check_index_type=False
+        )
 
         # Clean up - None
         # ===========================================================
 
     def test_load_table_convert_timezone(self, sqlite_db, df_item_traded_in_store):
-        r"""
+        r"""Test to localize and convert the timezone of a datetime column.
+
         Load table ItemTradedInStore and convert datetime column TransactionTimestamp
         from localized timezone CET to EET timezone.
         """
@@ -1652,21 +1817,156 @@ class TestLoadTableMethod:
         datetime_col = 'TransactionTimestamp'
         localize_tz = 'CET'
         target_tz = 'EET'
-        df_item_traded_in_store.loc[:, datetime_col] = df_item_traded_in_store[datetime_col].dt.tz_localize(localize_tz)
-        df_item_traded_in_store.loc[:, datetime_col] = df_item_traded_in_store[datetime_col].dt.tz_convert(target_tz)
+
+        df_item_traded_in_store[datetime_col] = (
+            df_item_traded_in_store[datetime_col]
+            .dt.tz_localize(localize_tz)
+            .dt.tz_convert(target_tz)
+        )
 
         # Exercise
         # ===========================================================
         with sqlite_db.engine.begin() as conn:
-            df_result = sqlite_db.load_table(sql='ItemTradedInStore', conn=conn, index_col='TransactionId',
-                                             parse_dates='TransactionTimestamp', localize_tz=localize_tz,
-                                             target_tz=target_tz)
+            df_result = sqlite_db.load_table(
+                sql='ItemTradedInStore',
+                conn=conn,
+                index_col='TransactionId',
+                parse_dates=datetime_col,
+                datetime_cols_dtype=None,
+                localize_tz=localize_tz,
+                target_tz=target_tz
+            )
 
         # Verify
         # ===========================================================
         assert_frame_equal(df_result, df_item_traded_in_store, check_dtype=False, check_index_type=False)
-        assert_series_equal(df_result[datetime_col], df_item_traded_in_store[datetime_col],
-                            check_dtype=True, check_index_type=False)
+        assert_series_equal(
+            df_result[datetime_col],
+            df_item_traded_in_store[datetime_col],
+            check_dtype=True,
+            check_index_type=False
+        )
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_localize_tz_target_tz_datetime_cols_dtype_datetime_format(self, sqlite_db, df_item_traded_in_store):
+        r"""Test the parameters `localize_tz`, `target_tz`, `datetime_cols_dtype` and `datetime_format`.
+
+        The parameters are passed along to the function `pandemy._datetime.convert_datetime_columns`.
+
+        Validate that the datetime column (TransactionTimestamp) of the result DataFrame
+        is correctly converted to desired timezone.
+        """
+
+        # Setup
+        # ===========================================================
+        datetime_col = 'TransactionTimestamp'
+        datetime_format = r'%Y-%m-%d %H:%M:%S%z'
+        localize_tz = 'UTC'
+        target_tz = 'CET'
+
+        df_item_traded_in_store[datetime_col] = (
+            df_item_traded_in_store[datetime_col]
+            .dt.tz_localize(localize_tz)
+            .dt.tz_convert(target_tz)
+            .dt.strftime(datetime_format)
+        )
+
+        # Exercise
+        # ===========================================================
+        with sqlite_db.engine.begin() as conn:
+            df_result = sqlite_db.load_table(
+                sql='ItemTradedInStore',
+                conn=conn,
+                index_col='TransactionId',
+                parse_dates=datetime_col,
+                datetime_cols_dtype='str',
+                datetime_format=datetime_format,
+                localize_tz=localize_tz,
+                target_tz=target_tz
+            )
+
+        # Verify
+        # ===========================================================
+        assert_frame_equal(df_result, df_item_traded_in_store, check_dtype=False, check_index_type=True)
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_localize_tz_target_tz_datetime_cols_dtype_int(self, sqlite_db, df_item_traded_in_store):
+        r"""Test the parameters `localize_tz` and `target_tz` when `datetime_cols_dtype` is set to 'int'.
+
+        The parameter `datetime_cols_dtype` is set to 'int', which means that the datetime column
+        (TransactionTimestamp) should be localized and converted to Unix Epoch timestamps.
+        """
+
+        # Setup
+        # ===========================================================
+        datetime_col = 'TransactionTimestamp'
+        localize_tz = 'CET'
+        target_tz = 'UTC'
+
+        df_item_traded_in_store[datetime_col] = [
+                1624045680,  # 2021-06-18T19:48:00Z
+                1624045740,  # 2021-06-18T19:49:00Z
+                1624126080,  # 2021-06-19T18:08:00Z
+                1624707420,  # 2021-06-26T11:37:00Z
+                1187264280,  # 2007-08-16T11:38:00Z
+                1199142060,  # 2007-12-31T12:01:00Z
+                1233867720   # 2009-02-05T21:02:00Z
+            ]
+
+        # Exercise
+        # ===========================================================
+        with sqlite_db.engine.begin() as conn:
+            df_result = sqlite_db.load_table(
+                sql='ItemTradedInStore',
+                conn=conn,
+                index_col='TransactionId',
+                parse_dates=datetime_col,
+                datetime_cols_dtype='int',
+                localize_tz=localize_tz,
+                target_tz=target_tz
+            )
+
+        # Verify
+        # ===========================================================
+        assert_frame_equal(
+            df_result,
+            df_item_traded_in_store,
+            check_dtype=False,
+            check_exact=True,
+            check_index_type=True
+        )
+
+        # Clean up - None
+        # ===========================================================
+
+    @pytest.mark.raises
+    def test_target_tz_no_localize_tz(self, sqlite_db):
+        r"""Test to supply a value to `target_tz` when `localize_tz` is None.
+
+        pandemy.InvalidInputError is expected to be raised because a naive datetime
+        column cannot be converted without first being localized.
+        """
+
+        # Setup - None
+        # ===========================================================
+
+        # Exercise & Verify
+        # ===========================================================
+        with pytest.raises(pandemy.InvalidInputError):
+            with sqlite_db.engine.begin() as conn:
+                sqlite_db.load_table(
+                    sql='ItemTradedInStore',
+                    conn=conn,
+                    index_col='TransactionId',
+                    parse_dates='TransactionTimestamp',
+                    datetime_cols_dtype=None,
+                    localize_tz=None,
+                    target_tz='UTC'
+                )
 
         # Clean up - None
         # ===========================================================
@@ -2270,6 +2570,154 @@ WHERE
 
         df_customer.loc[2, 'CustomerName'] = original_customer_name  # Restore original value
         assert_frame_equal(df_updated, df_customer, check_dtype=False, check_index_type=False)
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_localize_tz_target_tz_datetime_cols_dtype_datetime_format(self, sqlite_db_to_modify, df_customer):
+        r"""Test the parameters `localize_tz`, `target_tz`, `datetime_cols_dtype` and `datetime_format`.
+
+        The parameters are passed along to the function `pandemy._datetime.convert_datetime_columns`.
+
+        Validate that the datetime column (BirthDate) of the input DataFrame is correctly converted to desired timezone.
+        """
+
+        # Setup
+        # ===========================================================
+        load_table_query = 'SELECT * FROM Customer ORDER BY CustomerId'
+        datetime_format = r'%Y-%m-%d %H:%M:%S%z'
+        localize_tz = 'UTC'
+        target_tz = 'CET'
+
+        df_exp_result = df_customer.copy()
+        df_exp_result['BirthDate'] = (
+            df_exp_result['BirthDate']
+            .dt.tz_localize(localize_tz)
+            .dt.tz_convert(target_tz)
+            .dt.strftime(datetime_format)
+        )
+
+        # Exercise
+        # ===========================================================
+        with sqlite_db_to_modify.engine.begin() as conn:
+            sqlite_db_to_modify.upsert_table(
+                df=df_customer,
+                table='Customer',
+                conn=conn,
+                where_cols=['CustomerName'],
+                update_only=True,
+                nan_to_none=True,
+                datetime_cols_dtype='str',
+                datetime_format=datetime_format,
+                localize_tz=localize_tz,
+                target_tz=target_tz
+            )
+
+
+        # Verify
+        # ===========================================================
+        with sqlite_db_to_modify.engine.connect() as conn:
+            df_updated = pd.read_sql(
+                sql=load_table_query,
+                con=conn,
+                index_col='CustomerId',
+            )
+
+        assert_frame_equal(df_updated, df_exp_result, check_dtype=False, check_index_type=False)
+
+        # Clean up - None
+        # ===========================================================
+
+    @pytest.mark.raises
+    def test_localize_tz_target_tz_datetime_cols_dtype_is_none(self, sqlite_db_to_modify, df_customer):
+        r"""Test the parameters `localize_tz`, `target_tz` when `datetime_cols_dtype` is None.
+
+        The parameter `datetime_cols_dtype` is set to None, which means that the datetime column
+        (BirthDate) should be localized and converted but kept as a datetime column.
+
+        pandemy.ExecuteStatementError is expected to be raised because SQLite cannot handle
+        datetime data types as parameters the `conn.execute` method, which is used to execute
+        the upsert statement.
+        """
+
+        # Setup - None
+        # ===========================================================
+
+        # Exercise & Verify
+        # ===========================================================
+        with pytest.raises(pandemy.ExecuteStatementError):
+            with sqlite_db_to_modify.engine.begin() as conn:
+                sqlite_db_to_modify.upsert_table(
+                    df=df_customer,
+                    table='Customer',
+                    conn=conn,
+                    where_cols=['CustomerName'],
+                    update_only=True,
+                    nan_to_none=True,
+                    datetime_cols_dtype=None,
+                    localize_tz='UTC',
+                    target_tz='CET'
+                )
+
+        # Clean up - None
+        # ===========================================================
+
+    @pytest.mark.raises
+    def test_target_tz_no_localize_tz(self, sqlite_db_to_modify, df_customer):
+        r"""Test to supply a value to `target_tz` when `localize_tz` is None.
+
+        pandemy.InvalidInputError is expected to be raised because a naive datetime
+        column cannot be converted without first being localized.
+        """
+
+        # Setup - None
+        # ===========================================================
+
+        # Exercise & Verify
+        # ===========================================================
+        with pytest.raises(pandemy.InvalidInputError):
+            with sqlite_db_to_modify.engine.begin() as conn:
+                sqlite_db_to_modify.upsert_table(
+                    df=df_customer,
+                    table='Customer',
+                    conn=conn,
+                    where_cols=['CustomerName'],
+                    update_only=True,
+                    nan_to_none=True,
+                    datetime_cols_dtype='str',
+                    localize_tz=None,
+                    target_tz='CET'
+                )
+
+        # Clean up - None
+        # ===========================================================
+
+    def test_input_df_not_mutated(self, sqlite_db_to_modify, df_customer):
+        r"""Test that the input DataFrame is not mutated after executing the method."""
+
+        # Setup
+        # ===========================================================
+        df_exp_result = df_customer.copy()
+
+        # Exercise
+        # ===========================================================
+        with sqlite_db_to_modify.engine.begin() as conn:
+            sqlite_db_to_modify.upsert_table(
+                df=df_customer,
+                table='Customer',
+                conn=conn,
+                where_cols=['CustomerName'],
+                update_only=True,
+                nan_to_none=True,
+                datetime_cols_dtype='str',
+                datetime_format=r'%Y-%m-%d %H:%M:%S%z',
+                localize_tz='UTC',
+                target_tz='CET'
+            )
+
+        # Verify
+        # ===========================================================
+        assert_frame_equal(df_customer, df_exp_result, check_dtype=True, check_index_type=True)
 
         # Clean up - None
         # ===========================================================

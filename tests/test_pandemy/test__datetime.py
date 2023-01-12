@@ -110,19 +110,33 @@ def df_datetime_naive_and_tz_aware(df_datetime: Tuple[pd.DataFrame, List[str]]) 
 # =================================================
 
 
-class TestDatetimeColumnsToTimezone:
-    r"""Test the function `datetime_columns_to_timezone`.
+class TestConvertDatetimeColumns:
+    r"""Test the function `convert_datetime_columns`.
+
+    Tests the localization and timezone conversion without converting
+    the data type to string or integer.
 
     Fixtures
     --------
     df_datetime : pd.DataFrame
        Input DataFrame to localize and convert to desired timezone.
+    
+    df_datetime_tz_aware : pd.DataFrame
+        A DataFrame with timezone aware columns.
+
+     df_datetime_naive_and_tz_aware: pd.DataFrame
+        A DataFrame with a mixture of datetime columns that are naive and timezone aware.
     """
 
-    @pytest.mark.parametrize('localize_tz', [pytest.param('UTC', id='UTC'),
-                                             pytest.param('CET', id='CET')])
-    def test_localize_to_tz(self, localize_tz, df_datetime):
-        r"""Localize naive datetime columns to specified timezone.
+    @pytest.mark.parametrize(
+        'localize_tz',
+        (
+            pytest.param('UTC', id='UTC'),
+            pytest.param('CET', id='CET')
+        )
+    )
+    def test_localize_tz_naive_datetime_columns(self, localize_tz, df_datetime):
+        r"""Localize a DataFrame with naive datetime columns to specified timezone.
 
         Parameters
         ----------
@@ -140,20 +154,118 @@ class TestDatetimeColumnsToTimezone:
 
         # Exercise
         # ===========================================================
-        pandemy._datetime.datetime_columns_to_timezone(df=df, localize_tz=localize_tz, target_tz=None)
+        df_result = pandemy._datetime.convert_datetime_columns(
+            df=df,
+            dtype=None,
+            localize_tz=localize_tz,
+            target_tz=None
+        )
 
         # Verify
         # ===========================================================
-        assert_frame_equal(df, df_exp_result)
+        assert_frame_equal(df_result, df_exp_result)
 
         # Clean up - None
         # ===========================================================
 
-    def test_localize_to_tz_no_datetime_columns(self, df_datetime):
-        r"""Localize naive datetime columns to CET timezone.
+    @pytest.mark.parametrize(
+        'localize_tz',
+        (
+            pytest.param('UTC', id='UTC'),
+            pytest.param('CET', id='CET')
+        )
+    )
+    def test_localize_tz_tz_aware_datetime_columns(self, localize_tz, df_datetime_tz_aware):
+        r"""Localize a DataFrame with timezone aware datetime columns to specified timezone.
 
-        No naive datetime columns are found in the input DataFrame.
+        The timezone aware datetime columns should not be modified since the already have a timezone.
+
+        Parameters
+        ----------
+        localize_tz : str
+            Name of the timezone which to localize datetime columns into.
+        """
+
+        # Setup
+        # ===========================================================
+        df, _ = df_datetime_tz_aware
+
+        # Exercise
+        # ===========================================================
+        df_result = pandemy._datetime.convert_datetime_columns(
+            df=df,
+            dtype=None,
+            localize_tz=localize_tz,
+            target_tz=None
+        )
+
+        # Verify
+        # ===========================================================
+        assert_frame_equal(df_result, df)
+
+        # Clean up - None
+        # ===========================================================
+
+    @pytest.mark.parametrize(
+        'localize_tz',
+        (
+            pytest.param('UTC', id='UTC'),
+            pytest.param('CET', id='CET')
+        )
+    )
+    def test_localize_tz_naive_and_tz_aware_datetime_columns(self, localize_tz, df_datetime_naive_and_tz_aware):
+        r"""Localize a DataFrame with naive and timezone aware datetime columns to specified timezone.
+
+        Only the naive datetime columns should be localized.
+
+        Parameters
+        ----------
+        localize_tz : str
+            Name of the timezone which to localize datetime columns into.
+        """
+
+        # Setup
+        # ===========================================================
+        df, _ = df_datetime_naive_and_tz_aware
+        df_exp_result = df.copy()
+        df_exp_result.loc[:, 'Datetime1'] = df_exp_result['Datetime1'].dt.tz_localize(localize_tz)
+
+        # Exercise
+        # ===========================================================
+        df_result = pandemy._datetime.convert_datetime_columns(
+            df=df,
+            dtype=None,
+            localize_tz=localize_tz,
+            target_tz=None
+        )
+
+        # Verify
+        # ===========================================================
+        assert_frame_equal(df_result, df_exp_result)
+
+        # Clean up - None
+        # ===========================================================
+
+    @pytest.mark.parametrize(
+        'localize_tz, target_tz',
+        (
+            pytest.param('UTC', None, id='loc_tz=UTC, t_tz=None'),
+            pytest.param('UTC', 'CET', id='loc_tz=UTC, t_tz=CET'),
+        )
+    )
+    def test_localize_tz_and_target_tz_no_datetime_columns(self, localize_tz, target_tz, df_datetime):
+        r"""Test to localize and convert to target timezone when the DataFrame has no datetime columns.
+
         No columns of the input DataFrame should be modified.
+
+        Parameters
+        ----------
+        localize_tz : str
+            Name of the timezone which to localize datetime columns into.
+
+        target_tz : str or None
+            Name of the target timezone to convert datetime columns into.
+            If `target_tz` is None or `target_tz = `localize_tz` timezone conversion is omitted.
         """
 
         # Setup
@@ -161,38 +273,43 @@ class TestDatetimeColumnsToTimezone:
         df, datetime_cols = df_datetime
 
         # Make all datetime columns string columns
-        df = df.astype({col: pd.StringDtype() for col in datetime_cols})
-        df_exp_result = df.copy()
+        df = df.astype({col: 'string' for col in datetime_cols})
 
         # Exercise
         # ===========================================================
-        pandemy._datetime.datetime_columns_to_timezone(df=df, localize_tz='UTC', target_tz='CET')
+        df_result = pandemy._datetime.convert_datetime_columns(
+            df=df,
+            dtype=None,
+            localize_tz=localize_tz,
+            target_tz=target_tz
+        )
 
         # Verify
         # ===========================================================
-        assert_frame_equal(df, df_exp_result)
+        assert_frame_equal(df_result, df)
 
         # Clean up - None
         # ===========================================================
 
-    @pytest.mark.parametrize('localize_tz, target_tz',
-                             [pytest.param('UTC', 'CET', id='localize=UTC, target=CET'),
-                              pytest.param('UTC', 'UTC', id='localize=UTC, target=UTC'),
-                              pytest.param('UTC', None, id='localize=UTC, target=None')])
-    def test_localize_and_convert_to_tz(self, localize_tz, target_tz, df_datetime):
-        r"""
-        Localize naive datetime columns to a timezone and then convert them
-        into the target timezone.
+    @pytest.mark.parametrize(
+        'localize_tz, target_tz',
+        (
+            pytest.param('UTC', 'CET', id='loc_tz=UTC, t_tz=CET'),
+            pytest.param('UTC', 'UTC', id='loc_tz=UTC, t_tz=UTC'),
+            pytest.param('UTC', None, id='loc_tz=UTC, t_tz=None')
+        )
+    )
+    def test_localize_tz_and_target_tz_naive_datetime_columns(self, localize_tz, target_tz, df_datetime):
+        r"""Localize naive datetime columns and then convert to the target timezone.
 
         Parameters
         ----------
         localize_tz : str
             Name of the timezone which to localize naive datetime columns into.
 
-        target_tz : str or None, default 'CET'
-            Name of the target timezone of the timezone aware columns.
-            If `target_tz` is None or `target_tz = `localize_tz`
-            no timezone conversion will be performed.
+        target_tz : str or None
+            Name of the target timezone to convert datetime columns into.
+            If `target_tz` is None or `target_tz = `localize_tz` timezone conversion is omitted.
         """
 
         # Setup
@@ -207,24 +324,78 @@ class TestDatetimeColumnsToTimezone:
 
         # Exercise
         # ===========================================================
-        pandemy._datetime.datetime_columns_to_timezone(df=df, localize_tz=localize_tz, target_tz=target_tz)
+        df_result = pandemy._datetime.convert_datetime_columns(
+            df=df,
+            dtype=None,
+            localize_tz=localize_tz,
+            target_tz=target_tz
+        )
 
         # Verify
         # ===========================================================
-        assert_frame_equal(df, df_exp_result)
+        assert_frame_equal(df_result, df_exp_result)
+
+        # Clean up - None
+        # ===========================================================
+
+    @pytest.mark.parametrize(
+        'localize_tz, target_tz',
+        (
+            pytest.param('CET', 'UTC', id='loc_tz=CET, t_tz=UTC'),
+            pytest.param('UTC', 'UTC', id='loc_tz=UTC, t_tz=UTC'),
+            pytest.param('UTC', None, id='loc_tz=UTC, t_tz=None')
+        )
+    )
+    def test_localize_tz_and_target_tz_naive_and_tz_aware_datetime_columns(
+        self, localize_tz, target_tz, df_datetime_naive_and_tz_aware):
+        r"""Localize and convert to desired timezone a DataFrame with naive and timezone aware datetime columns.
+
+        Parameters
+        ----------
+        localize_tz : str
+            Name of the timezone which to localize naive datetime columns into.
+
+        target_tz : str or None
+            Name of the target timezone to convert datetime columns into.
+            If `target_tz` is None or `target_tz = `localize_tz` timezone conversion is omitted.
+        """
+
+        # Setup
+        # ===========================================================
+        df, datetime_cols = df_datetime_naive_and_tz_aware
+        df_exp_result = df.copy()
+        df_exp_result.loc[:, 'Datetime1'] = df_exp_result['Datetime1'].dt.tz_localize(localize_tz)
+
+        for col in datetime_cols:
+            if target_tz is not None or target_tz == localize_tz:
+                df_exp_result.loc[:, col] = df_exp_result[col].dt.tz_convert(target_tz)
+
+        # Exercise
+        # ===========================================================
+        df_result = pandemy._datetime.convert_datetime_columns(
+            df=df,
+            dtype=None,
+            localize_tz=localize_tz,
+            target_tz=target_tz
+        )
+
+        # Verify
+        # ===========================================================
+        assert_frame_equal(df_result, df_exp_result)
 
         # Clean up - None
         # ===========================================================
 
     @pytest.mark.raises
-    @pytest.mark.parametrize('localize_tz, target_tz',
-                             [pytest.param('UT', 'CET', id='localize=UT, target=CET'),
-                              pytest.param('UTC', 'T', id='localize=UTC, target=T'),
-                              pytest.param(None, None, id='localize=None, target=None')])
-    def test_localize_and_convert_with_unknown_timezone(self, localize_tz, target_tz, df_datetime):
-        r"""
-        Try to localize and convert naive datetime columns when supplying an
-        unknown timezone.
+    @pytest.mark.parametrize(
+        'localize_tz, target_tz',
+        (
+            pytest.param('UT', 'CET', id='loc_tz=UT, t_tz=CET'),
+            pytest.param('UTC', 'T', id='loc_tz=UTC, t_tz=T'),
+        )
+    )
+    def test_localize_tz_and_target_tz_with_unknown_timezone(self, localize_tz, target_tz, df_datetime):
+        r"""Test to localize and convert naive datetime columns when supplying an unknown timezone.
 
         pandemy.InvalidInputError is expected to be raised.
 
@@ -233,10 +404,9 @@ class TestDatetimeColumnsToTimezone:
         localize_tz : str
             Name of the timezone which to localize naive datetime columns into.
 
-        target_tz : str or None, default 'CET'
-            Name of the target timezone of the timezone aware columns.
-            If `target_tz` is None or `target_tz = `localize_tz`
-            no timezone conversion will be performed.
+        target_tz : str or None
+            Name of the target timezone to convert datetime columns into.
+            If `target_tz` is None or `target_tz = `localize_tz` timezone conversion is omitted.
         """
 
         # Setup
@@ -246,14 +416,21 @@ class TestDatetimeColumnsToTimezone:
         # Exercise & Verify
         # ===========================================================
         with pytest.raises(pandemy.InvalidInputError):
-            pandemy._datetime.datetime_columns_to_timezone(df=df, localize_tz=localize_tz, target_tz=target_tz)
+            pandemy._datetime.convert_datetime_columns(
+                df=df,
+                dtype=None,
+                localize_tz=localize_tz,
+                target_tz=target_tz
+            )
 
         # Clean up - None
         # ===========================================================
 
-
-class TestConvertDatetimeColumns:
+class TestConvertDatetimeColumnsToStrAndInt:
     r"""Test the function `convert_datetime_columns`.
+
+    Tests the localization and timezone conversion when converting
+    the data type to string or integer.
 
     Fixtures
     --------
@@ -449,39 +626,37 @@ class TestConvertDatetimeColumns:
         # Clean up - None
         # ===========================================================
 
+    @pytest.mark.raises
     def test_naive_and_tz_aware_datetime_to_str_target_tz_no_localize_tz(self, df_datetime_naive_and_tz_aware):
         r"""Convert naive and timezone aware datetime columns to string format without localizing.
         
         The parameter `localize_tz` is not specified, and `target_tz` is set to 'UTC'.
-        One naive column should be left naive and the others converted to to UTC.
+        The naive datetime column Datetime1 should raise pandemy.InvalidInputError
+        since it is not possible to convert the timezone of a naive datetime column.
         """
 
         # Setup
         # ===========================================================
-        datetime_format : str = r'%Y-%m-%d %H:%M:%S%z'
+        localize_tz = None
         target_tz : str = 'UTC'
 
-        df, col_tz = df_datetime_naive_and_tz_aware
-        df_exp_result = df.copy()
-
-        for col, tz in col_tz.items():
-            if tz is not None:  # Convert timezone aware columns
-                df_exp_result[col] = df_exp_result[col].dt.tz_convert(target_tz)
-
-            df_exp_result[col] = df_exp_result[col].dt.strftime(datetime_format).astype('string')
+        df, _ = df_datetime_naive_and_tz_aware
 
         # Exercise
         # ===========================================================
-        df_result = pandemy._datetime.convert_datetime_columns(
-            df=df,
-            dtype='str',
-            datetime_format=datetime_format,
-            target_tz=target_tz
-        )
+        with pytest.raises(pandemy.InvalidInputError) as exc_info:
+            pandemy._datetime.convert_datetime_columns(
+                df=df,
+                dtype='str',
+                target_tz=target_tz
+            )
 
         # Verify
         # ===========================================================
-        assert_frame_equal(df_result, df_exp_result, check_exact=True)
+        assert 'Datetime1' in exc_info.value.args[0]
+        assert f'{target_tz=}' in exc_info.value.args[0]
+        assert f'{localize_tz=}' in exc_info.value.args[0]
+        assert 'Datetime1' in exc_info.value.data
 
         # Clean up - None
         # ===========================================================
@@ -722,7 +897,7 @@ class TestConvertDatetimeColumns:
 
         # Exercise & Verify
         # ===========================================================
-        with pytest.raises(pandemy.InvalidInputError, match=r"{'str', 'int'}"):
+        with pytest.raises(pandemy.InvalidInputError, match=r"{'str', 'int', None}"):
             pandemy._datetime.convert_datetime_columns(df=df_datetime, dtype='float')
 
         # Clean up - None
