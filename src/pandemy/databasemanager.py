@@ -609,11 +609,11 @@ WHERE
 
         Raises
         ------
-        pandemy.InvalidInputError
-            If invalid input is supplied to `action`.
-
         pandemy.ExecuteStatementError
             If changing the handling of foreign key constraint fails.
+
+        pandemy.InvalidInputError
+            If invalid input is supplied to `action`.
 
         See Also
         --------
@@ -694,17 +694,15 @@ WHERE
 
         Raises
         ------
-        pandemy.InvalidInputError
-            If `sql` is not of type str or sqlalchemy.sql.elements.TextClause.
-
         pandemy.ExecuteStatementError
             If an error occurs when executing the statement.
+
+        pandemy.InvalidInputError
+            If `sql` is not of type str or :class:`sqlalchemy.sql.elements.TextClause`.
 
         See Also
         --------
         * :meth:`sqlalchemy.engine.Connection.execute` : The method used for executing the SQL statement.
-
-        * :class:`sqlalchemy.engine.CursorResult` : The return type from the method.
 
         Examples
         --------
@@ -754,11 +752,11 @@ WHERE
 
         Raises
         ------
-        pandemy.InvalidTableNameError
-            If the supplied table name is invalid.
-
         pandemy.DeleteFromTableError
             If data cannot be deleted from the table.
+
+        pandemy.InvalidTableNameError
+            If the supplied table name is invalid.
 
         See Also
         --------
@@ -935,14 +933,11 @@ WHERE
 
         Raises
         ------
-        pandemy.TableExistsError
-            If the table exists and ``if_exists='fail'``.
-
         pandemy.DeleteFromTableError
             If data in the table cannot be deleted when ``if_exists='replace'``.
 
         pandemy.InvalidInputError
-            Invalid values or types for input parameters.
+            Invalid values or types for input parameters or if the timezone localization or conversion fails.
 
         pandemy.InvalidTableNameError
             If the supplied table name is invalid.
@@ -950,8 +945,18 @@ WHERE
         pandemy.SaveDataFrameError
             If the :class:`pandas.DataFrame` cannot be saved to the table.
 
+        pandemy.TableExistsError
+            If the table exists and ``if_exists='fail'``.
+
         See Also
         --------
+
+        * :meth:`~DatabaseManager.load_table` : Load a SQL table into a :class:`pandas.DataFrame`.
+
+        * :meth:`~DatabaseManager.merge_df` : Merge data from a :class:`pandas.DataFrame` into a table.
+
+        * :meth:`~DatabaseManager.upsert_table` : Update a table with a :class:`pandas.DataFrame` and insert new rows if any.
+
         * :meth:`pandas.DataFrame.to_sql` : Write records stored in a DataFrame to a SQL database.
 
         * `pandas SQL insertion method`_ : Details about using the `method` parameter.
@@ -1170,6 +1175,12 @@ WHERE
 
         Raises
         ------
+        pandemy.DataTypeConversionError
+            If errors when converting data types using the `dtypes` parameter.
+
+        pandemy.InvalidInputError
+            Invalid values or types for input parameters or if the timezone localization or conversion fails.
+
         pandemy.LoadTableError
             If errors when loading the table using :func:`pandas.read_sql`.
 
@@ -1177,12 +1188,9 @@ WHERE
             If setting the index of the returned :class:`pandas.DataFrame` fails when `index_col` is specified
             and chunksize is None.
 
-        pandemy.DataTypeConversionError
-            If errors when converting data types using the `dtypes` parameter.
-
         See Also
         --------
-        * :meth:`DatabaseManager.save_df` : Save a :class:`pandas.DataFrame` to a table in the database.
+        * :meth:`~DatabaseManager.save_df` : Save a :class:`pandas.DataFrame` to a table in the database.
 
         * :func:`pandas.read_sql` : Read SQL query or database table into a :class:`pandas.DataFrame`.
 
@@ -1390,7 +1398,7 @@ WHERE
             among the columns or index of `df`.
 
         pandemy.InvalidInputError
-            Invalid values or types for input parameters.
+            Invalid values or types for input parameters or if the timezone localization or conversion fails.
 
         pandemy.InvalidTableNameError
             If the supplied table name is invalid.
@@ -1667,7 +1675,7 @@ WHERE
             among the columns or index of the input DataFrame `df`.
 
         pandemy.InvalidInputError
-            Invalid values or types for input parameters.
+            Invalid values or types for input parameters or if the timezone localization or conversion fails.
 
         pandemy.InvalidTableNameError
             If the supplied table name is invalid.
@@ -1677,6 +1685,8 @@ WHERE
 
         See Also
         --------
+        * :meth:`~DatabaseManager.save_df()` : Save a :class:`pandas.DataFrame` to specified table in the database.
+
         * :meth:`~DatabaseManager.upsert_table()` : Update a table with a :class:`pandas.DataFrame` and optionally insert new rows.
 
         Examples
@@ -1983,11 +1993,11 @@ class SQLiteDb(DatabaseManager):
 
         Raises
         ------
-        pandemy.InvalidInputError
-            If invalid input is supplied to `action`.
-
         pandemy.ExecuteStatementError
             If the enabling/disabling of the foreign key constraints fails.
+
+        pandemy.InvalidInputError
+            If invalid input is supplied to `action`.
 
         See Also
         --------
