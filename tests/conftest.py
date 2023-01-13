@@ -261,11 +261,11 @@ def df_customer_upsert(df_customer) -> Union[pd.DataFrame, Tuple[int, ...], Tupl
     df.loc[2, 'BirthDate'] = datetime(1972, 1, 14)
     df.loc[3:4, 'Residence'] = ('Lumbridge', 'Taverley')
     df.loc[3:4, 'BirthDate'] = (datetime(1962, 5, 13), datetime(1995, 3, 24))
-    df.loc[5, 'IsAdventurer'] = 0
+    df.loc[5, 'IsAdventurer'] = False
 
     # Added rows
-    df.loc[7, :] = ('Prince Ali', datetime(1969, 6, 20), 'Al Kharid', 0)
-    df.loc[8, :] = ('Mosol Rei', datetime(1983, 4, 30), 'Shilo Village', 0)
+    df.loc[7, :] = ('Prince Ali', datetime(1969, 6, 20), 'Al Kharid', False)
+    df.loc[8, :] = ('Mosol Rei', datetime(1983, 4, 30), 'Shilo Village', False)
 
     return df, (2, 3, 4, 5), (7, 8)
 

@@ -911,7 +911,7 @@ class TestSaveDfMethod:
     @pytest.mark.parametrize('chunksize', [pytest.param(None, id='chunksize=None'),
                                            pytest.param(2, id='chunksize=2')])
     def test_save_to_existing_empty_table(self, chunksize, sqlite_db_empty, df_customer):
-        r"""Save a DataFrame to an exisitng empty table.
+        r"""Save a DataFrame to an existing empty table.
 
         Parameters
         ----------
@@ -2385,7 +2385,7 @@ WHERE
         df_customer = df_customer.reset_index()
         df_customer.loc[0, 'CustomerId'] = 0
         df_customer.loc[1, 'CustomerName'] = 'Captain Lawgof'
-        df_customer.loc[1, 'IsAdventurer'] = 1
+        df_customer.loc[1, 'IsAdventurer'] = True
         df_customer = df_customer.set_index(['CustomerId', 'CustomerName'])
 
         # Exercise
@@ -2429,7 +2429,7 @@ WHERE
         df_customer = df_customer.reset_index()
         df_customer.loc[1, 'CustomerName'] = 'Martin the Master Gardener'
         df_customer.loc[1, 'Residence'] = 'Draynor Village'
-        df_customer.loc[1, 'IsAdventurer'] = 0
+        df_customer.loc[1, 'IsAdventurer'] = False
         df_customer = df_customer.set_index(['CustomerId', 'CustomerName'])
 
         # Exercise
