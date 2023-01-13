@@ -320,7 +320,9 @@ class TestConvertDatetimeColumns:
         for col in datetime_cols:
             df_exp_result.loc[:, col] = df_exp_result[col].dt.tz_localize(localize_tz)
             if target_tz is not None or target_tz == localize_tz:
-                df_exp_result.loc[:, col] = df_exp_result[col].dt.tz_convert(target_tz)
+                s = df_exp_result[col].dt.tz_convert(target_tz)
+                df_exp_result[col] = df_exp_result[col].astype(object)
+                df_exp_result[col] = s
 
         # Exercise
         # ===========================================================
@@ -364,11 +366,13 @@ class TestConvertDatetimeColumns:
         # ===========================================================
         df, datetime_cols = df_datetime_naive_and_tz_aware
         df_exp_result = df.copy()
-        df_exp_result.loc[:, 'Datetime1'] = df_exp_result['Datetime1'].dt.tz_localize(localize_tz)
+        df_exp_result['Datetime1'] = df_exp_result['Datetime1'].dt.tz_localize(localize_tz)
 
         for col in datetime_cols:
             if target_tz is not None or target_tz == localize_tz:
-                df_exp_result.loc[:, col] = df_exp_result[col].dt.tz_convert(target_tz)
+                s = df_exp_result[col].dt.tz_convert(target_tz)
+                df_exp_result[col] = df_exp_result[col].astype(object)
+                df_exp_result[col] = s
 
         # Exercise
         # ===========================================================
