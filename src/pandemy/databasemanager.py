@@ -993,17 +993,10 @@ WHERE
         # ==========================================
         self._validate_chunksize(chunksize=chunksize)
 
-        if not isinstance(df, pd.DataFrame):
-            raise pandemy.InvalidInputError(f'df must be of type pandas.DataFrame. Got {type(df)}. df = {df}.')
-
         # Validate if_exists
         if not isinstance(if_exists, str) or if_exists not in {'append', 'replace', 'drop-replace', 'fail'}:
             raise pandemy.InvalidInputError(f'Invalid input if_exists = {if_exists}. '
                                             "Expected 'append', 'replace', 'drop-replace' or 'fail'.")
-
-        # Validate connection
-        if not isinstance(conn, Connection):
-            raise pandemy.InvalidInputError(f'conn must be of type {type(Connection)}. Got {type(conn)}. conn = {conn}')
 
         # Validate table
         if not isinstance(table, str):

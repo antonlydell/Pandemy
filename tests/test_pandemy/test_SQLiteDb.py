@@ -1370,24 +1370,6 @@ class TestSaveDfMethod:
         # ===========================================================
 
     @pytest.mark.raises
-    @pytest.mark.parametrize('df', [pytest.param('df', id='str'),
-                                    pytest.param([], id='list')])
-    def test_invalid_input_df(self, df, sqlite_db_empty):
-        r"""Supply an invalid argument to the `df` parameter.
-
-        pandemy.InvalidInputError is expected to be raised.
-        """
-
-        # Setup
-        # ===========================================================
-        with sqlite_db_empty.engine.begin() as conn:
-
-            # Exercise & Verify
-            # ===========================================================
-            with pytest.raises(pandemy.InvalidInputError):
-                sqlite_db_empty.save_df(df=df, table='Customer', conn=conn, if_exists='append')
-
-    @pytest.mark.raises
     @pytest.mark.parametrize('if_exists', [pytest.param('delete', id='str'),
                                            pytest.param([], id='list')])
     def test_invalid_input_if_exists(self, if_exists, sqlite_db_empty, df_customer):
@@ -1404,25 +1386,6 @@ class TestSaveDfMethod:
             # ===========================================================
             with pytest.raises(pandemy.InvalidInputError):
                 sqlite_db_empty.save_df(df=df_customer, table='Customer', conn=conn, if_exists=if_exists)
-
-    @pytest.mark.raises
-    @pytest.mark.parametrize('conn', [pytest.param('conn', id='str'),
-                                      pytest.param([], id='list'),
-                                      pytest.param(pandemy.SQLContainer, id='class')])
-    def test_invalid_input_conn(self, conn, sqlite_db_empty, df_customer):
-        r"""Supply an invalid argument to the `conn` parameter.
-
-        pandemy.InvalidInputError is expected to be raised.
-        """
-
-        # Setup
-        # ===========================================================
-        with sqlite_db_empty.engine.begin():
-
-            # Exercise & Verify
-            # ===========================================================
-            with pytest.raises(pandemy.InvalidInputError):
-                sqlite_db_empty.save_df(df=df_customer, table='Customer', conn=conn)
 
     @pytest.mark.raises
     @pytest.mark.parametrize('table', [pytest.param('delete from', id='delete from'),
