@@ -1067,7 +1067,7 @@ WHERE
         else:
             nr_cols = df.shape[1] + len(df.index.names) if index else df.shape[1]
             nr_rows = df.shape[0]
-            logger.info(f'Successfully wrote {nr_rows} rows over {nr_cols} columns to table {table}.')
+            logger.debug(f'Successfully wrote {nr_rows} rows over {nr_cols} columns to table {table}.')
 
     def load_table(
         self,
@@ -1279,7 +1279,7 @@ WHERE
             if error_msg:
                 raise pandemy.SetIndexError(message=error_msg, data=index_col)
 
-        logger.info(f'Successfully loaded {nr_rows} rows and {nr_cols} columns.')
+        logger.debug(f'Successfully loaded {nr_rows} rows and {nr_cols} columns.')
 
         return df
 
