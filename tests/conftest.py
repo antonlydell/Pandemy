@@ -326,3 +326,36 @@ TransactionId;StoreId;ItemId;CustomerId;CustomerBuys;TransactionTimestamp;Quanti
 
     return pd.read_csv(filepath_or_buffer=data, sep=CSV_DELIM, index_col='TransactionId',
                        parse_dates=['TransactionTimestamp'], dtype=dtypes)
+
+
+@pytest.fixture(
+    params=(
+        pytest.param((1, 2, 0), id='v1.2.0'),
+        pytest.param((1, 2, 3), id='v1.2.3'),
+        pytest.param((2, 1, 0), id='v2.1.0'),
+        pytest.param((1, 2, 0, 'post1'), id='v1.2.0.post1'),
+    )
+)
+def pandemy_geq_v1_2_0(request, monkeypatch) -> None:
+    r"""Mocks the version of Pandemy to a version >= 1.2.0 by setting the __versiontuple__ attribute.
+
+    Useful for testing that DeprecationWarnings are raised from version 1.2.0.
+    """
+
+    monkeypatch.setattr(pandemy, '__versiontuple__', request.param)
+
+
+@pytest.fixture(
+    params=(
+        pytest.param((1, 1, 5), id='v1.1.5'),
+        pytest.param((0, 1, 2), id='v0.1.2'),
+        pytest.param((1, 1, 0, 'rc'), id='v1.1.0.rc'),
+    )
+)
+def pandemy_lt_v1_2_0(request, monkeypatch) -> None: 
+    r"""Mocks the version of Pandemy to a version < 1.2.0 by setting the  __versiontuple__ attribute.
+
+    Useful for testing that DeprecationWarnings are not raised before version 1.2.0.
+    """
+
+    monkeypatch.setattr(pandemy, '__versiontuple__', request.param)

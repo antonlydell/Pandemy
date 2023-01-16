@@ -1035,8 +1035,12 @@ class TestFromURLMethod:
         # Clean up - None
         # ===========================================================
 
-    def test_deprecation_warning(self):
-        r"""Test that the DeprecationWarning is triggered when `from_url` is called."""
+    @pytest.mark.usefixtures('pandemy_geq_v1_2_0')
+    def test_deprecation_warning_triggered_geq_v1_2_0(self):
+        r"""Test that the DeprecationWarning is triggered when `from_url` is called.
+        
+        The DeprecationWarning should be triggered for versions of Pandemy >= 1.2.0.
+        """
 
         # Setup
         # ===========================================================
@@ -1057,6 +1061,28 @@ class TestFromURLMethod:
         assert len(record) == 1
         assert str(record[0].message) == message
         assert issubclass(record[0].category, DeprecationWarning)
+
+        # Clean up - None
+        # ===========================================================
+
+    @pytest.mark.usefixtures('pandemy_lt_v1_2_0')
+    def test_deprecation_warning_not_triggered_lt_v1_2_0(self, recwarn):
+        r"""Test that the DeprecationWarning is not triggered when `from_url` is called.
+        
+        The DeprecationWarning should not be triggered for versions of Pandemy < 1.2.0.
+        """
+
+        # Setup
+        # ===========================================================
+        url = 'oracle+cx_oracle://Fred_the_Farmer:Penguins-sheep-are-not@fred.farmer.rs:1234?service_name=woollysheep'
+
+        # Exercise
+        # ===========================================================
+        pandemy.OracleDb.from_url(url)
+
+        # Verify
+        # ===========================================================
+        assert len(recwarn) == 0
 
         # Clean up - None
         # ===========================================================
@@ -1120,8 +1146,12 @@ class TestFromEngineMethod:
         # Clean up - None
         # ===========================================================
 
-    def test_deprecation_warning(self):
-        r"""Test that the DeprecationWarning is triggered when `from_engine` is called."""
+    @pytest.mark.usefixtures('pandemy_geq_v1_2_0')
+    def test_deprecation_warning_triggered_geq_v1_2_0(self):
+        r"""Test that the DeprecationWarning is triggered when `from_engine` is called.
+
+        The DeprecationWarning should be triggered for versions of Pandemy >= 1.2.0.
+        """
 
         # Setup
         # ===========================================================
@@ -1144,6 +1174,30 @@ class TestFromEngineMethod:
         assert len(record) == 1
         assert str(record[0].message) == message
         assert issubclass(record[0].category, DeprecationWarning)
+
+        # Clean up - None
+        # ===========================================================
+
+    @pytest.mark.usefixtures('pandemy_lt_v1_2_0')
+    def test_deprecation_warning_not_triggered_lt_v1_2_0(self, recwarn):
+        r"""Test that the DeprecationWarning is not triggered when `from_engine` is called.
+
+        The DeprecationWarning should not be triggered for versions of Pandemy < 1.2.0.
+        """
+
+        # Setup
+        # ===========================================================
+        engine = create_engine(
+            'oracle+cx_oracle://Fred_the_Farmer:Penguins-sheep-are-not@fred.farmer.rs:1234?service_name=woollysheep'
+        )
+
+        # Exercise
+        # ===========================================================
+        pandemy.OracleDb.from_engine(engine)
+
+        # Verify
+        # ===========================================================
+        assert len(recwarn) == 0
 
         # Clean up - None
         # ===========================================================

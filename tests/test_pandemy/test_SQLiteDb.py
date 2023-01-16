@@ -3478,19 +3478,46 @@ class TestConnStrDeprecation:
         # Clean up - None
         # ===========================================================
 
-    def test_deprecation_warning(self):
-        r"""Test that the DeprecationWarning is triggered when `conn_str` is accessed."""
+    @pytest.mark.usefixtures('pandemy_geq_v1_2_0')
+    def test_deprecation_warning_triggered_geq_v1_2_0(self):
+        r"""Test that the DeprecationWarning is triggered when `conn_str` is accessed.
+        
+        The DeprecationWarning should be triggered for versions of Pandemy >= 1.2.0.
+        """
 
         # Setup
         # ===========================================================
         url = 'sqlite:///Runescape.db'
         db = pandemy.SQLiteDb(url=url)
-        message = 'conn_str attribute is deprecated in version 1.2.0 and replaced by url. Use SQLiteDb.url instead.'
+        message = 'The conn_str attribute is deprecated in version 1.2.0 and replaced by url. Use SQLiteDb.url instead.'
 
         # Exercise & Verify
         # ===========================================================
         with pytest.warns(DeprecationWarning, match=message):
             db.conn_str 
+
+        # Clean up - None
+        # ===========================================================
+
+    @pytest.mark.usefixtures('pandemy_lt_v1_2_0')
+    def test_deprecation_warning_not_triggered_lt_v1_2_0(self, recwarn):
+        r"""Test that the DeprecationWarning is not triggered when `conn_str` is accessed.
+        
+        The DeprecationWarning should not be triggered for versions of Pandemy < 1.2.0.
+        """
+
+        # Setup
+        # ===========================================================
+        url = 'sqlite:///Runescape.db'
+        db = pandemy.SQLiteDb(url=url)
+
+        # Exercise
+        # ===========================================================
+        db.conn_str 
+
+        # Verify
+        # ===========================================================
+        assert len(recwarn) == 0
 
         # Clean up - None
         # ===========================================================

@@ -1963,11 +1963,12 @@ class SQLiteDb(DatabaseManager):
         The `conn_str` attribute is deprecated in version 1.2.0 and replaced by the url attribute.
         """
 
-        warnings.warn(
-            message='conn_str attribute is deprecated in version 1.2.0 and replaced by url. Use SQLiteDb.url instead.',
-            category=DeprecationWarning,
-            stacklevel=2
-        )
+        if pandemy.__versiontuple__[:3] >= (1, 2, 0):
+            warnings.warn(
+                message='The conn_str attribute is deprecated in version 1.2.0 and replaced by url. Use SQLiteDb.url instead.',
+                category=DeprecationWarning,
+                stacklevel=2
+            )
 
         return str(self.url)
 
@@ -2473,15 +2474,16 @@ WHEN NOT MATCHED THEN
         )
         """
 
-        warnings.warn(
-            message=(
-                'from_url is deprecated in version 1.2.0. '
-                'Use the url parameter of the normal initializer of OracleDb instead. '
-                'db = pandemy.OracleDb(url=url)'
-            ),
-            category=DeprecationWarning,
-            stacklevel=2
-        )
+        if pandemy.__versiontuple__[:3] >= (1, 2, 0):
+            warnings.warn(
+                message=(
+                    'from_url is deprecated in version 1.2.0. '
+                    'Use the url parameter of the normal initializer of OracleDb instead. '
+                    'db = pandemy.OracleDb(url=url)'
+                ),
+                category=DeprecationWarning,
+                stacklevel=2
+            )
 
         return cls(url=url, container=container, engine_config=engine_config)
 
@@ -2532,14 +2534,15 @@ WHEN NOT MATCHED THEN
         .. _cx_Oracle SessionPool: https://docs.sqlalchemy.org/en/14/dialects/oracle.html#using-cx-oracle-sessionpool
         """
 
-        warnings.warn(
-            message=(
-                'from_engine is deprecated in version 1.2.0. '
-                'Use the engine parameter of the normal initializer of OracleDb instead. '
-                'db = pandemy.OracleDb(engine=engine)'
-            ),
-            category=DeprecationWarning,
-            stacklevel=2
-        )
+        if pandemy.__versiontuple__[:3] >= (1, 2, 0):
+            warnings.warn(
+                message=(
+                    'from_engine is deprecated in version 1.2.0. '
+                    'Use the engine parameter of the normal initializer of OracleDb instead. '
+                    'db = pandemy.OracleDb(engine=engine)'
+                ),
+                category=DeprecationWarning,
+                stacklevel=2
+            )
 
         return cls(engine=engine, container=container)
