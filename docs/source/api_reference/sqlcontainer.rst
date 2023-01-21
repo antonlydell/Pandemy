@@ -11,9 +11,6 @@ method for pre-processing of placeholders in a SQL statement before it is execut
    :members: replace_placeholders
 
 
-Placeholder
------------
-
 Input to the :meth:`SQLContainer.replace_placeholders() <pandemy.SQLContainer.replace_placeholders>` method.
 
 .. autoclass:: pandemy.Placeholder
