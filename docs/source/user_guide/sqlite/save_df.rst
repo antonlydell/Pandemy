@@ -91,14 +91,21 @@ to an existing table in the database.
 
 * *'replace'*: Delete all records from the table and then write the :class:`pandas.DataFrame` to the table.
 
+* *'drop-replace'*: Drop the table, recreate it, and then write the :class:`pandas.DataFrame` to the table.
+
 * *'fail'*: Raise :exc:`pandemy.TableExistsError` if the table exists.
+
+
+.. versionadded:: 1.2.0
+   'drop-replace'
+
 
 In the :meth:`pandas.DataFrame.to_sql` method *'fail'* is the default value. The option *'replace'* drops the 
 existing table, recreates it with the column definitions from the :class:`pandas.DataFrame`, and inserts the data.
 By dropping the table and recreating it you loose important information such as primary keys and constraints.
 
-In :meth:`DatabaseManager.save_df() <pandemy.DatabaseManager.save_df>` *'replace'* deletes all current records before inserting the new data
-rather than dropping the table. This preserves the existing columns definitions and constraints of the table.
+In :meth:`DatabaseManager.save_df() <pandemy.DatabaseManager.save_df>` *'replace'* deletes all current records before inserting
+the new data rather than dropping the table. This preserves the existing columns definitions and constraints of the table.
 Deleting the current records is done with the 
 :meth:`DatabaseManager.delete_all_records_from_table() <pandemy.DatabaseManager.delete_all_records_from_table>` method.
-If the target table does not exist it will be created, which is also how :meth:`pandas.DataFrame.to_sql` operates by default.
+The *'drop-replace'* option is the equivalent of *'replace'* in :meth:`pandas.DataFrame.to_sql`.
