@@ -57,11 +57,6 @@ INSERT statement derived from the structure of the :class:`pandas.DataFrame`. Le
       db.save_df(df=df, table='Customer', conn=conn)
 
 
-.. code-block:: bash
-
-   $ python upsert_table.py 
-
-
 .. testcode:: upsert_table
 
    # upsert_table.py
@@ -122,6 +117,11 @@ INSERT statement derived from the structure of the :class:`pandas.DataFrame`. Le
       )
 
    print(f'\n\nCustomer table after upsert:\n\n{df_upsert}')
+
+
+.. code-block:: bash
+
+   $ python upsert_table.py
 
 
 .. testoutput:: upsert_table
@@ -187,11 +187,6 @@ The next example illustrates using the ``dry_run`` parameter with the *Customer*
    :download:`upsert_table_dry_run.py <examples/upsert_table_dry_run.py>`
 
 
-.. code-block:: bash
-
-   $ python upsert_table_dry_run.py
-
-
 .. testcode:: upsert_table
 
    # upsert_table_dry_run.py
@@ -236,6 +231,11 @@ The next example illustrates using the ``dry_run`` parameter with the *Customer*
 
    print(f'\n\nUPDATE statement:\n\n{update_stmt}')
    print(f'INSERT statement:\n\n{insert_stmt}')
+
+
+.. code-block:: bash
+
+   $ python upsert_table_dry_run.py
 
 
 .. testoutput:: upsert_table
