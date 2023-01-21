@@ -75,11 +75,6 @@ method of the :class:`DatabaseManager.engine <sqlalchemy.engine.Engine>` is mock
       db.save_df(df=df, table='Item', conn=conn)
 
 
-.. code-block:: bash
-
-   $ python merge_df.py 
-
-
 .. testcode:: merge_df
 
    # merge_df.py
@@ -143,6 +138,11 @@ method of the :class:`DatabaseManager.engine <sqlalchemy.engine.Engine>` is mock
       )
 
    print(f'\n\nMERGE statement:\n\n{merge_stmt}')
+
+
+.. code-block:: bash
+
+   $ python merge_df.py
 
 
 .. testoutput:: merge_df
@@ -240,11 +240,6 @@ in the MERGE statement. You can also supply a list of column level names to only
    :download:`merge_df_omit_update_where_clause.py <examples/merge_df_omit_update_where_clause.py>`
 
 
-.. code-block:: bash
-
-   $ python merge_df_omit_update_where_clause.py 
-
-
 .. testcode:: merge_df
 
    # merge_df_omit_update_where_clause.py
@@ -297,6 +292,11 @@ in the MERGE statement. You can also supply a list of column level names to only
       )
 
    print(f'MERGE statement:\n\n{merge_stmt}')
+
+
+.. code-block:: bash
+
+   $ python merge_df_omit_update_where_clause.py
 
 
 .. testoutput:: merge_df
