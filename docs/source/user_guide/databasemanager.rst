@@ -6,19 +6,24 @@ the database and provides the methods to do so. Each SQL dialect will inherit fr
 and define the specific details of how to connect to the database and create the database :class:`engine <sqlalchemy.engine.Engine>`.
 The database :class:`engine <sqlalchemy.engine.Engine>` is the core component that allows for connection and interaction with the database.
 The :class:`engine <sqlalchemy.engine.Engine>` is created through the :func:`sqlalchemy.create_engine` function. The creation of the
-connection string needed to create the :class:`engine <sqlalchemy.engine.Engine>` is all handled during the initialization of an
-instance of :class:`DatabaseManager <pandemy.DatabaseManager>`. This class is never used on its own instead it serves as the facilitator
-of functionality for each database dialect. 
+connection URL needed to create the :class:`engine <sqlalchemy.engine.Engine>` is handled during the initialization of
+:class:`DatabaseManager <pandemy.DatabaseManager>`. In cases where a subclass of :class:`~pandemy.DatabaseManager` for the desired SQL dialect
+does not exist this class can be used on its own (starting in version 1.2.0) but with limited functionality. Some methods that require dialect
+specific SQL statements such as :meth:`~pandemy.DatabaseManager.merge_df` will not be available. Using :class:`~pandemy.DatabaseManager` on its
+own also requires initialization through a SQLAlchemy :class:`URL <sqlalchemy.engine.URL>` or :class:`Engine <sqlalchemy.engine.Engine>`,
+which require some knowledge about `SQLAlchemy`_.
+
+.. _SQLAlchemy: https://docs.sqlalchemy.org/en/14/core/engines.html#engine-configuration
 
 
-Database dialects
------------------
+SQL dialects
+------------
 
-This section describes the available database dialects in Pandemy and the dialects planned for future releases.
+This section describes the available SQL dialects in Pandemy and the dialects planned for future releases.
 
 - **SQLite**: :class:`SQLiteDb <pandemy.SQLiteDb>`.
 
-- **Oracle**: :class:`OracleDb <pandemy.OracleDb>` (added in version 1.1.0).
+- **Oracle**: :class:`OracleDb <pandemy.OracleDb>` (*New in version 1.1.0*).
 
 - **Microsoft SQL Server**: Planned.
 
@@ -26,17 +31,28 @@ This section describes the available database dialects in Pandemy and the dialec
 Core functionality
 ------------------
 
-All database dialects inherit these methods from :class:`DatabaseManager <pandemy.DatabaseManager>`:
+All SQL dialects inherit these methods from :class:`DatabaseManager <pandemy.DatabaseManager>`:
 
-- :meth:`delete_all_records_from_table() <pandemy.DatabaseManager.delete_all_records_from_table>`: Delete all records from an existing table in the database.
+- :meth:`~pandemy.DatabaseManager.delete_all_records_from_table`: Delete all records from an existing table in the database.
 
-- :meth:`execute() <pandemy.DatabaseManager.execute>`: Execute arbitrary SQL statements on the database.
+- :meth:`~pandemy.DatabaseManager.execute`: Execute arbitrary SQL statements on the database.
 
-- :meth:`load_table() <pandemy.DatabaseManager.load_table>`: Load a table by name or SQL query into a :class:`pandas.DataFrame`.
+- :meth:`~pandemy.DatabaseManager.load_table`: Load a table by name or SQL query into a :class:`pandas.DataFrame`.
 
-- :meth:`save_df() <pandemy.DatabaseManager.save_df>`: Save a :class:`pandas.DataFrame` to a table in the database.
+- :meth:`~pandemy.DatabaseManager.manage_foreign_keys`: Manage how the database handles foreign key constraints.
 
-Examples of using these methods are shown in the :doc:`sqlite/index` section, but they work the same regardless of the SQL dialect used.  
+- :meth:`~pandemy.DatabaseManager.merge_df`: Merge data from a :class:`pandas.DataFrame` into a table (:class:`~pandemy.OracleDb` only).
+
+- :meth:`~pandemy.DatabaseManager.save_df`: Save a :class:`pandas.DataFrame` to a table in the database.
+
+- :meth:`~pandemy.DatabaseManager.upsert_table`: Update a table with data from a :class:`pandas.DataFrame` and insert new rows if any.
+
+
+.. versionadded:: 1.2.0
+   :meth:`~pandemy.DatabaseManager.merge_df` and :meth:`~pandemy.DatabaseManager.upsert_table`
+
+
+Examples of using these methods are shown in the :doc:`sqlite/index` and :doc:`oracle/index` sections, but they work the same regardless of the SQL dialect used.
 
 
 The SQLContainer
