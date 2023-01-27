@@ -1224,7 +1224,7 @@ WHERE
             return df
 
         if len(df.index) == 0:
-            logger.warning('No rows were returned form the query.')
+            logger.warning('No rows were returned from the query.')
 
         # Convert specified columns to desired data types
         if dtypes is not None:
@@ -1818,9 +1818,6 @@ WHERE
 class SQLiteDb(DatabaseManager):
     r"""A SQLite :class:`DatabaseManager`.
 
-    .. versionadded:: 1.2.0
-       Parameters: `driver`, `url`, `connect_args` and `engine`.
-
     Parameters
     ----------
     file : str or pathlib.Path, default ':memory:'
@@ -1840,13 +1837,19 @@ class SQLiteDb(DatabaseManager):
         which is also the default driver of SQLAlchemy.
         When the default is used no driver name is displayed in the connection URL.
 
+        .. versionadded:: 1.2.0
+
     url : :class:`str` or :class:`sqlalchemy.engine.URL` or None, default None
         A SQLAlchemy connection URL to use for creating the database engine.
         It overrides the value of `file` and `must_exist`.
 
+        .. versionadded:: 1.2.0
+
     connect_args : dict or None, default None
         Additional arguments sent to the driver upon connection that further
         customizes the connection.
+
+        .. versionadded:: 1.2.0
 
     engine_config : dict or None, default None
         Additional keyword arguments passed to the :func:`sqlalchemy.create_engine` function.
@@ -1856,6 +1859,8 @@ class SQLiteDb(DatabaseManager):
         It overrides the value of `file` and `must_exist`. If specified the value
         of `url` should be ``None``. If ``None`` (the default) the engine will be
         created from `file` or `url`.
+
+        .. versionadded:: 1.2.0
 
     **kwargs : dict
         Additional keyword arguments that are not used by :class:`SQLiteDb`.
@@ -2004,7 +2009,6 @@ class SQLiteDb(DatabaseManager):
         >>> import pandemy
         >>> db = pandemy.SQLiteDb()  # Create an in-memory database
         >>> with db.engine.begin() as conn:
-        ...     db.manage_foreign_keys(conn=conn, action='ON')
         ...     db.execute(
         ...         sql="CREATE TABLE Owner(OwnerId INTEGER PRIMARY KEY, OwnerName TEXT)",
         ...         conn=conn
@@ -2074,9 +2078,6 @@ class OracleDb(DatabaseManager):
 
     .. versionadded:: 1.1.0
 
-    .. versionadded:: 1.2.0
-       The parameter `driver`.
-
     .. _cx_Oracle: https://oracle.github.io/python-cx_Oracle/
 
     Parameters
@@ -2109,6 +2110,8 @@ class OracleDb(DatabaseManager):
 
     driver : str, default 'cx_oracle'
         The database driver to use. 
+
+        .. versionadded:: 1.2.0
 
     url : :class:`str` or :class:`sqlalchemy.engine.URL` or None, default None
         A SQLAlchemy connection URL to use for creating the database engine.
