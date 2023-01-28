@@ -1,5 +1,5 @@
 # Pinned build requirements for Read the Docs
 
 docutils==0.16
-sphinx==4.4.0
-sphinx_rtd_theme==0.4.3
+sphinx==5.3.0
+sphinx_rtd_theme==1.1.1
