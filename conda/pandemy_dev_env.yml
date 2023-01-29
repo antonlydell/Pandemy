@@ -1,0 +1,28 @@
+name: pandemy_dev_env
+channels:
+  - defaults
+dependencies:
+  # run
+  - python >=3.8
+  - pandas >=1.2
+  - sqlalchemy >=1.4
+
+  # run optional
+  - cx_oracle >=7.0  # Oracle
+  - pyodbc >=4.0  # Microsoft SQL Server
+
+  # test
+  - pytest >=6.0
+
+  # docs
+  - sphinx >=4.4
+  - sphinx_rtd_theme >=0.4.3
+  - docutils >=0.16
+
+  # tools
+  - flake8 >=4.0
+
+  # build and publish
+  - setuptools >=61.0
+  - python-build >=0.7
+  - twine >=3.7
