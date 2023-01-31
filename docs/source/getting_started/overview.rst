@@ -54,25 +54,25 @@ Let's create a new SQLite database and save a :class:`pandas.DataFrame` to it.
 
    db = pandemy.SQLiteDb(file='Runescape.db')  # Create the SQLite DatabaseManager instance
 
-   with db.engine.connect() as conn:
+   with db.engine.begin() as conn:
       db.execute(sql=create_table_item, conn=conn)
       db.save_df(df=df, table='Item', conn=conn)
 
 
 .. code-block:: bash
 
-    $ python overview_save_df.py
+   $ python overview_save_df.py
 
 
-The database is managed through the :class:`DatabaseManager <pandemy.DatabaseManager>` class which is this case is the 
-:class:`SQLiteDb <pandemy.SQLiteDb>` instance. Each SQL dialect will be a subclass of :class:`DatabaseManager <pandemy.DatabaseManager>`.
-The creation of the :class:`DatabaseManager <pandemy.DatabaseManager>` instance creates the database :class:`engine <sqlalchemy.engine.Engine>`,
-which is used to create a connection to the database. The :class:`engine <sqlalchemy.engine.Engine>` is created with the :func:`sqlalchemy.create_engine`
-function. The connection is automatically closed when the context manager exits. If the database file does not exist it will be created.
+The database is managed through the :class:`DatabaseManager <pandemy.DatabaseManager>` class (in this case the :class:`~pandemy.SQLiteDb`
+instance). Each SQL dialect is a subclass of :class:`~pandemy.DatabaseManager`. The initialization of the :class:`~pandemy.DatabaseManager`
+creates the database :class:`engine <sqlalchemy.engine.Engine>`, which is used to create a connection to the database.
+The :meth:`engine.begin() <sqlalchemy.engine.Engine.begin>` method returns a context manager with an open database transaction,
+which commits the statements if no errors occur or performs a rollback on error. The connection is automatically returned to the engine's
+connection pool when the context manager exits. If the database file does not exist it will be created.
 
 The :meth:`DatabaseManager.execute() <pandemy.DatabaseManager.execute>` method allows for execution of arbitrary SQL statements such as creating a table.
-The :meth:`DatabaseManager.save_df() <pandemy.DatabaseManager.save_df>` method saves the DataFrame ``df`` to the table *Item* in the database ``db`` 
-by using the :meth:`pandas.DataFrame.to_sql` method.
+The :meth:`DatabaseManager.save_df() <pandemy.DatabaseManager.save_df>` method saves the :class:`pandas.DataFrame` ``df`` to the table *Item* in the database ``db``. 
 
 
 Load a table into a DataFrame
@@ -143,7 +143,7 @@ The :class:`pandas.DataFrame` saved to the table *Item* of the database *Runesca
 
 .. code-block:: bash
 
-    $ python overview_load_table.py
+   $ python overview_load_table.py
 
 
 .. testoutput:: getting_started_overview_load_table
@@ -159,9 +159,9 @@ The :class:`pandas.DataFrame` saved to the table *Item* of the database *Runesca
    6       Amulet of glory           1  A very powerful dragonstone amulet.
 
 
-If the ``must_exist`` parameter is set to ``True`` :exc:`pandemy.DatabaseFileNotFoundError`
-will be raised if the database file is not found. This is useful if you expect the database to exist 
-and you want to avoid creating a new database by mistake if it does not exist.
-
-The :meth:`DatabaseManager.load_table() <pandemy.DatabaseManager.load_table>` method takes either a table name
-or a SQL statement for the ``sql`` parameter and uses the :func:`pandas.read_sql` function.
+If the ``must_exist`` parameter is set to ``True`` :exc:`pandemy.DatabaseFileNotFoundError` will be raised if the
+database file is not found. This is useful if you expect the database to exist and you want to avoid creating a new
+database by mistake if it does not exist. The :meth:`engine.connect() <sqlalchemy.engine.Engine.connect>` method is
+similar to :meth:`engine.begin() <sqlalchemy.engine.Engine.begin>`, but without opening a transaction.
+The :meth:`DatabaseManager.load_table() <pandemy.DatabaseManager.load_table>` method supports either a table name or a
+sql statement for the ``sql`` parameter. 

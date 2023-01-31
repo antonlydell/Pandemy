@@ -59,7 +59,7 @@ CREATE TABLE IF NOT EXISTS Item (
 
 db = pandemy.SQLiteDb(file=DB_FILENAME)  # Create the SQLite DatabaseManager instance
 
-with db.engine.connect() as conn:
+with db.engine.begin() as conn:
     db.execute(sql=create_table_item, conn=conn)
     db.save_df(df=df, table='Item', conn=conn)
 
