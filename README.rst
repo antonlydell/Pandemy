@@ -129,9 +129,9 @@ Let's create a new SQLite database and save a DataFrame to it.
       db.save_df(df=df, table='Item', conn=conn)
 
 
-The database is managed through the DatabaseManager_ class which in this case is the SQLiteDb_ instance.
-Each SQL dialect is a subclass of ``DatabaseManager``. The creation of the ``DatabaseManager`` instance
-creates the database engine_ which is used to create a connection to the database. The begin_ method of
+The database is managed through the DatabaseManager_ class (in this case the SQLiteDb_ instance).
+Each SQL dialect is a subclass of ``DatabaseManager``. The initialization of the ``DatabaseManager``
+creates the database engine_, which is used to create a connection to the database. The begin_ method of
 the engine returns a context manager with an open database transaction, which commits the statements if
 no errors occur or performs a rollback on error. The connection is automatically returned to the engine's
 connection pool when the context manager exits. If the database file does not exist it will be created.
@@ -180,13 +180,14 @@ The DataFrame saved to the table *Item* of the database *Runescape.db* can easil
    6       Amulet of glory           1  A very powerful dragonstone amulet.
 
 
-If the ``must_exist`` parameter is set to ``True`` an exception will be raised if the database file is not found. 
+If the ``must_exist`` parameter is set to ``True`` `pandemy.DatabaseFileNotFoundError`_ will be raised if the database file is not found.
 This is useful if you expect the database to exist and you want to avoid creating a new database by mistake if it
-does not exist. The connect_ method of the engine is similar to begin_ but without opening a transaction.
-The load_table_ method supports either a table name or a sql statement for the ``sql`` parameter. 
+does not exist. The connect_ method of the engine is similar to begin_, but without opening a transaction.
+The load_table_ method supports either a table name or a sql statement for the ``sql`` parameter.
 
 .. _connect: https://docs.sqlalchemy.org/en/14/core/connections.html#sqlalchemy.engine.Engine.connect
 .. _load_table: https://pandemy.readthedocs.io/en/latest/api_reference/databasemanager.html#pandemy.DatabaseManager.load_table
+.. _pandemy.DatabaseFileNotFoundError: https://pandemy.readthedocs.io/en/latest/api_reference/exceptions.html#pandemy.DatabaseFileNotFoundError
 
 
 Documentation
@@ -225,7 +226,6 @@ Contributing
 Suggestions, feature requests and feedback are welcome in *text form* on the tab `GitHub Discussions`_, but *not* as written code.
 This project is meant as a source of practice for me to become a better Python developer and I prefer to write the code myself.
 Please use the category `Ideas`_ for suggestions and feature request and the `General`_ category for feedback on the project and general questions.
-
 Bug reports should be submitted at the `Github Issues`_ tab.
 
 
