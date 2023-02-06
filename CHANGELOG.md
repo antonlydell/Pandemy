@@ -8,11 +8,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-- Support for [Microsoft SQL Server](https://www.microsoft.com/en-us/sql-server/sql-server-downloads).
+- A `DatabaseManager` for [Microsoft SQL Server](https://www.microsoft.com/en-us/sql-server/sql-server-downloads).
 
-- `DatabaseManager.update_table()` : Update the records of a table from a [*pandas.DataFrame*](https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html#pandas.DataFrame).
 
-- `SQLContainer.from_file()` : Load SQL statements from a file and create an instance of `SQLContainer`.
+## [1.2.0] - 2023-02-06
+
+New methods for `DatabaseManager` and improved performance!
+
+### Added
+
+  - `DatabaseManager.upsert_table()` : Update a table with data from a `pandas.DataFrame` and insert new rows if any.
+
+  - `DatabaseManager.merge_table()` : Merge data from a `pandas.DataFrame` into a table.
+
+  - `DatabaseManager.save_df()` :
+
+    - Added the 'drop-replace' option to the `if_exists` parameter, which drops the table, recreates it, and then writes the
+      `pandas.DataFrame` to the table. 
+
+    - Added the parameters `datetime_cols_dtype`, `datetime_format`, `localize_tz` and `target_tz`, which allows adjusting the timezone
+      and data type of datetime columns before saving the `pandas.DataFrame` to the database.
+
+  - `DatabaseManager.load_table()` : Added the parameters `datetime_cols_dtype` and `datetime_format`, which allows adjusting the data type
+    of datetime columns from the loaded `pandas.DataFrame`.
+
+  - `InvalidColumnNameError` : Exception raised when supplying an invalid column name to a database operation.
+
+  - `SQLStatementNotSupportedError` : Exception raised when executing a method that triggers a SQL statement not supported by the
+    database dialect. E.g. a *merge statement*.
+
+### Changed
+
+- The `DatabaseManager` base class is now a proper class and not an ABC. It can now be initialized from a SQLAlchemy URL or Engine.
+  This is useful if you want to use Pandemy, but there is no subclass of `DatabaseManager` implemented for the desired SQL dialect.
+  It should only be used directly if there is no dedicated subclass since it has limited functionality.
+
+- `DatabaseManager` and its subclasses now use `__slots__`, which improves performance of attribute access and lowers memory usage.
+
+- `SQLiteDb` and `OracleDb` now support to be initialized with a SQLAlchemy connection URL or Engine.
+
+- `Placeholder` has been refactored from a `namedtuple` into a proper class that is using `__slots__`.
+
+### Fixed 
+
+- `DatabaseManager.save_df()` :
+
+  - The option 'replace' of the `if_exists` parameter now correctly deletes the data of the existing table before writing the `pandas.DataFrame`
+    instead of dropping the table, recreating it, and finally writing the `pandas.DataFrame` to the table. The old behavior has been moved to the
+    'drop-replace' option (see section [Added](#added) above).
+
+  - The method now correctly raises `TableExistsError` and `SaveDataFrameError`. A `ValueError` raised by the `pandas.DataFrame.to_sql()` method,
+    that is not related to "table exists and if_exists='fail'", is now translated into a `SaveDataFrameError` and not a `TableExistsError` as before.
+
+### Deprecated
+
+- The methods `OracleDb.from_url()` and `OracleDb.from_engine()` are now deprecated since their functionality is now fulfilled
+  by the `url` and `engine` parameters added to the original constructor.
+
+- The `SQLiteDb.conn_str` attribute is deprecated and replaced by the `url` attribute.
 
 
 ## [1.1.0] - 2022-04-09
@@ -94,7 +147,8 @@ The first major release of Pandemy!
 - Registration on [PyPI](https://pypi.org/project/Pandemy/0.0.1/).
 
 
-[Unreleased]: https://github.com/antonlydell/Pandemy/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/antonlydell/Pandemy/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/antonlydell/Pandemy/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/antonlydell/Pandemy/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/antonlydell/Pandemy/compare/v0.0.1...v1.0.0
 [0.0.1]: https://github.com/antonlydell/Pandemy/releases/tag/v0.0.1
